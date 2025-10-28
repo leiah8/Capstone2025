@@ -1,0 +1,31 @@
+All in Attendance
+
+- Discussed SRS feedback
+- Planned meeting with TA to discuss:
+    - Template followed (not understanding what he meant by vagueness / high level when the example given was as well)
+    - We were led to believe P0 is for absolutely essential features but lost marks for not putting valuable features (not not required features) in P0
+    - Unsure if we lost marks on comments 5 and 6; Clarity on where we lost the marks would be good
+    - Bring up that most of our work is being allocated to Semester 2, where two members have less classes / less heavy workload
+- Leiah brought up Skeleton UI Designs
+- Tony worked on Schemas for database and implemented it
+- Planned next meeting for Tuesday Sep 4th @ 4:30pm
+
+ACTION ITEMS
+
+Martin
+- Book TA Meeting (Aim for Friday during Classtime)
+- Book Prof Meeting
+
+Tony
+- API Schemas / Planning / Setup
+- Initialize front end repo
+
+Nic
+- Busy week, TBD
+
+Andre
+- Look at design ideas 
+- Algorithm research
+
+Leiah
+- Collabrate with Andre on design ideas
