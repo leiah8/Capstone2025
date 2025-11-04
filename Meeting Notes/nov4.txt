@@ -1,0 +1,50 @@
+All in Attendance
+
+- Discussed SRS rewrite
+    - To be completed by Thursday Nov 6th @ Midnight
+- Replanned Proof of concept  
+    - Frontend put almost entirely on hold; Shift focus to matching algorithm and parsing
+    - Resume parsing to assign skills to a users profile
+    - FOR POC Use NLP to compare similiarity between a users resume and a project description, reccomend most similar users to a project first and vice versa
+- Discussed future NLP plans
+    - IN FUTURE NLP parses resume to a profile that gets populated with all users experience. When a user gains new experience, instead of rescanning resume, adds skills / experience to profile. 
+        - Profile gets vectorized for NLP comparison to project description for similarity score
+- UI Page Requirements for POC
+    - Profile Page
+        - Resume upload 
+        - List of Skills (parsed from resume)
+        - Name
+        - Icon
+    - Project Feed 
+        - List of all projects
+
+
+ACTION ITEMS
+
+Andre
+- Edit SRS to add detail to the algorithm section
+- NLP resume parse into skills section
+- NLP comparison between uploaded resume and a project description
+
+Nic
+- Edit SRS to add detail to the algorithm section
+- NLP resume parse into skills section
+- NLP comparison between uploaded resume and a project description
+
+Leiah
+- Edit SRS to fix priorities
+- Edit SRS to update proof of concept plan 
+- Matched tab with all matches projects
+
+Martin
+- Edit SRS to add algorithm validation plan 
+- Generate fake projects, resumes, and users into the database
+    - One user, 5 projects with varied levels of similarity to the user
+    - Demonstration will show that the algorithm shows the projects to the user in order of similarity
+    - User will skip project 1 due to disliking it, like project 2
+    - Project 2 will be hard coded to like the user back, which will show the notif that they matched
+    - User will go to match page and see the project that matched with them,  
+
+Tony
+- Project feed and profile page
+- 
