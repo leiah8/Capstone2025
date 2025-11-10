@@ -8,8 +8,10 @@ import { useAuth } from '../contexts/AuthContext';
 
 import { supabase } from '../lib/supabase';
 
+import { Ionicons } from '@expo/vector-icons';
+
+
 import {
-    Image,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -164,34 +166,38 @@ export default function MatchesPage() {
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>  
                 <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
                     {/* Header */}
-                    <View style={styles.headerContainer}>
+                    <View>
                         <Text style={styles.headerTitle}>Matches</Text>
-                    
-                    {/* Sub Headers */}
                     </View>
-                        <TouchableOpacity style={styles.signOutButton} onPress={async () => {
+                    {/* Sub Headers */}
+                    
+                    <View style={styles.tabsContainer}>
+                        <TouchableOpacity style={styles.tabButton} onPress={async () => {
                             setPage(true)} 
                             }>
-                            <Text style={styles.sectionTitle}>Projects</Text>
+                            <Text style={styles.sectionTitle && styles.activeTab}>Projects</Text>
                         </TouchableOpacity>
-                         <TouchableOpacity style={styles.signOutButton} onPress={async () => {
+                         <TouchableOpacity style={styles.tabButton} onPress={async () => {
                             setPage(false)} 
                             }>
                             <Text style={styles.sectionTitle}>Candidates</Text>
                         </TouchableOpacity>
-                    <View>
+                    
+                    </View>
 
                     {/* Content */}
-                    <View>
+                    <View style={styles.list}>
                         {projectMatchesUI.map((match, index) => (
                             <View style={styles.match}>
-                                <Image source={{ uri: match.project_image }} style={styles.profileImage} />
+                                {/* <Image source={{ uri: match.project_image }} style={styles.profileImage} /> */}
+                                <View style={styles.placeholderImage}>
+                                    <Ionicons name="person" size={30} color="#999" />
+                                </View>
                                 <Text key={index}>{match.project_name}</Text>
                             </View>
                         ))}
                     </View>
 
-                    </View>
 
                 </ScrollView>
                 
@@ -203,34 +209,39 @@ export default function MatchesPage() {
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>  
                 <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
                     {/* Header */}
-                    <View style={styles.headerContainer}>
+                    <View>
                         <Text style={styles.headerTitle}>Matches</Text>
+                    </View>
                     
                     {/* Sub Headers */}
-                    </View>
-                        <TouchableOpacity style={styles.signOutButton} onPress={async () => {
+                    <View style={styles.tabsContainer}>
+                        <TouchableOpacity style={styles.tabButton} onPress={async () => {
                             setPage(true)} 
                             }>
                             <Text style={styles.sectionTitle}>Projects</Text>
                         </TouchableOpacity>
-                         <TouchableOpacity style={styles.signOutButton} onPress={async () => {
+                         <TouchableOpacity style={styles.tabButton} onPress={async () => {
                             setPage(false)} 
                             }>
-                            <Text style={styles.sectionTitle}>Candidates</Text>
+                            <Text style={styles.sectionTitle && styles.activeTab}>Candidates</Text>
                         </TouchableOpacity>
-                    <View>
+
+                    </View>
+                    
 
                     {/* Content */}
-                    <View>
+                    <View style={styles.list}>
                         {candidateMatchesUI.map((match, index) => (
                             <View style={styles.match}>
-                                <Image source={{ uri: match.project_image }} style={styles.profileImage} />
+                                {/* <Image source={{ uri: match.project_image }} style={styles.profileImage} /> */}
+                                <View style={styles.placeholderImage}>
+                                    <Ionicons name="person" size={40} color="#999" />
+                                </View>
                                 <Text key={index}>{match.candidate_name}</Text>
                             </View>
                         ))}
                     </View>
 
-                    </View>
 
                 </ScrollView>
                 
@@ -245,44 +256,35 @@ export default function MatchesPage() {
    ========================= */
 const styles = StyleSheet.create({
 
-  match : {},
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  match : {flexDirection: 'row', justifyContent: 'flex-start', alignItems : "center", gap : 10},
+
+  list : {marginTop :  10, gap : 10},
+
+  container: { flex: 1, backgroundColor: '#ffffff' },
   scrollView: { flex: 1, padding: 20 },
 
-  headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 20 },
   headerTitle: { fontSize: 28, fontWeight: '700', color: '#333' },
-  signOutButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#FF3B30', gap: 6 },
-  signOutText: { color: '#FF3B30', fontSize: 14, fontWeight: '600' },
-
-  profileImageContainer: { alignItems: 'center', marginBottom: 30, marginTop: 10 },
-  profileImageButton: { marginBottom: 10, position: 'relative' },
-  profileImage: { width: 120, height: 120, borderRadius: 60 },
-  placeholderImage: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center' },
-  uploadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 60, justifyContent: 'center', alignItems: 'center' },
-  changePhotoButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 16, gap: 6 },
-  changePhotoText: { color: '#007AFF', fontSize: 16, fontWeight: '600' },
 
   section: { marginBottom: 25 },
   label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: 'normal', color: '#333' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
 
-  input: { backgroundColor: '#fff', borderRadius: 10, padding: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', marginBottom: 10 },
-  disabledInput: { backgroundColor: '#f0f0f0', color: '#666' },
-  textArea: { minHeight: 100, paddingTop: 14 },
+  profileImage: { width: 120, height: 120, borderRadius: 60 },
 
-  socialLinkContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#ddd', marginBottom: 12, gap: 12 },
-  socialInput: { flex: 1, fontSize: 16, color: '#333' },
 
-  searchContainer: { flexDirection: 'row', marginBottom: 12 },
-  searchInput: { flex: 1, backgroundColor: '#fff', borderRadius: 10, padding: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', marginRight: 10 },
-  addButton: { backgroundColor: '#007AFF', borderRadius: 10, width: 50, justifyContent: 'center', alignItems: 'center' },
-  addIconButton: { padding: 4 },
 
-  tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 20, paddingVertical: 8, paddingLeft: 14, paddingRight: 10, borderWidth: 1, borderColor: '#ddd', gap: 6 },
-  tagText: { fontSize: 14, color: '#333' },
+tabButton: { flex : 1, alignItems : "center", paddingVertical: 8, 
+  paddingHorizontal: 16, borderRadius: 8,backgroundColor: '#f5f5f5', justifyContent :"center"
+},
 
-  card: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#ddd', position: 'relative' },
-  removeButton: { position: 'absolute', top: 12, right: 12, zIndex: 1, padding: 4 },
+tabsContainer: {
+  flexDirection: 'row', justifyContent: 'space-between', alignItems: 'stretch', marginTop: 12, gap: 10, 
+},
+
+
+placeholderImage: { width: 60, height: 60, borderRadius: 60, backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center' },
+  
+activeTab : {fontWeight : "bold", fontSize : 18, justifyContent :"center"}
+  
 });
