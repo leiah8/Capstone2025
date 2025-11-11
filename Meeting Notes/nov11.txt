@@ -1,0 +1,32 @@
+Martin, Leiah, Nic, Tony in Attendance
+
+PROGRESS UPDATES
+- Martin created test data
+- TA will get back to us about SRS changes on Friday, submitted rewritten SRS
+- Tony made project feed, connected to database
+- Leiah created matches screen, temp messages screen
+- Algorithm research conducted by Nic and Andre, plans discussed with team
+
+DISCUSSIONS
+- Went through POC plan to determine all remaining required work to distribute
+
+
+ACTION ITEMS
+
+Martin
+- Add project photos for 5 test data projects currently in database
+- Prepare footage / editing plan for POC video
+
+Tony
+- UI / Frontend improvements for POC demonstration
+
+Andre
+- Resume parsing 
+- Base matching algorithm implementation
+
+Leiah
+- UI / Frontend improvements for POC demonstration
+
+Nic
+- Resume parsing 
+- Base matching algorithm implementation
