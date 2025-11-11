@@ -235,7 +235,7 @@ export default function MatchesPage() {
                             <View style={styles.match}>
                                 {/* <Image source={{ uri: match.project_image }} style={styles.profileImage} /> */}
                                 <View style={styles.placeholderImage}>
-                                    <Ionicons name="person" size={40} color="#999" />
+                                    <Ionicons name="person" size={40} color="#999" /> 
                                 </View>
                                 <Text key={index}>{match.candidate_name}</Text>
                             </View>
@@ -286,5 +286,9 @@ tabsContainer: {
 placeholderImage: { width: 60, height: 60, borderRadius: 60, backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center' },
   
 activeTab : {fontWeight : "bold", fontSize : 18, justifyContent :"center"}
-  
+    
 });
+
+
+//TODO: change output so only a couple things change per projectPage bool
+//TODO: add in images 
