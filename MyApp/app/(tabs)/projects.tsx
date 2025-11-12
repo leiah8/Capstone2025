@@ -8,7 +8,7 @@ import {
   View, Text, Image, StyleSheet, Dimensions, Animated, PanResponder, TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchProjects, ProjectUI } from '../lib/projects';
+import { fetchProjects, ProjectUI } from '../../lib/projects';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 120;

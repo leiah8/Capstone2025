@@ -10,9 +10,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { supabase } from './lib/supabase';
+import { supabase } from '../lib/supabase';
 import { router } from 'expo-router';
-import { useAuth } from './contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginScreen() {
   const { session } = useAuth();
@@ -23,62 +23,130 @@ export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
 
   // Redirect if already logged in
-  useEffect(() => {
-    if (session) {
+useEffect(() => {
+  (async () => {
+    if (!session) return;
+
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData?.user;
+    if (!user) return;
+
+    let { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('name')
+      .eq('id', user.id)
+      .single();
+
+    // If profile row doesn’t exist, create a blank one
+    if (profileError && profileError.code === 'PGRST116') {
+      const { error: upsertErr } = await supabase.from('profiles').upsert({ id: user.id, name: null });
+      if (upsertErr) {
+        console.error(upsertErr);
+        return;
+      }
+      profile = { name: null };
+    } else if (profileError) {
+      console.error(profileError);
+      return;
+    }
+
+    if (!profile?.name || !profile.name.trim()) {
+      router.replace('/setup');
+    } else {
       router.replace('/(tabs)');
     }
-  }, [session]);
+  })();
+}, [session]);
+
 
   async function handleAuth() {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
+  if (!email || !password) {
+    Alert.alert('Error', 'Please fill in all fields');
+    return;
+  }
+  if (isSignUp && password !== confirmPassword) {
+    Alert.alert('Error', 'Passwords do not match');
+    return;
+  }
+  if (isSignUp && password.length < 6) {
+    Alert.alert('Error', 'Password must be at least 6 characters');
+    return;
+  }
 
-    if (isSignUp && password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
-    if (isSignUp && password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
-
-    setLoading(true);
-
+  setLoading(true);
+  try {
     if (isSignUp) {
-      const { error } = await supabase.auth.signUp({
-        email: email,
-        password: password,
-      });
-
+      const { error } = await supabase.auth.signUp({ email, password });
       if (error) {
         Alert.alert('Sign Up Error', error.message);
       } else {
-        Alert.alert(
-          'Success',
-          'Account created! Please check your email for verification.'
-        );
+        Alert.alert('Success', 'Account created! Please check your email for verification.');
         setIsSignUp(false);
         setPassword('');
         setConfirmPassword('');
       }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
-      });
-
-      if (error) {
-        Alert.alert('Sign In Error', error.message);
-      } else {
-        router.replace('/(tabs)');
-      }
+      return; // stop here after sign-up
     }
 
+    // Sign in
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      Alert.alert('Sign In Error', signInError.message);
+      return;
+    }
+
+    // Current user
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError || !user) {
+      Alert.alert('Error', 'Unable to fetch user after login.');
+      return;
+    }
+
+    // Try to get profile.name (may be null or row may not exist)
+    const { data: profile, error: profileError, status } = await supabase
+      .from('profiles')
+      .select('name')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profileError && status !== 406) {
+      // status 406 = no rows; allow handled path below
+      console.error(profileError);
+      Alert.alert('Error', 'Unable to load profile info.');
+      return;
+    }
+
+    // If no row yet, create a blank profile so setup can fill it
+    let displayName = profile?.name ?? null;
+    if (!profile && status === 406) {
+      const { error: upsertErr } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, name: null });
+      if (upsertErr) {
+        console.error(upsertErr);
+        Alert.alert('Error', 'Unable to initialize profile.');
+        return;
+      }
+      displayName = null;
+    }
+
+    // Route based on whether name is present
+    if (!displayName || !`${displayName}`.trim()) {
+      router.replace('/setup');
+    } else {
+      router.replace('/(tabs)');
+    }
+  } catch (e: any) {
+    console.error(e);
+    Alert.alert('Error', e?.message ?? 'Something went wrong.');
+  } finally {
     setLoading(false);
   }
+}
+
 
   return (
     <KeyboardAvoidingView
