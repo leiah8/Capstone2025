@@ -6,13 +6,34 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, Image, ScrollView, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
+  StyleSheet, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Linking
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useAuth } from '../contexts/AuthContext';
+import * as DocumentPicker from 'expo-document-picker';
+import { useAuth } from '../../contexts/AuthContext';
 import { router } from 'expo-router';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
+
+/* =========================
+   Helpers
+   ========================= */
+const MAX_RESUME_BYTES = 5 * 1024 * 1024; // 5MB
+const sanitizeFilename = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, '_');
+const ensureExt = (name: string, fallback = '.pdf') => (name.includes('.') ? name : name + fallback);
+
+// Derive a tidy filename from a signed URL or storage path — no DB storage of original name needed
+const fileNameFromUrlOrPath = (s?: string | null) => {
+  if (!s) return null;
+  try {
+    const url = new URL(s);
+    const last = url.pathname.split('/').pop();
+    return last ? decodeURIComponent(last) : null;
+  } catch {
+    const last = s.split('?')[0].split('/').pop();
+    return last ? decodeURIComponent(last) : null;
+  }
+};
 
 /* =========================
    Screen
@@ -20,7 +41,7 @@ import { supabase } from '../lib/supabase';
 export default function ProfilePage() {
   const { signOut, session } = useAuth();
 
-  /* State */
+  /* Basic profile state */
   const [name, setName] = useState('');
   const [email] = useState(session?.user?.email || '');
   const [bio, setBio] = useState('');
@@ -53,7 +74,15 @@ export default function ProfilePage() {
 
   const [loading, setLoading] = useState(true);
 
-  /* Load profile */
+  /* Resume state (derived name only) */
+  const [resumeUrl, setResumeUrl] = useState<string | null>(null); // or swap to resume_path if you prefer
+  const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+  const [uploadingResume, setUploadingResume] = useState(false);
+
+  /* =========================
+     Load profile
+     ========================= */
   useEffect(() => {
     (async () => {
       try {
@@ -61,10 +90,10 @@ export default function ProfilePage() {
           .from('profiles')
           .select('*')
           .eq('id', session?.user?.id)
-          .single();
+          .maybeSingle();
 
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error loading profile:', error);
+        if (error) {
+          if (error.code !== 'PGRST116') console.error('Error loading profile:', error);
         } else if (data) {
           setName(data.name || '');
           setBio(data.bio || '');
@@ -86,6 +115,11 @@ export default function ProfilePage() {
 
           const loadedProjects = data.personal_projects || [];
           setProjects(loadedProjects.length ? loadedProjects : [{ id: Date.now().toString(), name: '', description: '', link: '' }]);
+
+          // Resume fields (we only derive filename in UI)
+          setResumeUrl(data.resume_url ?? null); // or data.resume_path if you store paths
+          setResumeUpdatedAt(data.resume_updated_at ?? null);
+          setResumeFileName(fileNameFromUrlOrPath(data.resume_url));
         }
       } catch (e) {
         console.error('Error loading profile:', e);
@@ -95,10 +129,12 @@ export default function ProfilePage() {
     })();
   }, [session?.user?.id]);
 
-  /* Persist profile */
+  /* =========================
+     Persist profile
+     ========================= */
   const saveProfile = async () => {
     try {
-      const { error } = await supabase.from('profiles').upsert({
+      const payload = {
         id: session?.user?.id,
         name,
         bio,
@@ -111,14 +147,17 @@ export default function ProfilePage() {
         experience,
         personal_projects: projects,
         visible: true,
-      });
+      };
+      const { error } = await supabase.from('profiles').upsert(payload);
       if (error) console.error('Error saving profile:', error);
     } catch (e) {
       console.error('Error saving profile:', e);
     }
   };
 
-  /* Pick + upload profile image (Storage bucket: "profiles") */
+  /* =========================
+     Profile image upload (Storage bucket: "profiles")
+     ========================= */
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -146,27 +185,15 @@ export default function ProfilePage() {
       const fileName = `${session?.user?.id}-${Date.now()}.${fileExt}`;
       const filePath = `profile-images/${fileName}`;
 
-      const sessionToken = session?.access_token;
-      if (!sessionToken) throw new Error('No session token found');
+      // Read file
+      const response = await fetch(uri);
+      if (!response.ok) throw new Error('Could not read selected image');
+      const arrayBuffer = await response.arrayBuffer();
 
-      const formData = new FormData();
-      formData.append('file', {
-        uri,
-        name: fileName,
-        type: 'image/jpeg',
-      } as any);
-
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-
-      const uploadResponse = await fetch(
-        `${supabaseUrl}/storage/v1/object/profiles/${filePath}`,
-        { method: 'POST', headers: { Authorization: `Bearer ${sessionToken}` }, body: formData }
-      );
-
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        throw new Error(`Upload failed: ${errorText}`);
-      }
+      const { error: uploadErr } = await supabase.storage
+        .from('profiles')
+        .upload(filePath, arrayBuffer, { contentType: 'image/jpeg', upsert: true });
+      if (uploadErr) throw uploadErr;
 
       const { data: { publicUrl } } = supabase.storage.from('profiles').getPublicUrl(filePath);
 
@@ -188,7 +215,79 @@ export default function ProfilePage() {
     }
   };
 
-  /* Sign out */
+  /* =========================
+     Resume upload (Storage bucket: "resumes")
+     ========================= */
+  const pickResume = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ],
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (result.canceled) return;
+
+    const asset = result.assets[0];
+    if (asset.size && asset.size > MAX_RESUME_BYTES) {
+      Alert.alert('Too large', 'File size must be less than 5MB.');
+      return;
+    }
+
+    const originalName = asset.name ?? 'resume.pdf';
+    const mime = asset.mimeType ?? 'application/octet-stream';
+    await uploadResume(asset.uri, originalName, mime);
+  };
+
+  const uploadResume = async (uri: string, originalName: string, mime: string) => {
+    try {
+      if (!session?.user?.id) throw new Error('No user session');
+      setUploadingResume(true);
+
+      const response = await fetch(uri);
+      if (!response.ok) throw new Error('Could not read selected file');
+      const arrayBuffer = await response.arrayBuffer();
+
+      const safe = ensureExt(sanitizeFilename(originalName));
+      const objectPath = `${session.user.id}/${Date.now()}-${safe}`; // e.g., userId/ts-resume.pdf
+
+      const { error: uploadErr } = await supabase.storage
+        .from('resumes')
+        .upload(objectPath, arrayBuffer, { contentType: mime, upsert: true });
+      if (uploadErr) throw uploadErr;
+
+      // Signed URL for immediate viewing (bucket should be private)
+      const { data: signed, error: signedErr } = await supabase.storage
+        .from('resumes')
+        .createSignedUrl(objectPath, 60 * 60 * 24 * 7);
+      if (signedErr) throw signedErr;
+
+      const signedUrl = signed?.signedUrl ?? null;
+      setResumeUrl(signedUrl);
+      const now = new Date().toISOString();
+      setResumeUpdatedAt(now);
+      setResumeFileName(fileNameFromUrlOrPath(objectPath));
+
+      const { error: dbErr } = await supabase
+        .from('profiles')
+        .update({ resume_url: signedUrl, resume_updated_at: now })
+        .eq('id', session.user.id);
+      if (dbErr) throw dbErr;
+
+      Alert.alert('Success', 'Resume uploaded!');
+    } catch (e: any) {
+      console.error('Resume upload error:', e);
+      Alert.alert('Error', e?.message ?? 'Failed to upload resume.');
+    } finally {
+      setUploadingResume(false);
+    }
+  };
+
+  /* =========================
+     Sign out
+     ========================= */
   const handleSignOut = async () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
@@ -196,7 +295,9 @@ export default function ProfilePage() {
     ]);
   };
 
-  /* Skills */
+  /* =========================
+     Skills / Interests / Lists
+     ========================= */
   const addSkill = () => {
     if (skillSearch.trim() && !skills.includes(skillSearch.trim())) {
       const next = [...skills, skillSearch.trim()];
@@ -210,7 +311,6 @@ export default function ProfilePage() {
     saveProfile();
   };
 
-  /* Interests */
   const addInterest = () => {
     if (interestSearch.trim() && !interests.includes(interestSearch.trim())) {
       const next = [...interests, interestSearch.trim()];
@@ -224,7 +324,6 @@ export default function ProfilePage() {
     saveProfile();
   };
 
-  /* Education */
   const addEducation = () => {
     const next = [...education, { id: Date.now().toString(), school: '', degree: '', year: '' }];
     setEducation(next);
@@ -238,7 +337,6 @@ export default function ProfilePage() {
     saveProfile();
   };
 
-  /* Experience */
   const addExperience = () => {
     const next = [...experience, { id: Date.now().toString(), company: '', position: '', duration: '', description: '' }];
     setExperience(next);
@@ -252,7 +350,6 @@ export default function ProfilePage() {
     saveProfile();
   };
 
-  /* Projects */
   const addProject = () => {
     const next = [...projects, { id: Date.now().toString(), name: '', description: '', link: '' }];
     setProjects(next);
@@ -266,7 +363,17 @@ export default function ProfilePage() {
     saveProfile();
   };
 
-  /* Render */
+  /* =========================
+     Render
+     ========================= */
+  if (loading) {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -322,24 +429,43 @@ export default function ProfilePage() {
           <TextInput style={[styles.input, styles.textArea]} value={bio} onChangeText={setBio} onBlur={saveProfile} placeholder="Tell us about yourself" multiline numberOfLines={4} textAlignVertical="top" placeholderTextColor="#999" />
         </View>
 
-        {/* Social Links */}
+        {/* Resume (pretty card, tidy filename, setup-style button) */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Social Links</Text>
-          <View style={styles.socialLinkContainer}>
-            <Ionicons name="logo-github" size={24} color="#333" />
-            <TextInput style={styles.socialInput} value={github} onChangeText={setGithub} onBlur={saveProfile} placeholder="GitHub username" placeholderTextColor="#999" autoCapitalize="none" />
-          </View>
-          <View style={styles.socialLinkContainer}>
-            <Ionicons name="logo-linkedin" size={24} color="#0077B5" />
-            <TextInput style={styles.socialInput} value={linkedin} onChangeText={setLinkedin} onBlur={saveProfile} placeholder="LinkedIn username" placeholderTextColor="#999" autoCapitalize="none" />
-          </View>
-          <View style={styles.socialLinkContainer}>
-            <Ionicons name="logo-instagram" size={24} color="#E4405F" />
-            <TextInput style={styles.socialInput} value={instagram} onChangeText={setInstagram} onBlur={saveProfile} placeholder="Instagram username" placeholderTextColor="#999" autoCapitalize="none" />
-          </View>
-          <View style={styles.socialLinkContainer}>
-            <Ionicons name="logo-twitter" size={24} color="#1DA1F2" />
-            <TextInput style={styles.socialInput} value={twitter} onChangeText={setTwitter} onBlur={saveProfile} placeholder="Twitter username" placeholderTextColor="#999" autoCapitalize="none" />
+          <Text style={styles.sectionTitle}>Resume</Text>
+
+          <View style={styles.resumeCard}>
+            <View style={styles.resumeRow}>
+              <View style={styles.resumeIconBubble}>
+                <Ionicons name="document-text-outline" size={20} color="#2563eb" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.resumeNameText} numberOfLines={1}>
+                  {resumeFileName ?? 'No resume on file'}
+                </Text>
+                <Text style={styles.resumeMetaText}>
+                  Last uploaded: {resumeUpdatedAt ? new Date(resumeUpdatedAt).toLocaleString() : '—'}
+                </Text>
+              </View>
+
+              {!!resumeUrl && (
+                <TouchableOpacity onPress={() => Linking.openURL(resumeUrl!)} style={styles.smallLinkBtn}>
+                  <Text style={styles.smallLinkText}>View</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity
+              onPress={pickResume}
+              disabled={uploadingResume}
+              style={[styles.primaryBtn, uploadingResume && styles.primaryBtnDisabled]}
+              activeOpacity={0.9}
+            >
+              {uploadingResume ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.primaryBtnText}>Upload New Resume</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -495,4 +621,30 @@ const styles = StyleSheet.create({
 
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#ddd', position: 'relative' },
   removeButton: { position: 'absolute', top: 12, right: 12, zIndex: 1, padding: 4 },
+
+  // Resume styles (pretty card + setup-like button)
+  resumeCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    gap: 14,
+  },
+  resumeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  resumeIconBubble: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center' },
+  resumeNameText: { fontSize: 16, fontWeight: '600', color: '#111827' },
+  resumeMetaText: { fontSize: 12, color: '#6b7280', marginTop: 2 },
+
+  smallLinkBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#f9fafb' },
+  smallLinkText: { color: '#2563eb', fontWeight: '600' },
+
+  primaryBtn: { width: '100%', backgroundColor: '#2563eb', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  primaryBtnDisabled: { backgroundColor: '#9ca3af' },
+  primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
