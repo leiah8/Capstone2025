@@ -45,6 +45,9 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "parserUrl": "http://localhost:8000"
     }
   }
 }
