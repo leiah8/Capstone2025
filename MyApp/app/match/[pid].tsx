@@ -1,11 +1,11 @@
 // import { Platform, StyleSheet } from 'react-native';
 
 import { useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
-import { Message } from '../lib/match';
+import { Message } from '../../lib/match';
 
 import { Stack } from 'expo-router';
 
@@ -21,7 +21,7 @@ import {
   Text,
   View
 } from 'react-native';
-import { PersonUI } from '../lib/profile';
+import { PersonUI } from '../../lib/profile';
 
 
 export default function MatchesPage() {

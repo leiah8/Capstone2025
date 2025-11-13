@@ -1,13 +1,13 @@
 // import { Platform, StyleSheet } from 'react-native';
 
-import { DbMatch, MatchUI } from '../lib/match';
+import { DbMatch, MatchUI } from '../../lib/match';
 
 
 import { useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 import { router } from 'expo-router';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 
 import {
