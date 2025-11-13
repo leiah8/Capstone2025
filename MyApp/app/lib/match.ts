@@ -5,6 +5,9 @@ export type MatchUI = {
     candidate_name: string;
     project_name : string;
     owner_name : string;
+
+    owner_id : string;
+    candidate_id : string;
     
     project_image: string;
     candidate_image : string; 

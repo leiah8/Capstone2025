@@ -28,3 +28,9 @@ export function resolveProfileImageUrl(
 
   return `https://i.pravatar.cc/150?u=${encodeURIComponent(ownerId)}`;
 }
+
+export type PersonUI = {
+    id: string;
+    name: string;
+    image: string;
+};

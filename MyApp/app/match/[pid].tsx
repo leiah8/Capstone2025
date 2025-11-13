@@ -1,7 +1,5 @@
 // import { Platform, StyleSheet } from 'react-native';
 
-
-
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -9,8 +7,12 @@ import { supabase } from '../lib/supabase';
 
 import { Message } from '../lib/match';
 
+import { Stack } from 'expo-router';
 
 
+
+
+import { useLocalSearchParams } from 'expo-router';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -19,9 +21,11 @@ import {
   Text,
   View
 } from 'react-native';
+import { PersonUI } from '../lib/profile';
 
 
 export default function MatchesPage() {
+    const { pid } = useLocalSearchParams(); //the id of the person you are talking to 
     const { signOut, session } = useAuth();
 
     //todo: import project/candidate id 
@@ -34,6 +38,8 @@ export default function MatchesPage() {
 
 
     const[messages, setMessages] = useState<Message[]>([]);
+
+    const[person, setPerson] = useState<PersonUI>({id : "", name : "", image : ""});
 
      const messageTest : Message[] = [{
             id: "1",
@@ -49,20 +55,42 @@ export default function MatchesPage() {
         (async () => {
             //get project matches
           try {
+            //TODO: get conversation using pid and session_user_id
+            //then get messages 
+
+            //getting profile of person you are talking to 
             const { data, error } = await supabase
-              .from('messages')
+              .from('profiles')
               .select('*')
-              .eq('conversation_id', session?.user?.id) //TODO HERE, match to person
+              .eq('id', pid)
+              .single()
     
             if (error && error.code !== 'PGRST116') {
               console.error('Error loading project matches:', error);
             } else if (data) {
 
-
-                setMessages(data as Message[])
-
+                setPerson(data as PersonUI)
                             
             }
+
+            //getting all the projects they matched on 
+            /*
+            const { data : d2, error : e2 } = await supabase
+              .from('matches')
+              .select('*')
+              .eq('id', pid)
+              .single()
+    
+            if (e2 && e2.code !== 'PGRST116') {
+              console.error('Error loading project matches:', e2);
+            } else if (d2) {
+
+                //TODO here
+                            
+            } */
+
+
+
           } catch (e) {
             console.error('Error loading project matches:', e);
           } finally {
@@ -79,6 +107,10 @@ export default function MatchesPage() {
       }, [session?.user?.id]);
       
     return (
+      <>
+      <Stack.Screen options={{
+          title: person?.name || '',
+        }}/>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>  
             <ScrollView contentContainerStyle={{
         flexGrow: 1,
@@ -86,8 +118,8 @@ export default function MatchesPage() {
       }}
       style={styles.scrollView} showsVerticalScrollIndicator={false}>
                 {/* Header */}
-                <View>
-                    <Text style={styles.headerTitle}>Name</Text>
+                 <View>
+                    <Text style={styles.sectionTitle}>Project Name(s)</Text>
                 </View>
 
                 {/* Content */}
@@ -105,6 +137,7 @@ export default function MatchesPage() {
 
             </ScrollView>            
         </KeyboardAvoidingView>
+        </>
     );
       
 }
@@ -132,8 +165,8 @@ const styles = StyleSheet.create({
   
 
   list: {
-    justifyContent: 'flex-end', // Pushes to bottom
-    flexDirection: 'column-reverse', // Renders children from bottom to top
+    justifyContent: 'flex-end', 
+    flexDirection: 'column-reverse', 
     padding: 20,
   },
   recieveMsg: {
@@ -145,8 +178,8 @@ const styles = StyleSheet.create({
   },
 
   messagesContainer : {
-    flex: 1, // makes it take up full screen
-    justifyContent: 'flex-end', // pushes content to bottom
+    flex: 1, 
+    justifyContent: 'flex-end', 
   }
     
 });

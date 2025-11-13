@@ -6,9 +6,12 @@ import { DbMatch, MatchUI } from '../lib/match';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
+import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 
-import { Ionicons } from '@expo/vector-icons';
+
+
+
 
 
 import {
@@ -38,6 +41,10 @@ export default function MatchesPage() {
 
     const [projectsPage, setPage] = useState(true);
 
+    const gotoMatch = (pid : string | number) => {
+        router.push(`/match/${pid}`)
+    }
+
       useEffect(() => {
         let pMatches : MatchUI[] = [];
         let cMatches : MatchUI[] = [];
@@ -64,6 +71,9 @@ export default function MatchesPage() {
                         candidate_name: "0",
                         project_name : "0",
                         owner_name : "0",
+
+                        owner_id : "0", 
+                        candidate_id : "0", 
                         
                         project_image: "0",
                         candidate_image : "0",
@@ -71,6 +81,8 @@ export default function MatchesPage() {
                     }
 
                     obj.match_id = m1[i].id;
+                    obj.owner_id = m1[i].owner_id;
+                    obj.candidate_id = m1[i].candidate_id;
 
                         
                     const { data : d1, error : e11} = await supabase
@@ -150,6 +162,9 @@ export default function MatchesPage() {
                         candidate_name: "0",
                         project_name : "0",
                         owner_name : "0",
+
+                        owner_id : "0", 
+                        candidate_id : "0",
                         
                         project_image: "0",
                         candidate_image : "0",
@@ -157,6 +172,8 @@ export default function MatchesPage() {
                     }
 
                     obj.match_id = m2[i].id;
+                    obj.owner_id = m2[i].owner_id;
+                    obj.candidate_id = m2[i].candidate_id;
 
                         
                     const { data : d1, error : e11} = await supabase
@@ -263,13 +280,15 @@ export default function MatchesPage() {
                     {/* Content */}
                     <View style={styles.list}>
                         {projectMatchesUI.map((match, index) => (
-                            <View style={styles.match}>
-                                <Image source={{ uri: match.project_image }} style={styles.profileImage} />
-                                {/* <View style={styles.placeholderImage}>
-                                    <Ionicons name="person" size={30} color="#999" />
-                                </View> */}
-                                <Text>{match.project_name}</Text>
-                            </View>
+                            <TouchableOpacity onPress={async() => {gotoMatch(match.owner_id)}}>
+                                <View style={styles.match}>
+                                    <Image source={{ uri: match.project_image }} style={styles.profileImage} />
+                                    {/* <View style={styles.placeholderImage}>
+                                        <Ionicons name="person" size={30} color="#999" />
+                                    </View> */}
+                                    <Text>{match.project_name}</Text>
+                                </View>
+                            </TouchableOpacity>
                         ))}
                     </View>
 
@@ -281,6 +300,7 @@ export default function MatchesPage() {
       }
     else { //candidate matches
         return (
+            
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>  
                 <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
                     {/* Header */}
@@ -307,13 +327,15 @@ export default function MatchesPage() {
                     {/* Content */}
                     <View style={styles.list}>
                         {candidateMatchesUI.map((match, index) => (
-                            <View style={styles.match}>
-                                {/* <Image source={{ uri: match.project_image }} style={styles.profileImage} /> */}
-                                <View style={styles.placeholderImage}>
-                                    <Ionicons name="person" size={40} color="#999" /> 
+                            <TouchableOpacity onPress={async() => {gotoMatch(match.candidate_id)}}>
+                                <View style={styles.match}>
+                                    <Image source={{ uri: match.project_image }} style={styles.profileImage} />
+                                    {/* <View style={styles.placeholderImage}>
+                                        <Ionicons name="person" size={40} color="#999" /> 
+                                    </View> */}
+                                    <Text key={index}>{match.candidate_name}</Text>
                                 </View>
-                                <Text key={index}>{match.candidate_name}</Text>
-                            </View>
+                            </TouchableOpacity>
                         ))}
                     </View>
 
