@@ -1,13 +1,14 @@
 // lib/projects.ts
 
 export type MatchUI = {
-    match_id: string;
+    match_id: string | number;
     candidate_name: string;
     project_name : string;
     owner_name : string;
     
     project_image: string;
     candidate_image : string; 
+    owner_image : string;
 };
 
 export type DbMatch = {
