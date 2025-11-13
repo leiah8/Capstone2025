@@ -109,7 +109,7 @@ export default function MatchesPage() {
     return (
       <>
       <Stack.Screen options={{
-          title: person?.name || '',
+          headerShown: true, title: person?.name || '',
         }}/>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>  
             <ScrollView contentContainerStyle={{
