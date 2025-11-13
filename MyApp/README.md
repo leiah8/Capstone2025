@@ -1,8 +1,8 @@
 # Welcome to your Expo app 👋
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo application with profile management, resume upload, and automatic skill extraction via a Python FastAPI microservice.
 
-## Get started
+## Get started (App)
 
 1. Install dependencies
 
@@ -10,7 +10,15 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install
    ```
 
-2. Start the app
+2. Set environment variables (create an `.env` or use eas secrets):
+
+```bash
+export EXPO_PUBLIC_SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
+export EXPO_PUBLIC_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
+export EXPO_PUBLIC_PARSER_URL="http://localhost:8000"  # FastAPI resume parser
+```
+
+3. Start the app
 
    ```bash
    npx expo start
@@ -34,6 +42,33 @@ npm run reset-project
 ```
 
 This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+
+## Resume Parser Service
+
+The resume parser lives in `../resume_parser/` and exposes endpoints:
+
+- `POST /parse/upload` multipart form-data (field: `file`) → parsed JSON with `skills`.
+- `POST /parse/url` JSON body `{ "url": "https://..." }` → parsed JSON.
+
+### Run the service
+
+From repo root:
+
+```bash
+cd resume_parser
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn api.main:app --reload --port 8000
+```
+
+Set `EXPO_PUBLIC_PARSER_URL` so the app can call the service. After uploading a resume in the Profile screen, the app sends it to `/parse/upload` and merges unique skills returned.
+
+### Troubleshooting
+
+- Ensure Tesseract is installed: `brew install tesseract`.
+- Large or image-only PDFs trigger OCR fallback (slower).
+- If CORS issues occur, check `allow_origins` in `api/main.py`.
 
 ## Learn more
 

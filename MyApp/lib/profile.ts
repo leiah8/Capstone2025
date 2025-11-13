@@ -12,14 +12,12 @@ const isAbsoluteUrl = (s?: string | null) => !!s && /^(https?:)?\/\//i.test(s);
 export function resolveProfileImageUrl(
   input: string | null,
   ownerId: string,
-  bucket = 'avatars' // <-- set to your bucket name
+  bucket = 'profiles' 
 ): string {
   if (isAbsoluteUrl(input)) return input as string;
 
   if (input) {
-    const path = input.replace(/^\/+/, ''); // strip leading slash
-    // If your DB stores the full "avatars/..." path, keep it. If it stores just "abc.png",
-    // either pass bucket here or prepend `${bucket}/` where you write the path.
+    const path = input.replace(/^\/+/, '');
     const key = path.startsWith(`${bucket}/`) ? path.split(`${bucket}/`)[1] : path;
 
     const { data } = supabase.storage.from(bucket).getPublicUrl(key);
