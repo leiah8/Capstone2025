@@ -109,7 +109,12 @@ export default function MatchesPage() {
     return (
       <>
       <Stack.Screen options={{
-          headerShown: true, title: person?.name || '',
+          headerShown: true, title: person?.name || '',  headerTitle: () => (
+              <View style={{}}>
+                    <Text style={styles.headerTitle}>{person?.name || ""}</Text>
+                    <Text style={styles.sectionTitle}>Project Name(s)</Text>
+                </View>
+          ),
         }}/>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>  
             <ScrollView contentContainerStyle={{
@@ -117,10 +122,7 @@ export default function MatchesPage() {
         justifyContent: 'flex-end', 
       }}
       style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                {/* Header */}
-                 <View>
-                    <Text style={styles.sectionTitle}>Project Name(s)</Text>
-                </View>
+                
 
                 {/* Content */}
                 <View style={styles.messagesContainer}>
@@ -163,7 +165,7 @@ const styles = StyleSheet.create({
 
   section: { marginBottom: 25 },
   label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
-  sectionTitle: { fontSize: 18, fontWeight: 'normal', color: '#333' },
+  sectionTitle: { fontSize: 14, fontWeight: 'normal', color: '#333' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
 
   profileImage: { width: 120, height: 120, borderRadius: 60 },
