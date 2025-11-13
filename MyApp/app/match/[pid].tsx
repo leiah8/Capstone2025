@@ -133,6 +133,12 @@ export default function MatchesPage() {
                 </View>
                 </View>
 
+                {/*Message Box */}
+
+                <View style={styles.typeMessageBox}> 
+                  <Text style={styles.typeMessageText}>Message...</Text>
+                </View>
+
                 
 
             </ScrollView>            
@@ -173,13 +179,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#ddd',
     padding: 10,
     marginVertical: 5,
-    borderRadius: 4,
+    borderRadius: 10,
     width : "75%"
   },
 
   messagesContainer : {
     flex: 1, 
     justifyContent: 'flex-end', 
+  },
+
+  typeMessageBox : {
+    borderWidth : 1, 
+    borderRadius : 10, 
+    borderColor : "#ddd", 
+  },
+
+  typeMessageText : {
+    margin : 10, 
+    color : "#aaa"
   }
     
 });

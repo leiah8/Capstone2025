@@ -10,10 +10,6 @@ import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 
 
-
-
-
-
 import {
     Image,
     KeyboardAvoidingView,
