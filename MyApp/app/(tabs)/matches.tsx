@@ -50,7 +50,7 @@ export default function MatchesPage() {
 
           try {
             const { data : m1, error : e1} = await supabase
-              .from('matches')
+              .from('poc_matches') //change here
               .select('*')
               .eq('candidate_id', session?.user?.id)
     
@@ -142,7 +142,7 @@ export default function MatchesPage() {
             }
 
             const { data : m2, error : e2 } = await supabase
-              .from('matches')
+              .from('poc_matches') //change here
               .select('*')
               .eq('owner_id', session?.user?.id)
     

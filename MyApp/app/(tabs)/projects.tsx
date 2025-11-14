@@ -3,12 +3,23 @@
 /* =========================
    Imports & setup
    ========================= */
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  View, Text, Image, StyleSheet, Dimensions, Animated, PanResponder, TouchableOpacity,
-} from 'react-native';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  Dimensions,
+  Image,
+  PanResponder,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { fetchProjects, ProjectUI } from '../../lib/projects';
+
+
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 120;
@@ -133,6 +144,8 @@ export default function ProjectFeed() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
+  const { signOut, session } = useAuth();
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -179,7 +192,76 @@ export default function ProjectFeed() {
           <TouchableOpacity style={styles.passButton} onPress={advance}>
             <Ionicons name="close" size={40} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.likeButton} onPress={advance}>
+          <TouchableOpacity style={styles.likeButton} onPress={async() => {
+            //DOES NOT WORK SINCE NOT THE RIGHT PERMISSIONS
+            advance();
+            let pid = projects[currentIndex].id;
+
+            console.log("automatching")
+
+            try {
+              
+              //getting profile of person you are talking to 
+              const { data : d1, error : e1 } = await supabase
+                .from('projects')
+                .select("*")
+                .eq('id', pid)
+                .single()
+      
+              if (e1 && e1.code !== 'PGRST116') {
+                console.error('Error loading projects:', e1);
+              } else if (d1) {
+  
+                  const { data, error } = await supabase
+                    .from('poc_matches')
+                    .insert({
+                      //id : null, //todo here??
+                      project_id : pid, 
+                      owner_id : d1.owner_id, //todo here
+                      candidate_id : session?.user?.id, 
+                      //created_at : null //todo here
+                    })
+
+                    console.log("hello")
+          
+                  if (error && error.code !== 'PGRST116') {
+                    console.error('Error loading project matches:', error);
+                  } else if (data) {
+      
+                      //todo here
+                                  
+                  }
+
+                  // let obj = {
+                  //   "id": null,
+                  //   "owner_id": d1.owner_id,
+                  //   "project_id" : pid,
+                  //   "candidate_id" : session?.user?.id,
+                  //   "created_at" : null
+                  // }
+
+                  // //write to poc.json??
+
+                  
+
+
+
+
+                  
+                              
+              }
+
+            
+          } catch (e) {
+            console.error('Error loading project matches:', e);
+          } finally {
+            setLoading(false);
+          }
+
+
+          } }> 
+            {/** changed here to automatch */}
+          {/* <TouchableOpacity style={styles.likeButton} onPress={autoMatch}> */}
             <Ionicons name="checkmark" size={40} color="#fff" />
           </TouchableOpacity>
         </View>
