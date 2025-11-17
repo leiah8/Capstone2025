@@ -5,10 +5,13 @@
    ========================= */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, Image, StyleSheet, Dimensions, Animated, PanResponder, TouchableOpacity,
+  View, Text, Image, StyleSheet, Dimensions, Animated, PanResponder, TouchableOpacity, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchProjects, ProjectUI } from '../../lib/projects';
+import { getUserProfile } from '../../lib/user-profile';
+import { getMatchedProjects, checkMatchingAPIHealth } from '../../lib/matching-api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 120;
@@ -93,7 +96,7 @@ const ProjectCard = ({
       </View>
 
       {/* Content */}
-      <View style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.projectName}>{project.name}</Text>
         <Text style={styles.location}>{project.location}</Text>
 
@@ -108,7 +111,7 @@ const ProjectCard = ({
 
         {/* Skills chips (if available) */}
         {skills.length > 0 && (
-          <View style={{ marginTop: 6 }}>
+          <View style={{ marginTop: 6, marginBottom: 20 }}>
             <Text style={styles.sectionTitle}>Skills Needed</Text>
             <View style={styles.chipsWrap}>
               {skills.map((s, i) => (
@@ -119,7 +122,7 @@ const ProjectCard = ({
             </View>
           </View>
         )}
-      </View>
+      </ScrollView>
     </Animated.View>
   );
 };
@@ -128,19 +131,57 @@ const ProjectCard = ({
    Screen: fetch & swipe stack
    ========================= */
 export default function ProjectFeed() {
+  const insets = useSafeAreaInsets();
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [useMatching, setUseMatching] = useState(false);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setLoading(true);
-        const ui = await fetchProjects(50);
+        
+        // Fetch all projects
+        const allProjects = await fetchProjects(50);
         if (!alive) return;
-        setProjects(ui as Project[]);
+
+        // Check if matching API is available
+        const matchingAvailable = await checkMatchingAPIHealth();
+        
+        if (matchingAvailable) {
+          console.log('Matching API available - ranking projects by match score...');
+          try {
+            // Get current authenticated user's profile
+            const userProfile = await getUserProfile();
+            
+            // Get matched and ranked projects
+            const matchScores = await getMatchedProjects(userProfile, allProjects);
+            
+            // Create a map of project IDs to match scores
+            const scoreMap = new Map(matchScores.map(m => [m.project_id, m.overall_score]));
+            
+            // Sort projects by match score
+            const rankedProjects = [...allProjects].sort((a, b) => {
+              const scoreA = scoreMap.get(a.id) || 0;
+              const scoreB = scoreMap.get(b.id) || 0;
+              return scoreB - scoreA; // Higher scores first
+            });
+            
+            setProjects(rankedProjects as Project[]);
+            setUseMatching(true);
+            console.log(`Projects ranked by match score (top: ${(scoreMap.get(rankedProjects[0].id) || 0) * 100}%)`);
+          } catch (matchError) {
+            console.warn('Failed to rank projects, using default order:', matchError);
+            setProjects(allProjects as Project[]);
+          }
+        } else {
+          console.log('Matching API not available - showing projects in default order');
+          setProjects(allProjects as Project[]);
+        }
+        
         setCurrentIndex(0);
       } catch (e: any) {
         if (!alive) return;
@@ -158,7 +199,7 @@ export default function ProjectFeed() {
   if (err) return <View style={styles.center}><Text>Failed to load projects: {err}</Text></View>;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.cardContainer}>
         {projects.slice(currentIndex, currentIndex + 2).reverse().map((p, i) => (
           <ProjectCard key={p.id} project={p} isTop={i === 1} onSwipe={advance} />
@@ -199,7 +240,8 @@ const styles = StyleSheet.create({
   card: {
     position: 'absolute',
     width: SCREEN_WIDTH * 0.9,
-    height: SCREEN_HEIGHT * 0.75,
+    maxWidth: 430,
+    height: SCREEN_HEIGHT * 0.70,
     backgroundColor: '#fff',
     borderRadius: 20,
     shadowColor: '#000',
@@ -207,6 +249,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
+    overflow: 'hidden',
   },
   cardBehind: { transform: [{ scale: 0.95 }], opacity: 0.8 },
 
@@ -237,7 +280,7 @@ const styles = StyleSheet.create({
   passButton: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
   likeButton: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
 
-  endCard: { width: SCREEN_WIDTH * 0.9, height: SCREEN_HEIGHT * 0.75, backgroundColor: '#fff', borderRadius: 20, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
+  endCard: { width: SCREEN_WIDTH * 0.9, maxWidth: 430, height: SCREEN_HEIGHT * 0.70, backgroundColor: '#fff', borderRadius: 20, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
   endText: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
   resetButton: { backgroundColor: '#007AFF', paddingHorizontal: 30, paddingVertical: 12, borderRadius: 25 },
   resetButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
