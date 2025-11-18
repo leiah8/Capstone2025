@@ -54,13 +54,12 @@ export async function getMatchedProjects(
   }>
 ): Promise<MatchScore[]> {
   try {
-    // Transform projects to match API format
     const apiProjects = projects.map(p => ({
       id: p.id,
       name: p.name,
       description: p.description,
-      must_have_skills: p.skillsNeeded || [],
-      nice_to_have_skills: [], // Could be extended later
+      must_have_skills: p.skillsNeeded || [], // All skills are must-have for higher weighting
+      nice_to_have_skills: [], // Empty for now
       interests: p.interests || [],
     }));
 

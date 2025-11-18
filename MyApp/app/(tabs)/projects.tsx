@@ -172,7 +172,13 @@ export default function ProjectFeed() {
             
             setProjects(rankedProjects as Project[]);
             setUseMatching(true);
-            console.log(`Projects ranked by match score (top: ${(scoreMap.get(rankedProjects[0].id) || 0) * 100}%)`);
+            
+            // Debug: Log all project scores
+            console.log('=== PROJECT RANKING ===');
+            rankedProjects.slice(0, 5).forEach((p, idx) => {
+              console.log(`${idx + 1}. Project ${p.id}: ${p.name} - Score: ${((scoreMap.get(p.id) || 0) * 100).toFixed(1)}%`);
+            });
+            console.log('======================');
           } catch (matchError) {
             console.warn('Failed to rank projects, using default order:', matchError);
             setProjects(allProjects as Project[]);
@@ -201,8 +207,9 @@ export default function ProjectFeed() {
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.cardContainer}>
-        {projects.slice(currentIndex, currentIndex + 2).reverse().map((p, i) => (
-          <ProjectCard key={p.id} project={p} isTop={i === 1} onSwipe={advance} />
+        {/* Render cards in reverse order so first card (highest match) renders last and appears on top */}
+        {projects.slice(currentIndex, currentIndex + 2).reverse().map((p, i, arr) => (
+          <ProjectCard key={p.id} project={p} isTop={i === arr.length - 1} onSwipe={advance} />
         ))}
 
         {currentIndex >= projects.length && (

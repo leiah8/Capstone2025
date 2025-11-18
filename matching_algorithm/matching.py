@@ -108,8 +108,9 @@ class MatchingEngine:
         user_skills_norm = set(self.normalize_skills(user_skills))
         required_skills_norm = self.normalize_skills(required_skills)
         
+        # If no skills are required, return 0 (not 1) - this category doesn't contribute
         if not required_skills_norm:
-            return 1.0, [], []
+            return 0.0, [], []
         
         matched = []
         missing = []
@@ -147,7 +148,7 @@ class MatchingEngine:
         self,
         user_profile: Dict[str, Any],
         project: Dict[str, Any],
-        must_have_skills_key: str = "skills_needed",
+        must_have_skills_key: str = "must_have_skills",
         nice_to_have_skills_key: str = "nice_to_have_skills",
     ) -> MatchScore:
         user_skills = user_profile.get("skills", [])
@@ -156,7 +157,8 @@ class MatchingEngine:
         
         project_id = str(project.get("id", "unknown"))
         project_description = project.get("description", "")
-        must_have_skills = project.get(must_have_skills_key, [])
+        # Accept both must_have_skills and skills_needed for backward compatibility
+        must_have_skills = project.get("must_have_skills") or project.get("skills_needed", [])
         nice_to_have_skills = project.get(nice_to_have_skills_key, [])
         project_tags = project.get("tags", [])
         

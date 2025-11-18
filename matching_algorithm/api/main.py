@@ -42,7 +42,24 @@ async def score_matches(request: MatchRequest):
             projects=request.projects
         )
         
-        ranked = [score.to_dict() for score in match_scores]
+        # Transform to match frontend expectations
+        ranked = []
+        for score in match_scores:
+            score_dict = score.to_dict()
+            # Transform backend format to frontend format
+            ranked.append({
+                "project_id": score_dict["project_id"],
+                "project_name": request.projects[[p["id"] for p in request.projects].index(score_dict["project_id"])]["name"],
+                "overall_score": score_dict["total_score"],
+                "semantic_similarity": score_dict["breakdown"]["semantic_similarity"],
+                "must_have_match": score_dict["breakdown"]["must_have_skills"],
+                "nice_to_have_match": score_dict["breakdown"]["nice_to_have_skills"],
+                "interest_match": score_dict["breakdown"]["interest_alignment"],
+                "matched_must_have": score_dict["explanation"]["matched_must_have_skills"],
+                "matched_nice_to_have": score_dict["explanation"]["matched_nice_to_have_skills"],
+                "matched_interests": score_dict["explanation"]["matched_interests"],
+                "missing_must_have": score_dict["explanation"]["missing_must_have_skills"],
+            })
         
         return MatchResponse(
             ranked_projects=ranked,
