@@ -47,7 +47,8 @@
       "reactCompiler": true
     },
     "extra": {
-      "parserUrl": "http://localhost:8000"
+      "apiUrl": "http://localhost:8000",
+      "parserUrl": "http://localhost:8010"
     }
   }
 }

@@ -84,7 +84,7 @@ def canonicalize_skill(name: str) -> str:
             out_words.append(w.upper())
         else:
             out_words.append(w[0].upper() + w[1:])
-    return " ".join(out_words)
+    return " ".join(out_words) if len(out_words) == 1 else ""
 
 def normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
