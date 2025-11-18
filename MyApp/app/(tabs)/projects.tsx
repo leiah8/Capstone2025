@@ -3,9 +3,9 @@
 /* =========================
    Imports & setup
    ========================= */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  View, Text, Image, StyleSheet, Dimensions, Animated, PanResponder, TouchableOpacity, ScrollView,
+  View, Text, Image, StyleSheet, Dimensions, Animated, PanResponder, TouchableOpacity, ScrollView, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -135,85 +135,114 @@ export default function ProjectFeed() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [useMatching, setUseMatching] = useState(false);
 
+  // Extract the loading logic into a reusable function
+  const loadAndRankProjects = useCallback(async () => {
+    try {
+      // Fetch all projects
+      const allProjects = await fetchProjects(50);
+
+      // Check if matching API is available
+      const matchingAvailable = await checkMatchingAPIHealth();
+      
+      if (matchingAvailable) {
+        console.log('Matching API available - ranking projects by match score...');
+        try {
+          // Get current authenticated user's profile
+          const userProfile = await getUserProfile();
+          
+          // Get matched and ranked projects
+          const matchScores = await getMatchedProjects(userProfile, allProjects);
+          
+          // Create a map of project IDs to match scores
+          const scoreMap = new Map(matchScores.map(m => [m.project_id, m.overall_score]));
+          
+          // Sort projects by match score
+          const rankedProjects = [...allProjects].sort((a, b) => {
+            const scoreA = scoreMap.get(a.id) || 0;
+            const scoreB = scoreMap.get(b.id) || 0;
+            return scoreB - scoreA; // Higher scores first
+          });
+          
+          setProjects(rankedProjects as Project[]);
+          setUseMatching(true);
+          console.log(`Projects ranked by match score (top: ${(scoreMap.get(rankedProjects[0].id) || 0) * 100}%)`);
+        } catch (matchError) {
+          console.warn('Failed to rank projects, using default order:', matchError);
+          setProjects(allProjects as Project[]);
+        }
+      } else {
+        console.log('Matching API not available - showing projects in default order');
+        setProjects(allProjects as Project[]);
+      }
+      
+      setCurrentIndex(0);
+      setErr(null);
+    } catch (e: any) {
+      setErr(e.message ?? String(e));
+    }
+  }, []);
+
+  // Handle pull-to-refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    console.log('Refreshing projects and rerunning matching algorithm...');
+    await loadAndRankProjects();
+    setRefreshing(false);
+  }, [loadAndRankProjects]);
+
+  // Initial load
   useEffect(() => {
     let alive = true;
     (async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch all projects
-        const allProjects = await fetchProjects(50);
-        if (!alive) return;
-
-        // Check if matching API is available
-        const matchingAvailable = await checkMatchingAPIHealth();
-        
-        if (matchingAvailable) {
-          console.log('Matching API available - ranking projects by match score...');
-          try {
-            // Get current authenticated user's profile
-            const userProfile = await getUserProfile();
-            
-            // Get matched and ranked projects
-            const matchScores = await getMatchedProjects(userProfile, allProjects);
-            
-            // Create a map of project IDs to match scores
-            const scoreMap = new Map(matchScores.map(m => [m.project_id, m.overall_score]));
-            
-            // Sort projects by match score
-            const rankedProjects = [...allProjects].sort((a, b) => {
-              const scoreA = scoreMap.get(a.id) || 0;
-              const scoreB = scoreMap.get(b.id) || 0;
-              return scoreB - scoreA; // Higher scores first
-            });
-            
-            setProjects(rankedProjects as Project[]);
-            setUseMatching(true);
-            console.log(`Projects ranked by match score (top: ${(scoreMap.get(rankedProjects[0].id) || 0) * 100}%)`);
-          } catch (matchError) {
-            console.warn('Failed to rank projects, using default order:', matchError);
-            setProjects(allProjects as Project[]);
-          }
-        } else {
-          console.log('Matching API not available - showing projects in default order');
-          setProjects(allProjects as Project[]);
-        }
-        
-        setCurrentIndex(0);
-      } catch (e: any) {
-        if (!alive) return;
-        setErr(e.message ?? String(e));
-      } finally {
-        if (alive) setLoading(false);
-      }
+      setLoading(true);
+      await loadAndRankProjects();
+      if (alive) setLoading(false);
     })();
     return () => { alive = false; };
-  }, []);
+  }, [loadAndRankProjects]);
 
   const advance = () => { if (currentIndex < projects.length) setCurrentIndex((i) => i + 1); };
 
   if (loading) return <View style={styles.center}><Text>Loading projects…</Text></View>;
-  if (err) return <View style={styles.center}><Text>Failed to load projects: {err}</Text></View>;
+  if (err) return (
+    <ScrollView
+      contentContainerStyle={styles.center}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    >
+      <Text>Failed to load projects: {err}</Text>
+      <TouchableOpacity style={styles.resetButton} onPress={onRefresh}>
+        <Text style={styles.resetButtonText}>Retry</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <View style={styles.cardContainer}>
-        {projects.slice(currentIndex, currentIndex + 2).reverse().map((p, i) => (
-          <ProjectCard key={p.id} project={p} isTop={i === 1} onSwipe={advance} />
-        ))}
+      <ScrollView
+        style={styles.scrollWrapper}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        scrollEnabled={currentIndex >= projects.length}
+      >
+        <View style={styles.cardContainer}>
+          {projects.slice(currentIndex, currentIndex + 2).reverse().map((p, i) => (
+            <ProjectCard key={p.id} project={p} isTop={i === 1} onSwipe={advance} />
+          ))}
 
-        {currentIndex >= projects.length && (
-          <View style={styles.endCard}>
-            <Text style={styles.endText}>No more projects!</Text>
-            <TouchableOpacity style={styles.resetButton} onPress={() => setCurrentIndex(0)}>
-              <Text style={styles.resetButtonText}>Start Over</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+          {currentIndex >= projects.length && (
+            <View style={styles.endCard}>
+              <Text style={styles.endText}>No more projects!</Text>
+              <TouchableOpacity style={styles.resetButton} onPress={onRefresh}>
+                <Text style={styles.resetButtonText}>Refresh & Start Over</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </ScrollView>
 
       {currentIndex < projects.length && (
         <View style={styles.buttonsContainer}>
@@ -235,6 +264,8 @@ export default function ProjectFeed() {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   container: { flex: 1, backgroundColor: '#fff' },
+  scrollWrapper: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
   cardContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   card: {
