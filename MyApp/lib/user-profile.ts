@@ -15,6 +15,7 @@ export interface UserProfile {
   links?: Array<{ label: string; url: string }>;
   visible: boolean;
   created_at: string;
+  resume_url?: string;
 }
 
 /**

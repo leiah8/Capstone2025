@@ -4,6 +4,7 @@
  */
 
 const MATCHING_API_URL = 'http://localhost:8000';
+const PARSER_API_URL = process.env.EXPO_PUBLIC_PARSER_URL || 'http://localhost:8001';
 
 export interface MatchRequest {
   user_profile: {
@@ -38,6 +39,35 @@ export interface MatchScore {
 export interface MatchResponse {
   ranked_projects: MatchScore[];
   total_projects: number;
+}
+
+/**
+ * Fetch and parse resume text for semantic similarity
+ * Returns the full resume text or undefined if not available
+ */
+export async function getResumeText(resumeUrl: string | null | undefined): Promise<string | undefined> {
+  if (!resumeUrl) return undefined;
+  
+  try {
+    const response = await fetch(`${PARSER_API_URL}/parse/url`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url: resumeUrl }),
+    });
+    
+    if (!response.ok) {
+      console.warn('Failed to parse resume:', response.status);
+      return undefined;
+    }
+    
+    const parsed = await response.json();
+    return parsed?.text?.full || undefined;
+  } catch (error) {
+    console.warn('Error fetching resume text:', error);
+    return undefined;
+  }
 }
 
 /**

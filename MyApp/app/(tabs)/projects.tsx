@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchProjects, ProjectUI } from '../../lib/projects';
 import { getUserProfile } from '../../lib/user-profile';
-import { getMatchedProjects, checkMatchingAPIHealth } from '../../lib/matching-api';
+import { getMatchedProjects, checkMatchingAPIHealth, getResumeText } from '../../lib/matching-api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 120;
@@ -157,8 +157,22 @@ export default function ProjectFeed() {
             // Get current authenticated user's profile
             const userProfile = await getUserProfile();
             
+            // Fetch and parse resume text for semantic similarity
+            const resumeText = await getResumeText(userProfile.resume_url);
+            if (resumeText) {
+              console.log(`Using resume text for semantic similarity (${resumeText.length} chars)`);
+            } else {
+              console.log('No resume text available, falling back to bio');
+            }
+            
+            // Use resume text if available, otherwise fall back to bio
+            const profileForMatching = {
+              ...userProfile,
+              bio: resumeText || userProfile.bio || '',
+            };
+            
             // Get matched and ranked projects
-            const matchScores = await getMatchedProjects(userProfile, allProjects);
+            const matchScores = await getMatchedProjects(profileForMatching, allProjects);
             
             // Create a map of project IDs to match scores
             const scoreMap = new Map(matchScores.map(m => [m.project_id, m.overall_score]));
