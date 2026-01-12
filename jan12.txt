@@ -1,0 +1,34 @@
+All in Attendance
+
+- Divided up required work for Design Doc + V&V
+
+Nic
+- Basic Outline (Title, Version, Format)
+- Brief
+- Project Tab
+    - Projects you own, editing for them, etc
+    
+Andre + Nic
+- Resume Parser
+- Person to Person Matching Algorithm
+- Person to Project Matching Algorithm
+
+Leiah
+- Basic Component Diagram
+- Profile Page
+- Peer Search Feed
+    - Searching for users, toggle for which project u are currently searching for
+
+Martin 
+- Messaging / Matching Page
+- Project Search Feed
+    - Search for projects as a user
+
+Tony
+- Databases
+- Sign In / Account Creation Page
+
+
+
+
+
