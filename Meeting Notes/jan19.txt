@@ -1,0 +1,8 @@
+All in Attendance
+
+- Brought up issues encountered while working on Design Doc
+    - Elo must be added to DB for each project and user
+    - Edge functions for Supabase will be provided to Tony by Wednesday
+    - Messaging system will follow outline Martin provided
+- Booked meeting Wednesday Jan 21st @ 1pm to discuss V&V Section of document
+- Booked meeting with Professor (Monday Jan 26th)
