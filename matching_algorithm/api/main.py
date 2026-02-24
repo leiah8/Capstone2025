@@ -29,6 +29,8 @@ class PersonToProjectRequest(BaseModel):
     projects: List[Dict[str, Any]]
     weights: Optional[Dict[str, float]] = None
     limit: Optional[int] = Field(default=50, ge=1, le=100)
+    exclude_project_ids: Optional[List[str]] = Field(default=None)
+    diversity_boost: Optional[float] = Field(default=0.0, ge=0.0, le=0.2)
 
 
 class ProjectToPersonRequest(BaseModel):
@@ -36,6 +38,8 @@ class ProjectToPersonRequest(BaseModel):
     candidates: List[Dict[str, Any]]
     weights: Optional[Dict[str, float]] = None
     limit: Optional[int] = Field(default=50, ge=1, le=100)
+    exclude_candidate_ids: Optional[List[str]] = Field(default=None)
+    diversity_boost: Optional[float] = Field(default=0.0, ge=0.0, le=0.2)
 
 
 class EloUpdateRequest(BaseModel):
@@ -116,7 +120,9 @@ async def match_person_to_project(request: PersonToProjectRequest):
         engine = get_matching_engine(weights=weights)
         match_scores = engine.rank_projects(
             user_profile=request.user_profile,
-            projects=request.projects
+            projects=request.projects,
+            exclude_ids=request.exclude_project_ids,
+            diversity_boost=request.diversity_boost or 0.0
         )
         
         limited_scores = match_scores[:request.limit]
@@ -142,14 +148,25 @@ async def match_project_to_person(request: ProjectToPersonRequest):
             weights = MatchWeights(**request.weights)
         
         engine = get_matching_engine(weights=weights)
+        exclude_set = set(request.exclude_candidate_ids) if request.exclude_candidate_ids else set()
         
         candidate_scores = []
         for candidate in request.candidates:
+            candidate_id = str(candidate.get("id", "unknown"))
+            if candidate_id in exclude_set:
+                continue
+                
             try:
                 score = engine.calculate_match_score(
                     user_profile=candidate,
                     project=request.project
                 )
+                
+                if request.diversity_boost and request.diversity_boost > 0:
+                    import numpy as np
+                    random_factor = np.random.uniform(0, request.diversity_boost)
+                    score.total_score = min(1.0, score.total_score + random_factor)
+                
                 candidate_scores.append(score)
             except Exception as e:
                 continue

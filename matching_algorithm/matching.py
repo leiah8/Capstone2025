@@ -328,11 +328,24 @@ class MatchingEngine:
         self,
         user_profile: Dict[str, Any],
         projects: List[Dict[str, Any]],
+        exclude_ids: Optional[List[str]] = None,
+        diversity_boost: float = 0.0
     ) -> List[MatchScore]:
+        exclude_set = set(exclude_ids) if exclude_ids else set()
         scores = []
+        
         for project in projects:
+            project_id = str(project.get("id", "unknown"))
+            if project_id in exclude_set:
+                continue
+                
             try:
                 score = self.calculate_match_score(user_profile, project)
+                
+                if diversity_boost > 0:
+                    random_factor = np.random.uniform(0, diversity_boost)
+                    score.total_score = min(1.0, score.total_score + random_factor)
+                
                 scores.append(score)
             except Exception as e:
                 logger.error(f"Error scoring project {project.get('id')}: {e}")
