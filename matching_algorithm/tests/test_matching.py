@@ -193,7 +193,10 @@ class TestCustomWeights:
             semantic=0.2,
             must_have_skills=0.5,
             nice_to_have_skills=0.2,
-            interests=0.1
+            interests=0.05,
+            elo_rating=0.0,
+            experience_match=0.025,
+            location_match=0.025
         )
         engine = MatchingEngine(weights=custom_weights)
         
