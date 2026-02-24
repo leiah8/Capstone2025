@@ -2,6 +2,8 @@
 import { supabase } from './supabase';
 import { resolveProfileImageUrl } from './profile';
 
+export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
+
 export type ProjectUI = {
   id: string;
   name: string;
@@ -10,6 +12,10 @@ export type ProjectUI = {
   description: string;
   creatorImage: string;
   skillsNeeded: string[];
+  niceToHaveSkills?: string[];
+  tags?: string[];
+  eloRating?: number;
+  requiredExperienceLevel?: ExperienceLevel;
 };
 
 type DbProject = {
@@ -21,7 +27,11 @@ type DbProject = {
   is_active: boolean | null;
   created_at: string;
   skills_needed: string[] | null;
-  // allow either object or array (if join inference ever breaks)
+  nice_to_have_skills: string[] | null;
+  tags: string[] | null;
+  location: string | null;
+  elo_rating: number | null;
+  required_experience_level: ExperienceLevel | null;
   profiles:
     | { location: string | null; profile_image: string | null }
     | { location: string | null; profile_image: string | null }[]
@@ -48,6 +58,11 @@ export async function fetchProjects(limit = 50): Promise<ProjectUI[]> {
         is_active,
         created_at,
         skills_needed,
+        nice_to_have_skills,
+        tags,
+        location,
+        elo_rating,
+        required_experience_level,
         profiles:profiles!${FK} (
           location,
           profile_image
@@ -67,15 +82,19 @@ export async function fetchProjects(limit = 50): Promise<ProjectUI[]> {
     return {
       id: String(row.id),
       name: row.title,
-      location: prof?.location ?? '—',
+      location: row.location ?? prof?.location ?? '—',
       image: row.image ?? 'https://picsum.photos/400/300?blur=2',
       description: row.description ?? '',
       creatorImage: resolveProfileImageUrl(
         prof?.profile_image ?? null,
         row.owner_id,
-        'profiles' // your bucket
+        'profiles'
       ),
       skillsNeeded: row.skills_needed ?? [],
+      niceToHaveSkills: row.nice_to_have_skills ?? [],
+      tags: row.tags ?? [],
+      eloRating: row.elo_rating ?? undefined,
+      requiredExperienceLevel: row.required_experience_level ?? undefined,
     };
   });
 }

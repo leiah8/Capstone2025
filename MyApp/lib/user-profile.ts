@@ -5,6 +5,8 @@
 
 import { supabase } from './supabase';
 
+export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -14,13 +16,12 @@ export interface UserProfile {
   interests: string[];
   links?: Array<{ label: string; url: string }>;
   visible: boolean;
+  elo_rating?: number;
+  experience_level?: ExperienceLevel;
   created_at: string;
+  updated_at?: string;
 }
 
-/**
- * Mock user profile for testing the matching algorithm
- * TODO: Replace with real user profile from database once auth is set up
- */
 export const MOCK_USER_PROFILE: UserProfile = {
   id: 'mock-user-id',
   name: 'Test Student',
@@ -29,6 +30,8 @@ export const MOCK_USER_PROFILE: UserProfile = {
   skills: ['Python', 'React', 'TypeScript', 'Machine Learning', 'JavaScript', 'Node.js'],
   interests: ['AI', 'Web Development', 'Gaming', 'Mobile Apps', 'Data Science'],
   visible: true,
+  elo_rating: 1200,
+  experience_level: 'intermediate',
   created_at: new Date().toISOString(),
 };
 
