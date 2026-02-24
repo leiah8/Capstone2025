@@ -5,16 +5,15 @@ BASE_URL = "http://localhost:8000"
 
 
 def test_health_endpoint():
-    print("\nTesting health endpoint...")
     response = httpx.get(f"{BASE_URL}/match/health")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
-    print(f"Health check passed: {data}")
+    assert "weights" in data
+    assert "elo_rating" in data["weights"]
 
 
 def test_match_scoring():
-    print("\nTesting match scoring endpoint...")
     
     payload = {
         "user_profile": {
@@ -49,13 +48,107 @@ def test_match_scoring():
     projects = data["ranked_projects"]
     assert projects[0]["project_id"] == "1"
     assert projects[0]["total_score"] > projects[1]["total_score"]
+
+
+def test_person_to_project_matching():
+    payload = {
+        "user_profile": {
+            "skills": ["Python", "React"],
+            "interests": ["AI"],
+            "bio": "Software developer",
+            "elo_rating": 1300.0,
+            "experience_level": "intermediate",
+            "location": "Toronto, ON"
+        },
+        "projects": [
+            {
+                "id": "1",
+                "description": "AI project",
+                "skills_needed": ["Python"],
+                "tags": ["AI"],
+                "elo_rating": 1200.0,
+                "required_experience_level": "beginner",
+                "location": "Toronto, ON"
+            }
+        ],
+        "limit": 10
+    }
     
-    print(f"Match scoring passed")
-    print(f"Project 1 score: {projects[0]['total_score']:.4f}")
-    print(f"Project 2 score: {projects[1]['total_score']:.4f}")
+    response = httpx.post(f"{BASE_URL}/match/person-to-project", json=payload)
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert "ranked_projects" in data
+    assert len(data["ranked_projects"]) <= 10
+
+
+def test_project_to_person_matching():
+    payload = {
+        "project": {
+            "id": "1",
+            "description": "AI chatbot project",
+            "skills_needed": ["Python", "NLP"],
+            "tags": ["AI"],
+            "elo_rating": 1250.0,
+            "required_experience_level": "intermediate",
+            "location": "Remote"
+        },
+        "candidates": [
+            {
+                "id": "user1",
+                "skills": ["Python", "NLP", "React"],
+                "interests": ["AI"],
+                "bio": "AI engineer",
+                "elo_rating": 1400.0,
+                "experience_level": "advanced",
+                "location": "Toronto, ON"
+            },
+            {
+                "id": "user2",
+                "skills": ["Java", "Spring"],
+                "interests": ["Backend"],
+                "bio": "Backend developer",
+                "elo_rating": 1100.0,
+                "experience_level": "beginner",
+                "location": "Vancouver, BC"
+            }
+        ],
+        "limit": 10
+    }
+    
+    response = httpx.post(f"{BASE_URL}/match/project-to-person", json=payload)
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert "ranked_projects" in data
+    assert len(data["ranked_projects"]) <= 10
+    
+    if len(data["ranked_projects"]) >= 2:
+        assert data["ranked_projects"][0]["total_score"] >= data["ranked_projects"][1]["total_score"]
+
+
+def test_elo_update():
+    payload = {
+        "user_id": "user123",
+        "project_id": "proj456",
+        "user_elo": 1200.0,
+        "project_elo": 1250.0,
+        "match_quality": 0.8
+    }
+    
+    response = httpx.post(f"{BASE_URL}/match/update-elo", json=payload)
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert "new_user_elo" in data
+    assert "new_project_elo" in data
+    assert data["user_id"] == "user123"
+    assert data["project_id"] == "proj456"
 
 
 if __name__ == "__main__":
     test_health_endpoint()
     test_match_scoring()
-    print("\nAll API tests passed")
+    test_person_to_project_matching()
+    test_project_to_person_matching()
+    test_elo_update()
