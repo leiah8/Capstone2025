@@ -1,9 +1,10 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import { TouchableOpacity, useColorScheme } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import 'react-native-reanimated';
 import { AuthProvider } from '../contexts/AuthContext';
 
@@ -26,6 +27,26 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="login" />
           <Stack.Screen name="setup" />
+          <Stack.Screen name="create-project" options={{
+            headerShown: true,
+            title: 'Create Project',
+            presentation: 'modal',
+            headerRight: () => (
+              <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            ),
+          }} />
+          <Stack.Screen name="edit-project" options={{
+            headerShown: true,
+            title: 'Edit Project',
+            presentation: 'modal',
+            headerRight: () => (
+              <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            ),
+          }} />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
