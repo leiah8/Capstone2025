@@ -1,0 +1,24 @@
+All In Attendance, Online
+
+- Updates given on all features
+- Next meeting on Friday March 6th
+- Have all tasks / basic implementation finished by then
+
+Andre
+- Resume Parser speed being worked on; parsing also being improved
+- Will also check over profile page for any needed functionality
+
+Leiah
+- Candidate matching feed making good progress, waiting on person-to-project algo
+
+Nic
+- Algorithm continuing to be improved, elo implemented
+- Connect person-to-project algo to candidate matching feed
+- Some research done into how to evaluate algo accuracy, will continue looking
+
+Martin
+- Messaging system backend is set up, further research into security being done
+
+Tony
+- Project creation tab making good progress, creation works but editing is WIP
+

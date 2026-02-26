@@ -1,0 +1,20 @@
+All In Attendance
+
+- Distrubuted responsibilties for all remaining basic functionality
+- Next meeting book in 2 week intervals to account for midterms
+
+Andre
+- Resume Parser Improvements
+
+Leiah
+- Candidate matching feed development
+
+Nic
+- Algorithm testing and complexity Improvements
+- Collect data on the algorithms accuracy (look into how well matches are being formed)
+
+Martin
+- Messaging system
+
+Tony
+- Project creation tab
