@@ -35,8 +35,8 @@ const asSingleProfile = (
 ): { location: string | null; profile_image: string | null } | null =>
   Array.isArray(p) ? p[0] ?? null : p ?? null;
 
-export async function fetchProjects(limit = 50): Promise<ProjectUI[]> {
-  const { data, error } = await supabase
+export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promise<ProjectUI[]> {
+  let query = supabase
     .from('projects')
     .select(
       `
@@ -57,6 +57,12 @@ export async function fetchProjects(limit = 50): Promise<ProjectUI[]> {
     .eq('is_active', true)
     .order('created_at', { ascending: false })
     .limit(limit);
+
+  if (excludeOwnerId) {
+    query = query.neq('owner_id', excludeOwnerId);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
 
