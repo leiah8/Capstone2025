@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CandidateUI, fetchCandidates, fetchMyProjects } from '../../lib/candidates';
 import { checkMatchingAPIHealth, getMatchedCandidates, MatchScoreCandidate } from '../../lib/matching-api';
 
+import { router } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 
 
@@ -287,6 +288,9 @@ export default function CandidateFeed() {
   const [err, setErr] = useState<string | null>(null);
   const [useMatching, setUseMatching] = useState(false);
 
+  const [hasProjects, setHasProjects] = useState(false);
+
+
   const { session } = useAuth();
 
 
@@ -295,52 +299,58 @@ export default function CandidateFeed() {
     (async () => {
       try {
         setLoading(true);
-        
-        // Fetch all projects
-        const allCandidates = await fetchCandidates(50);
-        // console.log("HERE HI")
-        // console.log(allCandidates)
-        if (!alive) return;
 
-        // Check if matching API is available
-        const matchingAvailable = await checkMatchingAPIHealth();
-        
-        if (matchingAvailable) {
-          console.log('Matching API available - ranking projects by match score...');
-          try {
-            // Get current authenticated user's projects
-            const userProjects = await fetchMyProjects(session?.user?.id);
-            
-            const matchScores : MatchScoreCandidate[] = []
-            
-            userProjects.forEach(async (p) => {
-                const matchScores = await getMatchedCandidates(p, allCandidates);
-                matchScores.push()
-            }) //keep seperate so we can tag them: TODO 
-                
-            // Create a map of project IDs to match scores
-            const scoreMap = new Map(matchScores.map(m => [m.project_id, m.overall_score]));
-            
-            // Sort candidates by match score
-            const rankedCandidates = [...allCandidates].sort((a, b) => {
-              const scoreA = scoreMap.get(a.id) || 0;
-              const scoreB = scoreMap.get(b.id) || 0;
-              return scoreB - scoreA; // Higher scores first
-            });
-            
-            setCandidates(rankedCandidates as Candidate[]);
-            setUseMatching(true);
-            console.log(`Candidates ranked by match score (top: ${(scoreMap.get(rankedCandidates[0].id) || 0) * 100}%)`);
-          } catch (matchError) {
-            console.warn('Failed to rank projects, using default order:', matchError);
+        // Get current authenticated user's projects
+        const userProjects = await fetchMyProjects(session?.user?.id);
+
+        setHasProjects(userProjects.length > 0);
+
+        if(hasProjects) {
+            // Fetch all projects
+          const allCandidates = await fetchCandidates(50);
+          // console.log("HERE HI")
+          // console.log(allCandidates)
+          if (!alive) return;
+
+          // Check if matching API is available
+          const matchingAvailable = await checkMatchingAPIHealth();
+          
+          if (matchingAvailable) {
+            console.log('Matching API available - ranking projects by match score...');
+            try {
+              
+              const matchScores : MatchScoreCandidate[] = []
+              
+              userProjects.forEach(async (p) => {
+                  const matchScores = await getMatchedCandidates(p, allCandidates);
+                  matchScores.push()
+              }) //keep seperate so we can tag them: TODO 
+                  
+              // Create a map of project IDs to match scores
+              const scoreMap = new Map(matchScores.map(m => [m.project_id, m.overall_score]));
+              
+              // Sort candidates by match score
+              const rankedCandidates = [...allCandidates].sort((a, b) => {
+                const scoreA = scoreMap.get(a.id) || 0;
+                const scoreB = scoreMap.get(b.id) || 0;
+                return scoreB - scoreA; // Higher scores first
+              });
+              
+              setCandidates(rankedCandidates as Candidate[]);
+              setUseMatching(true);
+              console.log(`Candidates ranked by match score (top: ${(scoreMap.get(rankedCandidates[0].id) || 0) * 100}%)`);
+            } catch (matchError) {
+              console.warn('Failed to rank projects, using default order:', matchError);
+              setCandidates(allCandidates as Candidate[]);
+            }
+          } else {
+            console.log('Matching API not available - showing candidates in default order');
             setCandidates(allCandidates as Candidate[]);
           }
-        } else {
-          console.log('Matching API not available - showing candidates in default order');
-          setCandidates(allCandidates as Candidate[]);
+          
+          setCurrentIndex(0);
         }
-        
-        setCurrentIndex(0);
+
       } catch (e: any) {
         if (!alive) return;
         setErr(e.message ?? String(e));
@@ -356,7 +366,7 @@ export default function CandidateFeed() {
   if (loading) return <View style={styles.center}><Text>Loading projects…</Text></View>;
   if (err) return <View style={styles.center}><Text>Failed to load candidates: {err}</Text></View>;
 
-  return (
+  return ( hasProjects ? 
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.cardContainer}>
         {projects.slice(currentIndex, currentIndex + 2).reverse().map((p, i) => (
@@ -384,7 +394,17 @@ export default function CandidateFeed() {
         </View>
       )}
     </View>
-  );
+
+: (
+          <View style={[styles.center, { backgroundColor : "#fff"}]}>
+            <Text style={{ fontSize: 16, color: '#999', marginBottom: 16 }}>You must have a project to browse candidates.</Text>
+            <TouchableOpacity style={styles.resetButton} onPress={() => router.push('/create-project')}>
+              <Text style={styles.resetButtonText}>Create Your First Project</Text>
+            </TouchableOpacity>
+          </View>
+        )
+
+);
 }
 
 /* =========================
