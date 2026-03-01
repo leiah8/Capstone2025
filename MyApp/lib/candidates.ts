@@ -1,4 +1,4 @@
-// lib/projects.ts
+// lib/candidates.ts
 import { supabase } from './supabase';
 
 export type links = {
@@ -60,13 +60,17 @@ type DbCandidate = {
   experience : JSON[] | null;
 };
 
+type MyProject = {
+  id: number;
+  title: string;
+  description: string;
+  skills_needed: string[] | null;
+  tags: string[] | null;
+  image: string | null;
+  is_active: boolean;
+  created_at: string;
+};
 
-// const FK = 'projects_owner_id_fkey';
-
-// const asSingleProfile = (
-//   p: DbProject['profiles']
-// ): { location: string | null; profile_image: string | null } | null =>
-//   Array.isArray(p) ? p[0] ?? null : p ?? null;
 
 export async function fetchCandidates(limit = 50): Promise<CandidateUI[]> {
   const { data, error } = await supabase
@@ -119,3 +123,20 @@ export async function fetchCandidates(limit = 50): Promise<CandidateUI[]> {
     };
   });
 }
+
+
+
+export async function fetchMyProjects(ownerId : string | undefined) : Promise<MyProject[]> {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('id, title, description, skills_needed, tags, image, is_active, created_at')
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return ((data ?? []) as MyProject[]);
+    } catch (e: any) {
+      return []
+    } finally {
+    }
+  };

@@ -6,22 +6,22 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    Dimensions,
-    Image,
-    Linking,
-    PanResponder,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Dimensions,
+  Image,
+  Linking,
+  PanResponder,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CandidateUI, fetchCandidates } from '../../lib/candidates';
-import { checkMatchingAPIHealth, getMatchedCandidates, MatchScore } from '../../lib/matching-api';
+import { CandidateUI, fetchCandidates, fetchMyProjects } from '../../lib/candidates';
+import { checkMatchingAPIHealth, getMatchedCandidates, MatchScoreCandidate } from '../../lib/matching-api';
 
-import { fetchProjects } from '../../lib/projects';
+import { useAuth } from '../../contexts/AuthContext';
 
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -35,8 +35,6 @@ type Candidate = CandidateUI & {
 //   // tolerate legacy shape if it exists
 //   skills?: { name: string; level?: number }[];
 };
-
-
 
 /* =========================
    Link Row
@@ -289,6 +287,9 @@ export default function CandidateFeed() {
   const [err, setErr] = useState<string | null>(null);
   const [useMatching, setUseMatching] = useState(false);
 
+  const { session } = useAuth();
+
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -308,9 +309,9 @@ export default function CandidateFeed() {
           console.log('Matching API available - ranking projects by match score...');
           try {
             // Get current authenticated user's projects
-            const userProjects = await fetchProjects();
+            const userProjects = await fetchMyProjects(session?.user?.id);
             
-            const matchScores : MatchScore[] = []
+            const matchScores : MatchScoreCandidate[] = []
             
             userProjects.forEach(async (p) => {
                 const matchScores = await getMatchedCandidates(p, allCandidates);

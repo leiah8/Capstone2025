@@ -5,7 +5,9 @@
 
 const MATCHING_API_URL = 'http://localhost:8000';
 
-export interface MatchRequest {
+import { ed, job, profile_project } from 'lib/candidates';
+
+export interface MatchRequestProject {
   user_profile: {
     skills: string[];
     interests: string[];
@@ -21,7 +23,28 @@ export interface MatchRequest {
   }>;
 }
 
-export interface MatchScore {
+export interface MatchRequestCandidate {
+  project: {
+    title: string,
+    description: string,
+    skills: string[] | null,
+    tags: string [] | null,
+  };
+  candidates: Array<{
+    id: string,
+    name: string,
+    location: string,
+    bio: string, 
+    skills: string[],
+    interests : string[],
+    education : ed[],
+    personal_projects : profile_project[],
+    experience : job[],
+  }>;
+}
+
+
+export interface MatchScoreProject {
   project_id: string;
   project_name: string;
   overall_score: number;
@@ -35,8 +58,27 @@ export interface MatchScore {
   missing_must_have: string[];
 }
 
-export interface MatchResponse {
-  ranked_projects: MatchScore[];
+export interface MatchScoreCandidate {
+  project_id: string;
+  project_name: string;
+  overall_score: number;
+  semantic_similarity: number;
+  must_have_match: number;
+  nice_to_have_match: number;
+  interest_match: number;
+  matched_must_have: string[];
+  matched_nice_to_have: string[];
+  matched_interests: string[];
+  missing_must_have: string[];
+}
+
+export interface MatchResponseProject {
+  ranked_projects: MatchScoreProject[];
+  total_projects: number;
+}
+
+export interface MatchResponseCandidate {
+  ranked_candidates: MatchScoreProject[];
   total_projects: number;
 }
 
@@ -52,7 +94,7 @@ export async function getMatchedProjects(
     skillsNeeded?: string[];
     interests?: string[];
   }>
-): Promise<MatchScore[]> {
+): Promise<MatchScoreProject[]> {
   try {
     // Transform projects to match API format
     const apiProjects = projects.map(p => ({
@@ -64,7 +106,7 @@ export async function getMatchedProjects(
       interests: p.interests || [],
     }));
 
-    const requestBody: MatchRequest = {
+    const requestBody: MatchRequestProject = {
       user_profile: {
         skills: userProfile.skills,
         interests: userProfile.interests,
@@ -86,7 +128,7 @@ export async function getMatchedProjects(
       throw new Error(`Matching API error: ${response.status} - ${errorText}`);
     }
 
-    const data: MatchResponse = await response.json();
+    const data: MatchResponseProject = await response.json();
     return data.ranked_projects;
   } catch (error) {
     console.error('Error calling matching algorithm:', error);
@@ -100,48 +142,36 @@ export async function getMatchedProjects(
  * Call the matching algorithm API to score and rank projects for a user
  */
 export async function getMatchedCandidates(
-  project : {},
+  user_project : {
+    id: number;
+    title: string;
+    description: string;
+    skills_needed: string[] | null;
+    tags: string[] | null;
+    image: string | null;
+    is_active: boolean;
+    created_at: string;
+  },
   candidates : Array<{
     id: string;
     name: string;
     location: string | null;
-    profile_image: string;
     bio: string | null;
-    skills: string[];
-    interests : string[];
-    links : {
-      github : string | null;
-      twitter : string | null;
-      linkedin : string | null;
-      instagram : string | null;
-      portfolio : string | null;
-      other : string | null;
-    };
-    education : {
-      year : string;
-      degree : string;
-      school : string;
-    }[];
-    personal_projects : {
-      link : string | null;
-      name : string;
-      description : string;
-    }[];
-    experience : {
-      company : string;
-      duration : string;
-      position : string;
-      description : string;
-    }[];}>
+    skills: string[] | null;
+    interests : string[] | null;
+    education : ed[];
+    personal_projects : profile_project[];
+    experience : job[];}>
   
-): Promise<MatchScore[]> {
+): Promise<MatchScoreCandidate[]> {
+  
   try {
     // Transform projects to match API format
     const apiCandidates = candidates.map(c => ({
       id: c.id,
       name: c.name,
-      location: c.location, 
-      bio: c.bio, 
+      location: c.location ?? "", 
+      bio: c.bio ?? "", 
       skills: c.skills || [],
       interests : c.interests || [],
       education : c.education || [],
@@ -150,13 +180,14 @@ export async function getMatchedCandidates(
 
     }));
 
-    const requestBody: MatchRequest = {
-      project: {
-        skills: userProfile.skills,
-        interests: userProfile.interests,
-        bio: userProfile.bio,
+    const requestBody: MatchRequestCandidate = {
+      project : {
+        title: user_project.title,
+        description: user_project.description,
+        skills: user_project.skills_needed,
+        tags: user_project.tags,
       },
-      candidates: apiCandidates,
+      candidates : apiCandidates,
     };
 
     const response = await fetch(`${MATCHING_API_URL}/match/score`, {
@@ -172,8 +203,8 @@ export async function getMatchedCandidates(
       throw new Error(`Matching API error: ${response.status} - ${errorText}`);
     }
 
-    const data: MatchResponse = await response.json();
-    return data.ranked_projects;
+    const data: MatchResponseCandidate = await response.json();
+    return data.ranked_candidates;
   } catch (error) {
     console.error('Error calling matching algorithm:', error);
     throw error;
