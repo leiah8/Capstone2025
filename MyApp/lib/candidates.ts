@@ -16,7 +16,6 @@ export type ed = {
     year : string;
     degree : string;
     school : string;
-
 };
 
 export type profile_project = {
@@ -36,9 +35,9 @@ export type job = {
 export type CandidateUI = {
   id: string;
   name: string;
-  location: string;
+  location: string | null;
   profile_image: string;
-  bio: string;
+  bio: string | null;
   skills: string[];
   interests : string[];
   links : links;
@@ -105,8 +104,8 @@ export async function fetchCandidates(limit = 50): Promise<CandidateUI[]> {
     return {
       id: String(row.id),
       name: String(row.name),
-      bio : row.bio ?? "-", 
-      location: row.location ?? '—',
+      bio : row.bio ?? null, 
+      location: row.location ?? null,
       profile_image: row.profile_image ?? 'https://picsum.photos/400/300?blur=2',
       skills: row.skills ?? [],
       interests : row.interests ?? [], 

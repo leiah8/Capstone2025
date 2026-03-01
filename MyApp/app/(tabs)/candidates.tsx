@@ -1,4 +1,4 @@
-// app/(tabs)/projects.tsx
+// app/(tabs)/candidates.tsx
 
 /* =========================
    Imports & setup
@@ -9,6 +9,7 @@ import {
     Animated,
     Dimensions,
     Image,
+    Linking,
     PanResponder,
     ScrollView,
     StyleSheet,
@@ -18,7 +19,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CandidateUI, fetchCandidates } from '../../lib/candidates';
-import { checkMatchingAPIHealth } from '../../lib/matching-api';
+import { checkMatchingAPIHealth, getMatchedCandidates, MatchScore } from '../../lib/matching-api';
+
+import { fetchProjects } from '../../lib/projects';
+
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 120;
@@ -31,6 +35,83 @@ type Candidate = CandidateUI & {
 //   // tolerate legacy shape if it exists
 //   skills?: { name: string; level?: number }[];
 };
+
+
+
+/* =========================
+   Link Row
+   ========================= */
+const LINK_ICONS: Record<string, string> = {
+  github: 'logo-github',
+  linkedin: 'logo-linkedin',
+  twitter: 'logo-twitter',
+  instagram: 'logo-instagram',
+  portfolio: 'globe-outline',
+  other: 'link-outline',
+};
+
+
+const LinkRow = ({ label, url }: { label: string; url?: string }) => {
+  if (!url) return null;
+  return (
+    <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(url)}>
+      <Ionicons name={LINK_ICONS[label] as any} size={16} color="#555" style={{ marginRight: 8 }} />
+      <Text style={styles.linkText} numberOfLines={1}>{url}</Text>
+    </TouchableOpacity>
+  );
+};
+
+/* =========================
+   Experience Block
+   ========================= */
+const ExperienceBlock = ({ item }: { item: any }) => (
+  <View style={styles.timelineItem}>
+    <View style={styles.timelineDot} />
+    <View style={styles.timelineContent}>
+      <Text style={styles.timelineTitle}>{item.position}</Text>
+      <Text style={styles.timelineSubtitle}>{item.company}</Text>
+      <Text style={styles.timelineMeta}>{item.duration}</Text>
+      {item.description ? (
+        <Text style={styles.timelineDesc}>{item.description}</Text>
+      ) : null}
+    </View>
+  </View>
+);
+
+
+/* =========================
+   Education Block
+   ========================= */
+const EducationBlock = ({ item }: { item: any }) => (
+  <View style={styles.timelineItem}>
+    <View style={[styles.timelineDot ]} />
+    <View style={styles.timelineContent}>
+      <Text style={styles.timelineTitle}>{item.degree}</Text>
+      <Text style={styles.timelineSubtitle}>{item.school}</Text>
+      <Text style={styles.timelineMeta}>{item.year}</Text>
+    </View>
+  </View>
+);
+
+/* =========================
+   Project Block
+   ========================= */
+const ProjectBlock = ({ item }: { item: any }) => (
+  <View style={styles.projectBlock}>
+    <View style={styles.projectBlockHeader}>
+      <Text style={styles.projectBlockName}>{item.name}</Text>
+      {item.link ? (
+        <TouchableOpacity onPress={() => Linking.openURL(item.link)}>
+          <Ionicons name="open-outline" size={14} color="#888" />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+    {item.description ? (
+      <Text style={styles.timelineDesc}>{item.description}</Text>
+    ) : null}
+  </View>
+);
+
 
 /* =========================
    Swipeable Card
@@ -69,6 +150,7 @@ const CandidateCard = ({
       .start(() => { onSwipe('left'); position.setValue({ x: 0, y: 0 }); });
   };
   const resetPosition = () => Animated.spring(position, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+  const hasLinks = candidate.links && Object.values(candidate.links).some(Boolean);
 
   // unify skills source (supports either shape)
 //   const skills = candidate.skills
@@ -96,23 +178,25 @@ const CandidateCard = ({
         </>
       )}
 
-      {/* Creator avatar
-      <View style={styles.avatarContainer}>
-        <Image source={{ uri: candidate.creatorImage }} style={styles.avatar} />
-        <View style={styles.targetIcon}><View style={styles.targetOuter}><View style={styles.targetInner} /></View></View>
-      </View> */}
-
       {/* Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.projectName}>{candidate.name}</Text>
-        <Text style={styles.location}>{candidate.location}</Text>
-
-        <View style={styles.imageContainer}>
-          <Image source={{ uri: candidate.profile_image }} style={styles.projectImage} />
+        
+        {/* ── Hero Header ── */}
+        <View style={styles.avatarSection}>
+          <View style={styles.avatarWrapper}>
+            <Image source={{ uri: candidate.profile_image }} style={styles.avatar} />
+          </View>
+          <Text style={styles.candidateName}>{candidate.name}</Text>
+          {candidate.location ? (
+            <View style={styles.locationRow}>
+              <Ionicons name="location-outline" size={13} color="#888" />
+              <Text style={styles.locationText}>{candidate.location}</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.descriptionSection}>
-          <Text style={styles.sectionTitle}>Bio</Text>
+          {/* <Text style={styles.sectionTitle}>Bio</Text> */}
           <Text style={styles.description}>{candidate.bio}</Text>
         </View>
 
@@ -145,83 +229,49 @@ const CandidateCard = ({
           </View>
         )}
 
-        {/* links */}
-        {/* TODO: fix formatting */}
-        <View style={{ marginTop: 6, marginBottom: 20 }}>
-            <Text style={styles.sectionTitle}>Links</Text>
-            <View style={styles.chipsWrap}>
-                <Text style={styles.chipText}>{candidate.links.github}</Text>
-                <Text style={styles.chipText}>{candidate.links.linkedin}</Text>
-                <Text style={styles.chipText}>{candidate.links.twitter}</Text>
-                <Text style={styles.chipText}>{candidate.links.instagram}</Text>
-                <Text style={styles.chipText}>{candidate.links.portfolio}</Text>
-                <Text style={styles.chipText}>{candidate.links.other}</Text>
-            </View>
-          </View>
-
-            {/* education */}
-            {/* TODO: fix formatting */}
-          {candidate.education.length > 0 && (
-          <View style={{ marginTop: 6, marginBottom: 20 }}>
-            <Text style={styles.sectionTitle}>Education</Text>
-            <View style={styles.chipsWrap}>
-              {candidate.education.map((e) => (
-                <View style={styles.chip}>
-                  <Text style={styles.chipText}>{String(e.school)}</Text>
-                  <Text style={styles.chipText}>{String(e.year)}</Text>
-                  <Text style={styles.chipText}>{String(e.degree)}</Text>
-
-                </View>
-              ))}
-            </View>
-          </View>
-
-            
-
-        )}
-
-        {/* personal projects */}
-        {/* TODO: fix formatting */}
-        {candidate.personal_projects.length > 0 && (
-          <View style={{ marginTop: 6, marginBottom: 20 }}>
-            <Text style={styles.sectionTitle}>Personal Projects</Text>
-            {/* <View style={styles.chipsWrap}> */}
-              {candidate.personal_projects.map((p) => (
-                <View>
-                  <Text>{String(p.name)}</Text>
-                   <View style={styles.descriptionSection}>
-                        <Text style={styles.description}>{p.description}</Text>
-                    </View>
-                  <Text>{String(p.link)}</Text>
-
-                </View>
-              ))}
-            {/* </View> */}
-          </View>
-
-        )}
-
-        {/* experience */}
-        {/* TODO: fix formatting */}
-        {candidate.experience.length > 0 && (
-          <View style={{ marginTop: 6, marginBottom: 20 }}>
+        {/* ── Experience ── */}
+        {candidate.experience?.length > 0 && (
+          <View style={styles.section}>
             <Text style={styles.sectionTitle}>Experience</Text>
-            {/* <View style={styles.chipsWrap}> */}
-              {candidate.experience.map((p) => (
-                <View>
-                  <Text>{String(p.company)}</Text>
-                  <Text>{String(p.duration)}</Text>
-                  <Text>{String(p.position)}</Text>
-                   <View style={styles.descriptionSection}>
-                        <Text style={styles.description}>{p.description}</Text>
-                    </View>
-
-                </View>
-              ))}
-            {/* </View> */}
+            <View style={styles.timeline}>
+              {candidate.experience.map((e, i) => <ExperienceBlock key={`ex-${i}`} item={e} />)}
+            </View>
           </View>
-
         )}
+
+        {/* ── Education ── */}
+        {candidate.education?.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Education</Text>
+            <View style={styles.timeline}>
+              {candidate.education.map((e, i) => <EducationBlock key={`ed-${i}`} item={e} />)}
+            </View>
+          </View>
+        )}
+
+        {/* ── Personal Projects ── */}
+        {candidate.personal_projects.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Projects</Text>
+            {candidate.personal_projects.map((p, i) => <ProjectBlock key={`pp-${i}`} item={p} />)}
+          </View>
+        )}
+
+        {/* ── Links ── */}
+        {hasLinks && (
+          <View style={[styles.section, { marginBottom: 32 }]}>
+            <Text style={styles.sectionTitle}>Links</Text>
+            <View style={styles.linksContainer}>
+              {candidate.links.github != null && (<LinkRow label="github" url={candidate.links.github} />)}
+              {candidate.links.linkedin != null && (<LinkRow label="linkedin" url={candidate.links.linkedin} />)}
+              {candidate.links.twitter != null && (<LinkRow label="twitter" url={candidate.links.twitter} />)}
+              {candidate.links.instagram != null && (<LinkRow label="instagram" url={candidate.links.instagram} />)}
+              {candidate.links.portfolio != null && (<LinkRow label="portfolio" url={candidate.links.portfolio} />)}
+              {candidate.links.other != null && (<LinkRow label="other" url={candidate.links.other} />)}
+            </View>
+          </View>
+        )}
+
 
       </ScrollView>
     </Animated.View>
@@ -233,7 +283,7 @@ const CandidateCard = ({
    ========================= */
 export default function CandidateFeed() {
   const insets = useSafeAreaInsets();
-  const [projects, setProjects] = useState<Candidate[]>([]);
+  const [projects, setCandidates] = useState<Candidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -255,35 +305,38 @@ export default function CandidateFeed() {
         const matchingAvailable = await checkMatchingAPIHealth();
         
         if (matchingAvailable) {
-            console.log("todo")
-        //   console.log('Matching API available - ranking projects by match score...');
-        //   try {
-        //     // Get current authenticated user's profile
-        //     const userProfile = await getUserProfile();
+          console.log('Matching API available - ranking projects by match score...');
+          try {
+            // Get current authenticated user's projects
+            const userProjects = await fetchProjects();
             
-        //     // Get matched and ranked projects
-        //     const matchScores = await getMatchedProjects(userProfile, allCandidates);
+            const matchScores : MatchScore[] = []
             
-        //     // Create a map of project IDs to match scores
-        //     const scoreMap = new Map(matchScores.map(m => [m.project_id, m.overall_score]));
+            userProjects.forEach(async (p) => {
+                const matchScores = await getMatchedCandidates(p, allCandidates);
+                matchScores.push()
+            }) //keep seperate so we can tag them: TODO 
+                
+            // Create a map of project IDs to match scores
+            const scoreMap = new Map(matchScores.map(m => [m.project_id, m.overall_score]));
             
-        //     // Sort projects by match score
-        //     const rankedProjects = [...allProjects].sort((a, b) => {
-        //       const scoreA = scoreMap.get(a.id) || 0;
-        //       const scoreB = scoreMap.get(b.id) || 0;
-        //       return scoreB - scoreA; // Higher scores first
-        //     });
+            // Sort candidates by match score
+            const rankedCandidates = [...allCandidates].sort((a, b) => {
+              const scoreA = scoreMap.get(a.id) || 0;
+              const scoreB = scoreMap.get(b.id) || 0;
+              return scoreB - scoreA; // Higher scores first
+            });
             
-        //     setProjects(rankedProjects as Project[]);
-        //     setUseMatching(true);
-        //     console.log(`Projects ranked by match score (top: ${(scoreMap.get(rankedProjects[0].id) || 0) * 100}%)`);
-        //   } catch (matchError) {
-        //     console.warn('Failed to rank projects, using default order:', matchError);
-        //     setProjects(allProjects as Project[]);
-        //   }
+            setCandidates(rankedCandidates as Candidate[]);
+            setUseMatching(true);
+            console.log(`Candidates ranked by match score (top: ${(scoreMap.get(rankedCandidates[0].id) || 0) * 100}%)`);
+          } catch (matchError) {
+            console.warn('Failed to rank projects, using default order:', matchError);
+            setCandidates(allCandidates as Candidate[]);
+          }
         } else {
           console.log('Matching API not available - showing candidates in default order');
-          setProjects(allCandidates as Candidate[]);
+          setCandidates(allCandidates as Candidate[]);
         }
         
         setCurrentIndex(0);
@@ -357,15 +410,11 @@ const styles = StyleSheet.create({
   },
   cardBehind: { transform: [{ scale: 0.95 }], opacity: 0.8 },
 
-  avatarContainer: { position: 'absolute', top: 20, left: 20, zIndex: 10 },
-  avatar: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: '#fff' },
-
   targetIcon: { position: 'absolute', top: -5, right: -5, backgroundColor: '#fff', borderRadius: 15, padding: 3 },
   targetOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#333', justifyContent: 'center', alignItems: 'center' },
   targetInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#333' },
 
   content: { flex: 1, padding: 20, paddingTop: 30 },
-  projectName: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginTop: 50, marginBottom: 4 },
   location: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 20 },
 
   imageContainer: { width: '100%', height: 180, borderRadius: 16, overflow: 'hidden', marginBottom: 20, backgroundColor: '#8FBC8F' },
@@ -373,7 +422,7 @@ const styles = StyleSheet.create({
 
   descriptionSection: { marginBottom: 12 },
   sectionTitle: { fontSize: 18, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
-  description: { fontSize: 14, color: '#333', lineHeight: 20, textAlign: 'center' },
+  description: { fontSize: 14, color: '#333', lineHeight: 20, textAlign: 'center'},
 
   // overlays
   likeOverlay: { position: 'absolute', top: 50, right: 30, zIndex: 5, transform: [{ rotate: '20deg' }], borderWidth: 4, borderColor: '#4CAF50', borderRadius: 10, padding: 10 },
@@ -393,4 +442,35 @@ const styles = StyleSheet.create({
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
   chip: { backgroundColor: '#fff', borderColor: '#ddd', borderWidth: 1, borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12, marginBottom: 8 },
   chipText: { fontSize: 13, color: '#333' },
+
+  section : {marginBottom : 12},
+
+  // avatar
+  avatarSection: { alignItems: 'center', paddingTop: 32, paddingBottom: 20, paddingHorizontal: 24 },
+  avatarWrapper: { width: 88, height: 88, borderRadius: 44, overflow: 'hidden', borderWidth: 2, borderColor: '#fff', marginBottom: 14, elevation: 3 },
+  avatar: { width: '100%', height: '100%' },
+  candidateName: { fontSize: 26, fontWeight: '700', color: '#1A1A1A', letterSpacing: 0.3, textAlign: 'center', marginBottom: 6 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locationText: { fontSize: 13, color: '#888', letterSpacing: 0.2 },
+
+  //timeline for education and experience
+  timeline: { paddingLeft: 4, marginBottom: 4 },
+  timelineItem: { flexDirection: 'row', marginBottom: 16, alignItems: 'flex-start' },
+  timelineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#1A1A1A', marginTop: 5, marginRight: 14, flexShrink: 0 },
+  timelineContent: { flex: 1 },
+  timelineTitle: { fontSize: 14, fontWeight: '700', color: '#1A1A1A', marginBottom: 2 },
+  timelineSubtitle: { fontSize: 13, color: '#555', marginBottom: 1, fontWeight: '500' },
+  timelineMeta: { fontSize: 11, color: '#AAA', letterSpacing: 0.5, marginBottom: 5 },
+  timelineDesc: { fontSize: 13, color: '#666', lineHeight: 19 },
+
+  // personal project
+  projectBlock: { backgroundColor: '#f5f5f5', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#f5f5f5' },
+  projectBlockHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  projectBlockName: { fontSize: 14, fontWeight: '700', flex: 1, marginRight: 8 },
+
+  //links
+  linksContainer: { gap: 10 },
+  linkRow: { flexDirection: 'row', alignItems: 'center' },
+  linkText: { fontSize: 12, color: '#666', flex: 1 },
+
 });

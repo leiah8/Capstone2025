@@ -94,6 +94,92 @@ export async function getMatchedProjects(
   }
 }
 
+
+//TODO
+/**
+ * Call the matching algorithm API to score and rank projects for a user
+ */
+export async function getMatchedCandidates(
+  project : {},
+  candidates : Array<{
+    id: string;
+    name: string;
+    location: string | null;
+    profile_image: string;
+    bio: string | null;
+    skills: string[];
+    interests : string[];
+    links : {
+      github : string | null;
+      twitter : string | null;
+      linkedin : string | null;
+      instagram : string | null;
+      portfolio : string | null;
+      other : string | null;
+    };
+    education : {
+      year : string;
+      degree : string;
+      school : string;
+    }[];
+    personal_projects : {
+      link : string | null;
+      name : string;
+      description : string;
+    }[];
+    experience : {
+      company : string;
+      duration : string;
+      position : string;
+      description : string;
+    }[];}>
+  
+): Promise<MatchScore[]> {
+  try {
+    // Transform projects to match API format
+    const apiCandidates = candidates.map(c => ({
+      id: c.id,
+      name: c.name,
+      location: c.location, 
+      bio: c.bio, 
+      skills: c.skills || [],
+      interests : c.interests || [],
+      education : c.education || [],
+      personal_projects : c.personal_projects || [],
+      experience : c.experience || []
+
+    }));
+
+    const requestBody: MatchRequest = {
+      project: {
+        skills: userProfile.skills,
+        interests: userProfile.interests,
+        bio: userProfile.bio,
+      },
+      candidates: apiCandidates,
+    };
+
+    const response = await fetch(`${MATCHING_API_URL}/match/score`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Matching API error: ${response.status} - ${errorText}`);
+    }
+
+    const data: MatchResponse = await response.json();
+    return data.ranked_projects;
+  } catch (error) {
+    console.error('Error calling matching algorithm:', error);
+    throw error;
+  }
+}
+
 /**
  * Check if the matching API is available
  */
