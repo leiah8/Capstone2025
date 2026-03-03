@@ -25,6 +25,10 @@ import Constants from "expo-constants";
 import { useAuth } from "../../contexts/AuthContext";
 import { router } from "expo-router";
 import { supabase } from "../../lib/supabase";
+import ParseReviewModal, {
+  type ParsedData,
+  type ConfirmedData,
+} from "../../components/ParseReviewModal";
 
 /* =========================
    Helpers
@@ -106,6 +110,18 @@ export default function ProfilePage() {
     process.env.EXPO_PUBLIC_PARSER_URL ||
     "";
 
+  /* Review-modal state (shown after parsing) */
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const emptyParsed: ParsedData = {
+    skills: [],
+    interests: [],
+    education: [],
+    experience: [],
+    personal_projects: [],
+  };
+  const [parsedResumeData, setParsedResumeData] =
+    useState<ParsedData>(emptyParsed);
+
   /* =========================
      Load profile
      ========================= */
@@ -145,7 +161,7 @@ export default function ProfilePage() {
                     degree: "",
                     year: "",
                   },
-                ]
+                ],
           );
 
           const loadedExperience = data.experience || [];
@@ -160,7 +176,7 @@ export default function ProfilePage() {
                     duration: "",
                     description: "",
                   },
-                ]
+                ],
           );
 
           const loadedProjects = data.personal_projects || [];
@@ -174,7 +190,7 @@ export default function ProfilePage() {
                     description: "",
                     link: "",
                   },
-                ]
+                ],
           );
 
           // Resume fields (we only derive filename in UI)
@@ -224,7 +240,7 @@ export default function ProfilePage() {
     if (status !== "granted") {
       Alert.alert(
         "Permission needed",
-        "Please allow access to your photos to upload a profile picture."
+        "Please allow access to your photos to upload a profile picture.",
       );
       return;
     }
@@ -313,7 +329,7 @@ export default function ProfilePage() {
   const uploadResume = async (
     uri: string,
     originalName: string,
-    mime: string
+    mime: string,
   ) => {
     try {
       if (!session?.user?.id) throw new Error("No user session");
@@ -367,40 +383,56 @@ export default function ProfilePage() {
               method: "POST",
               body: formData,
               headers: { Accept: "application/json" },
-            }
+            },
           );
           if (!resp.ok) throw new Error(`Parser HTTP ${resp.status}`);
           const parsed = await resp.json();
-          const extractedSkills: string[] = parsed?.skills || [];
-          if (extractedSkills.length) {
-            // Merge unique skills, case-insensitive
-            const existingLower = new Set(skills.map((s) => s.toLowerCase()));
-            const merged = [...skills];
-            for (const sk of extractedSkills) {
-              if (!existingLower.has(sk.toLowerCase())) {
-                merged.push(sk);
-                existingLower.add(sk.toLowerCase());
-              }
-            }
-            setSkills(merged);
-            // Persist merged skills
-            const { error: skillErr } = await supabase
-              .from("profiles")
-              .update({ skills: merged })
-              .eq("id", session.user.id);
-            if (skillErr) console.error("Skill update error:", skillErr);
-            Alert.alert(
-              "Parsed",
-              `Added ${merged.length - skills.length} new skill(s) from resume.`
-            );
+
+          // Build review data from API response
+          const reviewData: ParsedData = {
+            skills: parsed?.skills ?? [],
+            interests: parsed?.interests ?? [],
+            education: (parsed?.education ?? []).map((e: any, i: number) => ({
+              id: e.id ?? `edu-${Date.now()}-${i}`,
+              school: e.school ?? "",
+              degree: e.degree ?? "",
+              year: e.year ?? "",
+            })),
+            experience: (parsed?.experience ?? []).map((e: any, i: number) => ({
+              id: e.id ?? `exp-${Date.now()}-${i}`,
+              company: e.company ?? "",
+              position: e.position ?? "",
+              duration: e.duration ?? "",
+              description: e.description ?? "",
+            })),
+            personal_projects: (parsed?.personal_projects ?? []).map(
+              (e: any, i: number) => ({
+                id: e.id ?? `proj-${Date.now()}-${i}`,
+                name: e.name ?? "",
+                description: e.description ?? "",
+                link: e.link ?? "",
+              }),
+            ),
+          };
+
+          const hasAnything =
+            reviewData.skills.length > 0 ||
+            reviewData.interests.length > 0 ||
+            reviewData.education.length > 0 ||
+            reviewData.experience.length > 0 ||
+            reviewData.personal_projects.length > 0;
+
+          if (hasAnything) {
+            setParsedResumeData(reviewData);
+            setReviewModalVisible(true);
           } else {
-            Alert.alert("Parsed", "No new skills detected in resume.");
+            Alert.alert("Parsed", "No structured data found in resume.");
           }
         } catch (parseErr: any) {
           console.error("Parsing error:", parseErr);
           Alert.alert(
             "Parser Error",
-            parseErr?.message || "Failed to parse resume."
+            parseErr?.message || "Failed to parse resume.",
           );
         } finally {
           setParsingResume(false);
@@ -421,7 +453,7 @@ export default function ProfilePage() {
       if (!PARSER_URL) {
         Alert.alert(
           "Parser not configured",
-          "Set EXPO_PUBLIC_PARSER_URL or app.json extra.parserUrl."
+          "Set EXPO_PUBLIC_PARSER_URL or app.json extra.parserUrl.",
         );
         return;
       }
@@ -440,7 +472,7 @@ export default function ProfilePage() {
         if (list && list.length) {
           // Pick newest by name (we embed Date.now() at start)
           const newest = [...list].sort((a, b) =>
-            b.name.localeCompare(a.name)
+            b.name.localeCompare(a.name),
           )[0];
           const objectPath = `${prefix}/${newest.name}`;
           const { data: signedAgain, error: signErr } = await supabase.storage
@@ -469,34 +501,136 @@ export default function ProfilePage() {
       });
       if (!resp.ok) throw new Error(`Parser HTTP ${resp.status}`);
       const parsed = await resp.json();
-      const extractedSkills: string[] = parsed?.skills || [];
-      if (extractedSkills.length) {
-        const existingLower = new Set(skills.map((s) => s.toLowerCase()));
-        const merged = [...skills];
-        for (const sk of extractedSkills) {
-          if (!existingLower.has(sk.toLowerCase())) {
-            merged.push(sk);
-            existingLower.add(sk.toLowerCase());
-          }
-        }
-        setSkills(merged);
-        const { error: skillErr } = await supabase
-          .from("profiles")
-          .update({ skills: merged })
-          .eq("id", session.user.id);
-        if (skillErr) console.error("Skill update error:", skillErr);
-        Alert.alert(
-          "Parsed",
-          `Added ${merged.length - skills.length} new skill(s) from resume.`
-        );
+
+      // Build review data from API response
+      const reviewData: ParsedData = {
+        skills: parsed?.skills ?? [],
+        interests: parsed?.interests ?? [],
+        education: (parsed?.education ?? []).map((e: any, i: number) => ({
+          id: e.id ?? `edu-${Date.now()}-${i}`,
+          school: e.school ?? "",
+          degree: e.degree ?? "",
+          year: e.year ?? "",
+        })),
+        experience: (parsed?.experience ?? []).map((e: any, i: number) => ({
+          id: e.id ?? `exp-${Date.now()}-${i}`,
+          company: e.company ?? "",
+          position: e.position ?? "",
+          duration: e.duration ?? "",
+          description: e.description ?? "",
+        })),
+        personal_projects: (parsed?.personal_projects ?? []).map(
+          (e: any, i: number) => ({
+            id: e.id ?? `proj-${Date.now()}-${i}`,
+            name: e.name ?? "",
+            description: e.description ?? "",
+            link: e.link ?? "",
+          }),
+        ),
+      };
+
+      const hasAnything =
+        reviewData.skills.length > 0 ||
+        reviewData.interests.length > 0 ||
+        reviewData.education.length > 0 ||
+        reviewData.experience.length > 0 ||
+        reviewData.personal_projects.length > 0;
+
+      if (hasAnything) {
+        setParsedResumeData(reviewData);
+        setReviewModalVisible(true);
       } else {
-        Alert.alert("Parsed", "No new skills detected in resume.");
+        Alert.alert("Parsed", "No structured data found in resume.");
       }
     } catch (e: any) {
       console.error("Re-parse error:", e);
       Alert.alert("Parser Error", e?.message || "Failed to parse resume.");
     } finally {
       setParsingResume(false);
+    }
+  };
+
+  /* =========================
+     Handle parsed-data confirmation from the review modal
+     ========================= */
+  const handleReviewConfirm = async (selected: ConfirmedData) => {
+    setReviewModalVisible(false);
+
+    // ---- Skills: merge unique (case-insensitive) ----
+    let mergedSkills = [...skills];
+    if (selected.skills.length) {
+      const lower = new Set(mergedSkills.map((s) => s.toLowerCase()));
+      for (const sk of selected.skills) {
+        if (!lower.has(sk.toLowerCase())) {
+          mergedSkills.push(sk);
+          lower.add(sk.toLowerCase());
+        }
+      }
+      setSkills(mergedSkills);
+    }
+
+    // ---- Interests: merge unique (case-insensitive) ----
+    let mergedInterests = [...interests];
+    if (selected.interests.length) {
+      const lower = new Set(mergedInterests.map((s) => s.toLowerCase()));
+      for (const it of selected.interests) {
+        if (!lower.has(it.toLowerCase())) {
+          mergedInterests.push(it);
+          lower.add(it.toLowerCase());
+        }
+      }
+      setInterests(mergedInterests);
+    }
+
+    // ---- Education: append new entries ----
+    let mergedEdu = [...education];
+    if (selected.education.length) {
+      // Remove the blank placeholder row if it exists
+      const nonBlank = mergedEdu.filter((e) => e.school || e.degree || e.year);
+      mergedEdu = [...nonBlank, ...selected.education];
+      setEducation(mergedEdu);
+    }
+
+    // ---- Experience: append new entries ----
+    let mergedExp = [...experience];
+    if (selected.experience.length) {
+      const nonBlank = mergedExp.filter(
+        (e) => e.company || e.position || e.duration || e.description,
+      );
+      mergedExp = [...nonBlank, ...selected.experience];
+      setExperience(mergedExp);
+    }
+
+    // ---- Projects: append new entries ----
+    let mergedProj = [...projects];
+    if (selected.personal_projects.length) {
+      const nonBlank = mergedProj.filter(
+        (p) => p.name || p.description || p.link,
+      );
+      mergedProj = [...nonBlank, ...selected.personal_projects];
+      setProjects(mergedProj);
+    }
+
+    // Persist everything at once
+    try {
+      const { error: err } = await supabase
+        .from("profiles")
+        .update({
+          skills: mergedSkills,
+          interests: mergedInterests,
+          education: mergedEdu,
+          experience: mergedExp,
+          personal_projects: mergedProj,
+        })
+        .eq("id", session?.user?.id);
+      if (err) console.error("Merge-save error:", err);
+      else
+        Alert.alert(
+          "Updated",
+          "Selected resume fields have been added to your profile.",
+        );
+    } catch (e) {
+      console.error("Merge-save exception:", e);
     }
   };
 
@@ -536,7 +670,7 @@ export default function ProfilePage() {
 
   const toggleSelectSkill = (skill: string) => {
     setSelectedSkills((prev) =>
-      prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]
+      prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill],
     );
   };
 
@@ -590,7 +724,7 @@ export default function ProfilePage() {
   };
   const updateEducation = (id: string, field: string, value: string) => {
     setEducation(
-      education.map((e) => (e.id === id ? { ...e, [field]: value } : e))
+      education.map((e) => (e.id === id ? { ...e, [field]: value } : e)),
     );
   };
   const removeEducation = (id: string) => {
@@ -614,7 +748,7 @@ export default function ProfilePage() {
   };
   const updateExperience = (id: string, field: string, value: string) => {
     setExperience(
-      experience.map((e) => (e.id === id ? { ...e, [field]: value } : e))
+      experience.map((e) => (e.id === id ? { ...e, [field]: value } : e)),
     );
   };
   const removeExperience = (id: string) => {
@@ -632,7 +766,7 @@ export default function ProfilePage() {
   };
   const updateProject = (id: string, field: string, value: string) => {
     setProjects(
-      projects.map((p) => (p.id === id ? { ...p, [field]: value } : p))
+      projects.map((p) => (p.id === id ? { ...p, [field]: value } : p)),
     );
   };
   const removeProject = (id: string) => {
@@ -836,36 +970,20 @@ export default function ProfilePage() {
 
         {/* Skills */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Skills</Text>
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              value={skillSearch}
-              onChangeText={setSkillSearch}
-              placeholder="Add a skill"
-              placeholderTextColor="#999"
-              onSubmitEditing={addSkill}
-            />
-            <TouchableOpacity style={styles.addButton} onPress={addSkill}>
-              <Ionicons name="add" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "flex-end",
-              marginBottom: 8,
-              gap: 8,
-            }}
-          >
-            {!selectingSkills ? (
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderLeft}>
+              <Ionicons name="construct-outline" size={20} color="#2563eb" />
+              <Text style={styles.sectionTitle}>Skills</Text>
+            </View>
+            {skills.length > 0 && !selectingSkills && (
               <TouchableOpacity
                 onPress={() => setSelectingSkills(true)}
                 style={styles.smallLinkBtn}
               >
                 <Text style={styles.smallLinkText}>Select</Text>
               </TouchableOpacity>
-            ) : (
+            )}
+            {selectingSkills && (
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <TouchableOpacity
                   onPress={cancelSkillSelection}
@@ -881,13 +999,32 @@ export default function ProfilePage() {
                     selectedSkills.length === 0 && { opacity: 0.5 },
                   ]}
                 >
-                  <Text style={styles.smallLinkText}>
+                  <Text style={[styles.smallLinkText, { color: "#FF3B30" }]}>
                     Delete ({selectedSkills.length})
                   </Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              value={skillSearch}
+              onChangeText={setSkillSearch}
+              placeholder="Add a skill"
+              placeholderTextColor="#999"
+              onSubmitEditing={addSkill}
+            />
+            <TouchableOpacity style={styles.addButton} onPress={addSkill}>
+              <Ionicons name="add" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          {skills.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="construct-outline" size={28} color="#d1d5db" />
+              <Text style={styles.emptyStateText}>No skills added yet</Text>
+            </View>
+          )}
           <View style={styles.tagsContainer}>
             {skills.map((skill, index) => (
               <TouchableOpacity
@@ -920,7 +1057,12 @@ export default function ProfilePage() {
 
         {/* Interests */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Interests</Text>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderLeft}>
+              <Ionicons name="heart-outline" size={20} color="#2563eb" />
+              <Text style={styles.sectionTitle}>Interests</Text>
+            </View>
+          </View>
           <View style={styles.searchContainer}>
             <TextInput
               style={styles.searchInput}
@@ -934,6 +1076,12 @@ export default function ProfilePage() {
               <Ionicons name="add" size={24} color="#fff" />
             </TouchableOpacity>
           </View>
+          {interests.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="heart-outline" size={28} color="#d1d5db" />
+              <Text style={styles.emptyStateText}>No interests added yet</Text>
+            </View>
+          )}
           <View style={styles.tagsContainer}>
             {interests.map((interest, index) => (
               <View key={index} style={styles.tag}>
@@ -949,22 +1097,42 @@ export default function ProfilePage() {
         {/* Education */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Education</Text>
+            <View style={styles.sectionHeaderLeft}>
+              <Ionicons name="school-outline" size={20} color="#2563eb" />
+              <Text style={styles.sectionTitle}>Education</Text>
+            </View>
             <TouchableOpacity
               onPress={addEducation}
               style={styles.addIconButton}
             >
-              <Ionicons name="add-circle" size={28} color="#007AFF" />
+              <Ionicons name="add-circle" size={28} color="#2563eb" />
             </TouchableOpacity>
           </View>
-          {education.map((edu) => (
+          {education.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="school-outline" size={28} color="#d1d5db" />
+              <Text style={styles.emptyStateText}>No education added yet</Text>
+              <Text style={styles.emptyStateHint}>
+                Tap + to add your education
+              </Text>
+            </View>
+          )}
+          {education.map((edu, idx) => (
             <View key={edu.id} style={styles.card}>
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => removeEducation(edu.id)}
-              >
-                <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-              </TouchableOpacity>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardLabelRow}>
+                  <Ionicons name="school-outline" size={18} color="#6b7280" />
+                  <Text style={styles.cardLabel}>
+                    Education {education.length > 1 ? idx + 1 : ""}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.removeButton}
+                  onPress={() => removeEducation(edu.id)}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                </TouchableOpacity>
+              </View>
               <TextInput
                 style={styles.input}
                 value={edu.school}
@@ -996,22 +1164,46 @@ export default function ProfilePage() {
         {/* Experience */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Experience</Text>
+            <View style={styles.sectionHeaderLeft}>
+              <Ionicons name="briefcase-outline" size={20} color="#2563eb" />
+              <Text style={styles.sectionTitle}>Experience</Text>
+            </View>
             <TouchableOpacity
               onPress={addExperience}
               style={styles.addIconButton}
             >
-              <Ionicons name="add-circle" size={28} color="#007AFF" />
+              <Ionicons name="add-circle" size={28} color="#2563eb" />
             </TouchableOpacity>
           </View>
-          {experience.map((exp) => (
+          {experience.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="briefcase-outline" size={28} color="#d1d5db" />
+              <Text style={styles.emptyStateText}>No experience added yet</Text>
+              <Text style={styles.emptyStateHint}>
+                Tap + to add your experience
+              </Text>
+            </View>
+          )}
+          {experience.map((exp, idx) => (
             <View key={exp.id} style={styles.card}>
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => removeExperience(exp.id)}
-              >
-                <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-              </TouchableOpacity>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardLabelRow}>
+                  <Ionicons
+                    name="briefcase-outline"
+                    size={18}
+                    color="#6b7280"
+                  />
+                  <Text style={styles.cardLabel}>
+                    Experience {experience.length > 1 ? idx + 1 : ""}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.removeButton}
+                  onPress={() => removeExperience(exp.id)}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                </TouchableOpacity>
+              </View>
               <TextInput
                 style={styles.input}
                 value={exp.company}
@@ -1054,19 +1246,43 @@ export default function ProfilePage() {
         {/* Projects */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Portfolio of Projects</Text>
+            <View style={styles.sectionHeaderLeft}>
+              <Ionicons name="code-slash-outline" size={20} color="#2563eb" />
+              <Text style={styles.sectionTitle}>Projects</Text>
+            </View>
             <TouchableOpacity onPress={addProject} style={styles.addIconButton}>
-              <Ionicons name="add-circle" size={28} color="#007AFF" />
+              <Ionicons name="add-circle" size={28} color="#2563eb" />
             </TouchableOpacity>
           </View>
-          {projects.map((project) => (
+          {projects.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="code-slash-outline" size={28} color="#d1d5db" />
+              <Text style={styles.emptyStateText}>No projects added yet</Text>
+              <Text style={styles.emptyStateHint}>
+                Tap + to add your projects
+              </Text>
+            </View>
+          )}
+          {projects.map((project, idx) => (
             <View key={project.id} style={styles.card}>
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => removeProject(project.id)}
-              >
-                <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-              </TouchableOpacity>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardLabelRow}>
+                  <Ionicons
+                    name="code-slash-outline"
+                    size={18}
+                    color="#6b7280"
+                  />
+                  <Text style={styles.cardLabel}>
+                    Project {projects.length > 1 ? idx + 1 : ""}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.removeButton}
+                  onPress={() => removeProject(project.id)}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                </TouchableOpacity>
+              </View>
               <TextInput
                 style={styles.input}
                 value={project.name}
@@ -1104,6 +1320,14 @@ export default function ProfilePage() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Parsed-resume review popup */}
+      <ParseReviewModal
+        visible={reviewModalVisible}
+        data={parsedResumeData}
+        onConfirm={handleReviewConfirm}
+        onCancel={() => setReviewModalVisible(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -1177,13 +1401,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#333",
-    marginBottom: 12,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 14,
+  },
+  sectionHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
 
   input: {
@@ -1223,13 +1451,29 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   addButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#2563eb",
     borderRadius: 10,
     width: 50,
     justifyContent: "center",
     alignItems: "center",
   },
   addIconButton: { padding: 4 },
+
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
+    gap: 6,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: "#9ca3af",
+    fontWeight: "500",
+  },
+  emptyStateHint: {
+    fontSize: 13,
+    color: "#d1d5db",
+  },
 
   tagsContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   tag: {
@@ -1253,15 +1497,41 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#ddd",
-    position: "relative",
+    borderColor: "#e5e7eb",
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e5e7eb",
+  },
+  cardLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  cardLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6b7280",
   },
   removeButton: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    zIndex: 1,
-    padding: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#fef2f2",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // Resume styles (pretty card + setup-like button)

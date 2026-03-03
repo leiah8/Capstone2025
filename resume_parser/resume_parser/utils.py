@@ -64,14 +64,19 @@ CANONICAL_SKILL_CASE = {
 
 def canonicalize_skill(name: str) -> str:
     n = re.sub(r"\s+", " ", name).strip()
-    key = n.lower()
+    # Strip trailing parenthetical noise like "(3 years)" BEFORE stripping parens
+    n = re.sub(r"\s*\([^)]*\)\s*$", "", n).strip()
     # Remove trailing punctuation common in lists
-    n = n.strip('-•·*:;,.')
+    n = n.strip('-•·*:;,.()')
+    # Strip trailing experience/level descriptors like "- 3 years", "- advanced"
+    n = re.sub(r"\s*[-\u2013\u2014]\s*(?:\d+\s*(?:yr|year|month|mo)s?.*|beginner|intermediate|advanced|expert|proficient)$", "", n, flags=re.I).strip()
+    if not n:
+        return ""
+    key = n.lower()
     # Direct map
     if key in CANONICAL_SKILL_CASE:
         return CANONICAL_SKILL_CASE[key]
     # Title-case multi-words conservatively
-    # Avoid harming known lowercase brandings; default to capitalizing first letter
     words = [w for w in re.split(r"\s+", n) if w]
     if not words:
         return n
@@ -84,7 +89,7 @@ def canonicalize_skill(name: str) -> str:
             out_words.append(w.upper())
         else:
             out_words.append(w[0].upper() + w[1:])
-    return " ".join(out_words) if len(out_words) == 1 else ""
+    return " ".join(out_words)
 
 def normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
@@ -100,17 +105,68 @@ LABEL_PREFIX_RE = re.compile(
 def _strip_label_prefix(s: str) -> str:
     return LABEL_PREFIX_RE.sub("", s).strip()
 
+# Patterns that should never appear as a skill
+_MONTH_PAT = (
+    r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?"
+    r"|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+)
+_DATE_PART_PAT = rf"(?:{_MONTH_PAT})\.?\s*\d{{0,4}}|\d{{4}}"
+_DATE_LIKE_RE = re.compile(
+    rf"^(?:"
+    # Full date ranges: "Jan 2024 — Apr 2024", "2020 - present", "Sep 2021 ~ Apr 2026"
+    rf"(?:{_DATE_PART_PAT})\s*[-\u2013\u2014~]\s*(?:{_DATE_PART_PAT}|present|current|now|ongoing)"
+    # Single date part: "Jan 2024", "December", "2024"
+    rf"|{_DATE_PART_PAT}"
+    # Numeric date formats
+    r"|\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}"
+    r")$",
+    re.I,
+)
+
+_NOISE_PREFIXES_RE = re.compile(
+    r"^(?:proficient\s+(?:in|with)|familiar\s+(?:with|in)|experience\s+(?:in|with)"
+    r"|knowledge\s+of|skilled\s+in|exposure\s+to|understanding\s+of|worked\s+with"
+    r"|strong|excellent|good|basic|advanced|intermediate)\s+",
+    re.I,
+)
+
+def _is_noise(token: str) -> bool:
+    """Return True for tokens that are clearly not skills."""
+    t = token.strip()
+    if not t or len(t) < 2:
+        return True
+    # Dates and lone numbers
+    if _DATE_LIKE_RE.match(t):
+        return True
+    if re.fullmatch(r"\d+", t):
+        return True
+    # Very long tokens are probably prose, not a skill
+    if len(t.split()) > 5:
+        return True
+    # Pure punctuation / single char
+    if re.fullmatch(r"[^a-zA-Z0-9]+", t):
+        return True
+    return False
+
 def _tokenize_skill_line(line: str) -> List[str]:
     # Remove common label prefixes like "Languages:", "Frameworks:", etc.
     line = _strip_label_prefix(line)
-    # Split on common delimiters and bullets
-    parts = re.split(r"[\u2022\u2023\u25E6\u2043\u2219\-\•\·\*\|,;/\n]+", line)
+    # Split on common delimiters, bullets, 'and', '&', and period-space ("React. Flask. Node.js")
+    parts = re.split(
+        r"[\u2022\u2023\u25E6\u2043\u2219\•\·\*\|,;/\n]+"
+        r"|\s+and\s+|\s*&\s*"
+        r"|\.\s+",
+        line,
+    )
     tokens: List[str] = []
     for p in parts:
         t = _strip_label_prefix(p)
-        t = re.sub(r"\s+", " ", t).strip().strip('-•·*:;,.')
-        if len(t) >= 2:
-            tokens.append(t)
+        t = re.sub(r"\s+", " ", t).strip().strip('-•·*:;,.()')
+        # Strip soft prefixes like "Proficient in"
+        t = _NOISE_PREFIXES_RE.sub("", t).strip()
+        if _is_noise(t):
+            continue
+        tokens.append(t)
     return tokens
 
 def extract_skills(all_text: str, sections: dict | None = None) -> List[str]:
@@ -137,11 +193,14 @@ def extract_skills(all_text: str, sections: dict | None = None) -> List[str]:
             candidates.append(kw)
 
     # Normalize, canonicalize, dedupe (case-insensitive), keep order
-    seen = set()
+    seen: set[str] = set()
     out: List[str] = []
     for c in candidates:
         c_norm = canonicalize_skill(c)
         if not c_norm:
+            continue
+        # Final noise gate (catches dates/numbers that slipped through)
+        if _is_noise(c_norm):
             continue
         key = c_norm.lower()
         if key not in seen:

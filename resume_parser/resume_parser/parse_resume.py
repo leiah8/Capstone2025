@@ -9,6 +9,7 @@ from .extraction_ocr import ocr_page_images
 from .layout_segment import segment_sections_from_text
 from .table_extraction import extract_tables
 from .utils import extract_skills
+from .profile_extract import extract_profile_fields
 
 
 DIGITAL_TEXT_MIN_CHARS = 50  # If fewer than this, treat as scanned and do OCR
@@ -53,8 +54,11 @@ def parse_resume(file_path: str, ocr_threshold: int = DIGITAL_TEXT_MIN_CHARS) ->
     # 4) Tables
     tables = extract_tables(file_path)
 
-    # 5) Skills (placeholder)
+    # 5) Skills
     skills = extract_skills(full_text, sections)
+
+    # 6) Structured profile fields (education, experience, projects, interests)
+    profile = extract_profile_fields(full_text, sections)
 
     result: Dict[str, Any] = {
         "metadata": {
@@ -69,6 +73,7 @@ def parse_resume(file_path: str, ocr_threshold: int = DIGITAL_TEXT_MIN_CHARS) ->
         "sections": sections,
         "tables": tables,
         "skills": skills,
+        **profile,
     }
     return result
 
