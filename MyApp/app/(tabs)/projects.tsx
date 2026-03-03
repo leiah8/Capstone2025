@@ -10,7 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
-import { fetchProjects, ProjectUI } from '../../lib/projects';
+import { fetchProjects, likeProject, ProjectUI } from '../../lib/projects';
 import { getUserProfile } from '../../lib/user-profile';
 import { getMatchedProjects, checkMatchingAPIHealth } from '../../lib/matching-api';
 import { supabase } from '../../lib/supabase';
@@ -213,6 +213,17 @@ export default function ProjectFeed() {
 
   const advance = () => { if (currentIndex < projects.length) setCurrentIndex((i) => i + 1); };
 
+  const handleSwipe = async (direction: 'left' | 'right') => {
+    const project = projects[currentIndex];
+    advance();
+    if (direction !== 'right' || !session?.user?.id || !project) return;
+    try {
+      await likeProject(session.user.id, project.id, 'like');
+    } catch (e: any) {
+      console.warn('Failed to record project like:', e.message ?? e);
+    }
+  };
+
   const fetchMyProjects = async () => {
     if (!session?.user?.id) return;
     setMyLoading(true);
@@ -305,7 +316,7 @@ export default function ProjectFeed() {
         <>
           <View style={styles.cardContainer}>
             {projects.slice(currentIndex, currentIndex + 2).reverse().map((p, i) => (
-              <ProjectCard key={p.id} project={p} isTop={i === 1} onSwipe={advance} onTap={() => setDetailProject(p)} />
+              <ProjectCard key={p.id} project={p} isTop={i === 1} onSwipe={handleSwipe} onTap={() => setDetailProject(p)} />
             ))}
 
             {currentIndex >= projects.length && (
@@ -320,10 +331,10 @@ export default function ProjectFeed() {
 
           {currentIndex < projects.length && (
             <View style={styles.buttonsContainer}>
-              <TouchableOpacity style={styles.passButton} onPress={advance}>
+              <TouchableOpacity style={styles.passButton} onPress={() => handleSwipe('left')}>
                 <Ionicons name="close" size={28} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.likeButton} onPress={advance}>
+              <TouchableOpacity style={styles.likeButton} onPress={() => handleSwipe('right')}>
                 <Ionicons name="checkmark" size={28} color="#fff" />
               </TouchableOpacity>
             </View>
