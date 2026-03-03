@@ -13,6 +13,10 @@ import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
 import Constants from "expo-constants";
+import ParseReviewModal, {
+  type ParsedData,
+  type ConfirmedData,
+} from "../components/ParseReviewModal";
 
 // -----------------------------
 // Types
@@ -41,7 +45,7 @@ function ensureExtension(name: string, fallbackExt = ".pdf") {
 
 async function uploadResumeIfNeeded(
   resume: ResumeAsset | null,
-  userId: string
+  userId: string,
 ): Promise<string | null> {
   if (!resume) return null;
 
@@ -82,6 +86,18 @@ export default function SetupScreen() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  /* Review-modal state */
+  const [reviewVisible, setReviewVisible] = useState(false);
+  const emptyParsed: ParsedData = {
+    skills: [],
+    interests: [],
+    education: [],
+    experience: [],
+    personal_projects: [],
+  };
+  const [parsedData, setParsedData] = useState<ParsedData>(emptyParsed);
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
   // On mount: if user already onboarded, skip to app
   useEffect(() => {
@@ -195,27 +211,55 @@ export default function SetupScreen() {
                   Accept: "application/json",
                 },
                 body: JSON.stringify({ url: resumeUrl }),
-              }
+              },
             );
 
             if (resp.ok) {
-              const parsed = (await resp.json()) as { skills?: string[] };
-              const skills = parsed?.skills || [];
+              const parsed = await resp.json();
 
-              console.log("[Setup] Extracted skills:", skills);
+              const reviewData: ParsedData = {
+                skills: parsed?.skills ?? [],
+                interests: parsed?.interests ?? [],
+                education: (parsed?.education ?? []).map(
+                  (e: any, i: number) => ({
+                    id: e.id ?? `edu-${Date.now()}-${i}`,
+                    school: e.school ?? "",
+                    degree: e.degree ?? "",
+                    year: e.year ?? "",
+                  }),
+                ),
+                experience: (parsed?.experience ?? []).map(
+                  (e: any, i: number) => ({
+                    id: e.id ?? `exp-${Date.now()}-${i}`,
+                    company: e.company ?? "",
+                    position: e.position ?? "",
+                    duration: e.duration ?? "",
+                    description: e.description ?? "",
+                  }),
+                ),
+                personal_projects: (parsed?.personal_projects ?? []).map(
+                  (e: any, i: number) => ({
+                    id: e.id ?? `proj-${Date.now()}-${i}`,
+                    name: e.name ?? "",
+                    description: e.description ?? "",
+                    link: e.link ?? "",
+                  }),
+                ),
+              };
 
-              if (skills.length > 0) {
-                // Update profile with parsed skills
-                const { error: skillsError } = await supabase
-                  .from("profiles")
-                  .update({ skills })
-                  .eq("id", userId);
+              const hasAnything =
+                reviewData.skills.length > 0 ||
+                reviewData.interests.length > 0 ||
+                reviewData.education.length > 0 ||
+                reviewData.experience.length > 0 ||
+                reviewData.personal_projects.length > 0;
 
-                if (skillsError) {
-                  console.warn("[Setup] Failed to update skills:", skillsError);
-                } else {
-                  console.log("[Setup] Successfully saved skills to profile");
-                }
+              if (hasAnything) {
+                setParsedData(reviewData);
+                setPendingUserId(userId);
+                setReviewVisible(true);
+                // Don't navigate yet — wait for modal confirm/cancel
+                return;
               }
             } else {
               console.warn("[Setup] Parser API returned error:", resp.status);
@@ -239,6 +283,44 @@ export default function SetupScreen() {
     }
   };
 
+  /* Handle review-modal confirm */
+  const handleReviewConfirm = async (selected: ConfirmedData) => {
+    setReviewVisible(false);
+    if (pendingUserId) {
+      try {
+        const payload: Record<string, any> = {};
+        if (selected.skills.length) payload.skills = selected.skills;
+        if (selected.interests.length) payload.interests = selected.interests;
+        if (selected.education.length) payload.education = selected.education;
+        if (selected.experience.length)
+          payload.experience = selected.experience;
+        if (selected.personal_projects.length)
+          payload.personal_projects = selected.personal_projects;
+
+        if (Object.keys(payload).length) {
+          const { error: updateErr } = await supabase
+            .from("profiles")
+            .update(payload)
+            .eq("id", pendingUserId);
+          if (updateErr)
+            console.warn("[Setup] Failed to save parsed fields:", updateErr);
+          else console.log("[Setup] Saved parsed fields to profile");
+        }
+      } catch (e) {
+        console.warn("[Setup] Error saving parsed fields:", e);
+      }
+    }
+    setSuccess(true);
+    setTimeout(() => router.replace("/(tabs)/profile"), 1200);
+  };
+
+  const handleReviewCancel = () => {
+    setReviewVisible(false);
+    // User skipped import — still complete onboarding
+    setSuccess(true);
+    setTimeout(() => router.replace("/(tabs)/profile"), 1200);
+  };
+
   if (success) {
     return (
       <View style={styles.successContainer}>
@@ -259,82 +341,94 @@ export default function SetupScreen() {
     loading || !firstName.trim() || !lastName.trim() || !resume;
 
   return (
-    <ScrollView style={styles.root}>
-      <View style={styles.wrapper}>
-        <View style={styles.headerBlock}>
-          <Text style={styles.headerTitle}>Welcome to Peer.io</Text>
-          <Text style={styles.headerSubtitle}>Let&apos;s get you set up</Text>
-        </View>
-
-        <View style={styles.formGap}>
-          <View>
-            <Text style={styles.label}>First Name</Text>
-            <TextInput
-              value={firstName}
-              onChangeText={setFirstName}
-              onSubmitEditing={handleSubmit}
-              style={styles.input}
-              placeholder="John"
-              placeholderTextColor="#9ca3af"
-              autoCapitalize="words"
-            />
+    <>
+      <ScrollView style={styles.root}>
+        <View style={styles.wrapper}>
+          <View style={styles.headerBlock}>
+            <Text style={styles.headerTitle}>Welcome to Peer.io</Text>
+            <Text style={styles.headerSubtitle}>Let&apos;s get you set up</Text>
           </View>
 
-          <View>
-            <Text style={styles.label}>Last Name</Text>
-            <TextInput
-              value={lastName}
-              onChangeText={setLastName}
-              onSubmitEditing={handleSubmit}
-              style={styles.input}
-              placeholder="Doe"
-              placeholderTextColor="#9ca3af"
-              autoCapitalize="words"
-            />
-          </View>
-
-          <View>
-            <Text style={styles.label}>Resume</Text>
-            <TouchableOpacity
-              style={styles.uploadBtn}
-              onPress={handleFileSelection}
-            >
-              <Text style={styles.uploadText}>
-                📄 {resume ? resume.name : "Upload resume"}
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.helpText}>PDF or Word document (max 5MB)</Text>
-          </View>
-
-          {!!error && (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
+          <View style={styles.formGap}>
+            <View>
+              <Text style={styles.label}>First Name</Text>
+              <TextInput
+                value={firstName}
+                onChangeText={setFirstName}
+                onSubmitEditing={handleSubmit}
+                style={styles.input}
+                placeholder="John"
+                placeholderTextColor="#9ca3af"
+                autoCapitalize="words"
+              />
             </View>
-          )}
 
-          <View style={styles.ctaGap}>
-            <TouchableOpacity
-              onPress={handleSubmit}
-              disabled={submitDisabled}
-              style={[
-                styles.primaryBtn,
-                submitDisabled && styles.primaryBtnDisabled,
-              ]}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.primaryBtnText}>Get Started</Text>
-              )}
-            </TouchableOpacity>
+            <View>
+              <Text style={styles.label}>Last Name</Text>
+              <TextInput
+                value={lastName}
+                onChangeText={setLastName}
+                onSubmitEditing={handleSubmit}
+                style={styles.input}
+                placeholder="Doe"
+                placeholderTextColor="#9ca3af"
+                autoCapitalize="words"
+              />
+            </View>
 
-            {/* <TouchableOpacity onPress={() => router.replace('/(tabs)')} style={styles.linkBtn}>
+            <View>
+              <Text style={styles.label}>Resume</Text>
+              <TouchableOpacity
+                style={styles.uploadBtn}
+                onPress={handleFileSelection}
+              >
+                <Text style={styles.uploadText}>
+                  📄 {resume ? resume.name : "Upload resume"}
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.helpText}>
+                PDF or Word document (max 5MB)
+              </Text>
+            </View>
+
+            {!!error && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            <View style={styles.ctaGap}>
+              <TouchableOpacity
+                onPress={handleSubmit}
+                disabled={submitDisabled}
+                style={[
+                  styles.primaryBtn,
+                  submitDisabled && styles.primaryBtnDisabled,
+                ]}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>Get Started</Text>
+                )}
+              </TouchableOpacity>
+
+              {/* <TouchableOpacity onPress={() => router.replace('/(tabs)')} style={styles.linkBtn}>
               <Text style={styles.linkText}>Skip for now</Text>
             </TouchableOpacity> */}
+            </View>
           </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+
+      {/* Parsed-resume review popup */}
+      <ParseReviewModal
+        visible={reviewVisible}
+        data={parsedData}
+        onConfirm={handleReviewConfirm}
+        onCancel={handleReviewCancel}
+      />
+    </>
   );
 }
 

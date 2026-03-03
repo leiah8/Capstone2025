@@ -3,7 +3,7 @@ from typing import Dict, Any, List
 import re
 
 HEADING_RE = re.compile(
-    r"^(experience|education|skills?|technical skills|technologies|tech stack|tools|projects?|certifications?|publications?|summary|profile|awards?)\s*:?$",
+    r"^(experience|work experience|professional experience|employment|education|skills?|technical skills|technologies|tech stack|tools|projects?|certifications?|publications?|summary|profile|objective|awards?|interests?|activities|hobbies|extracurricular|volunteer(?:ing)?)\s*:?$",
     re.I,
 )
 
@@ -22,9 +22,15 @@ def segment_sections_from_text(full_text: str) -> Dict[str, str]:
         m = HEADING_RE.match(line)
         if m:
             heading = m.group(1).upper()
-            # Normalize synonyms to SKILLS
+            # Normalize synonyms
             if heading in {"TECHNICAL SKILLS", "TECHNOLOGIES", "TOOLS", "TECH STACK"}:
                 heading = "SKILLS"
+            elif heading in {"WORK EXPERIENCE", "PROFESSIONAL EXPERIENCE", "EMPLOYMENT"}:
+                heading = "EXPERIENCE"
+            elif heading in {"INTEREST", "INTERESTS", "ACTIVITIES", "HOBBIES", "EXTRACURRICULAR"}:
+                heading = "INTERESTS"
+            elif heading in {"OBJECTIVE"}:
+                heading = "SUMMARY"
             current = heading
             sections.setdefault(current, [])
             continue
