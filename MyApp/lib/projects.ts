@@ -35,6 +35,20 @@ const asSingleProfile = (
 ): { location: string | null; profile_image: string | null } | null =>
   Array.isArray(p) ? p[0] ?? null : p ?? null;
 
+export async function likeProject(
+  userId: string,
+  projectId: string,
+  reaction: 'like' | 'pass' = 'like'
+): Promise<void> {
+  const { error } = await supabase
+    .from('project_likes')
+    .upsert(
+      { user_id: userId, project_id: Number(projectId), reaction },
+      { onConflict: 'user_id,project_id' }
+    );
+  if (error) throw error;
+}
+
 export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promise<ProjectUI[]> {
   let query = supabase
     .from('projects')
