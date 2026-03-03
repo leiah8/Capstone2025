@@ -276,7 +276,7 @@ export default function MatchesPage() {
                     {/* Content */}
                     <View style={styles.list}>
                         {projectMatchesUI.map((match, index) => (
-                            <TouchableOpacity onPress={async() => {gotoMatch(match.owner_id)}}>
+                            <TouchableOpacity onPress={async() => {gotoMatch(match.match_id)}}>
                                 <View style={styles.match}>
                                     <Image source={{ uri: match.project_image }} style={styles.profileImage} />
                                     {/* <View style={styles.placeholderImage}>
@@ -323,7 +323,7 @@ export default function MatchesPage() {
                     {/* Content */}
                     <View style={styles.list}>
                         {candidateMatchesUI.map((match, index) => (
-                            <TouchableOpacity onPress={async() => {gotoMatch(match.candidate_id)}}>
+                            <TouchableOpacity onPress={async() => {gotoMatch(match.match_id)}}>
                                 <View style={styles.match}>
                                     <Image source={{ uri: match.project_image }} style={styles.profileImage} />
                                     {/* <View style={styles.placeholderImage}>
