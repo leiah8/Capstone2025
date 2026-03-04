@@ -302,8 +302,14 @@ export default function CandidateFeed() {
 
         // Get current authenticated user's projects
         const userProjects = await fetchMyProjects(session?.user?.id);
+        
+        userProjects.forEach(p => {
+          if (p.is_active) {
+            setHasProjects(true);
+          }
+        })
 
-        setHasProjects(userProjects.length > 0);
+        // setHasProjects(userProjects.length > 0);
 
         if(hasProjects) {
             // Fetch all projects
@@ -363,7 +369,7 @@ export default function CandidateFeed() {
 
   const advance = () => { if (currentIndex < projects.length) setCurrentIndex((i) => i + 1); };
 
-  if (loading) return <View style={styles.center}><Text>Loading projects…</Text></View>;
+  if (loading) return <View style={styles.center}><Text>Loading candidates</Text></View>;
   if (err) return <View style={styles.center}><Text>Failed to load candidates: {err}</Text></View>;
 
   return ( hasProjects ? 
@@ -375,7 +381,7 @@ export default function CandidateFeed() {
 
         {currentIndex >= projects.length && (
           <View style={styles.endCard}>
-            <Text style={styles.endText}>No more projects!</Text>
+            <Text style={styles.endText}>No more candidates!</Text>
             <TouchableOpacity style={styles.resetButton} onPress={() => setCurrentIndex(0)}>
               <Text style={styles.resetButtonText}>Start Over</Text>
             </TouchableOpacity>
