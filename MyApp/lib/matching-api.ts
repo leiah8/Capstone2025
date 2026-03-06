@@ -59,7 +59,7 @@ export interface MatchScoreProject {
 }
 
 
-export interface MatchScoreCandidate { //TODO: probably needs to be fixed
+export interface MatchScoreCandidate { //might need to be fixed
   project_id: string;
   project_name: string;
   candidate_id : string; 
@@ -142,9 +142,8 @@ export async function getMatchedProjects(
 }
 
 
-//TODO
 /**
- * Call the matching algorithm API to score and rank projects for a user
+ * Call the matching algorithm API to score and rank candidates for a user
  */
 export async function getMatchedCandidates(
   user_project : {

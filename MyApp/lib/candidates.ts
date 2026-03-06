@@ -54,7 +54,7 @@ type DbCandidate = {
   location : string | null; 
   skills : string[] | null;
   interests : string[] | null;
-  links : [] | JSON; //TODO: parse this 
+  links : [] | JSON; 
   education : JSON[] | null;
   personal_projects : JSON[] | null;
   experience : JSON[] | null;
@@ -85,6 +85,9 @@ export async function likeCandidate(
       { onConflict: 'owner_id,project_id,candidate_id' }
     );
   if (error) throw error;
+  else {
+    //TODO: CHECK FOR MATCH HERE 
+  }
 }
 
 

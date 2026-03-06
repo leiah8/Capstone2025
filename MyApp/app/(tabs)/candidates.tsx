@@ -33,6 +33,7 @@ const SWIPE_THRESHOLD = 120;
    ========================= */
 type Candidate = CandidateUI & {
   project_id : string;
+  project_name : string;
 };
 
 /* =========================
@@ -178,6 +179,22 @@ const CandidateCard = ({
       {/* Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         
+        {/* TODO: project tag
+        {/* TAGS SECTION */}
+        {/* <View>
+          <Text>{candidate.project_name}</Text>
+        </View> */}
+
+        {/* TAGS SECTION */}
+        {candidate.project_name && (
+          <View style={styles.projectTagRow}>
+            <View style={styles.projectTag}>
+              <Ionicons name="briefcase-outline" size={11} color="#000" style={{ marginRight: 5 }} />
+              <Text>{candidate.project_name}</Text>
+            </View>
+          </View>
+        )}
+
         {/* ── Hero Header ── */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarWrapper}>
@@ -327,13 +344,6 @@ export default function CandidateFeed() {
             console.log('Matching API available - ranking candidates by match score...');
             try {
               
-              // const firstMatchScores : MatchScoreCandidate[] = []
-              
-              // userProjects.forEach(async (p) => {
-              //     // const matchScores = await getMatchedCandidates(p, allCandidates);
-              //     firstMatchScores.concat((await getMatchedCandidates(p, allCandidates)) & {project_id : p.project_id});
-              // }) //keep seperate so we can tag them: TODO 
-              
 
               const results = await Promise.all(
                 userProjects
@@ -344,7 +354,6 @@ export default function CandidateFeed() {
                   })
               );
               const firstMatchScores = results.flat();
-              //TODO:
               // from matchScores remove duplicates (keep highest match score)
               const bestMatchMap = new Map<string, (typeof firstMatchScores)[number]>();
 
@@ -377,7 +386,8 @@ export default function CandidateFeed() {
           } else {
             console.log('Matching API not available - showing candidates in default order');
             const pid = String(userProjects.find(p => p.is_active)?.id);
-            setCandidates(allCandidates.map(c => ({ ...c, project_id: pid })) as Candidate[]);
+            const p_name = String(userProjects.find(p => p.is_active)?.title);
+            setCandidates(allCandidates.map(c => ({ ...c, project_id: pid ,project_name : p_name})) as Candidate[]);
           }
           
           setCurrentIndex(0);
@@ -538,5 +548,19 @@ const styles = StyleSheet.create({
   linksContainer: { gap: 10 },
   linkRow: { flexDirection: 'row', alignItems: 'center' },
   linkText: { fontSize: 12, color: '#666', flex: 1 },
+
+  //tags
+
+  // project name tag
+  projectTagRow: { alignItems: 'flex-start', marginBottom: 8 },
+  projectTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 20,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    alignSelf: 'flex-start',
+  },
 
 });
