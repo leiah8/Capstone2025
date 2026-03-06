@@ -228,7 +228,7 @@ export default function ProjectFeed() {
     advance();
     if (direction !== 'right' || !session?.user?.id || !project) return;
     try {
-      await likeProject(session.user.id, project.id, 'like');
+      await likeProject(session.user.id, project.owner_id, project.id, 'like');
     } catch (e: any) {
       console.warn('Failed to record project like:', e.message ?? e);
     }

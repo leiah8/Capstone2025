@@ -85,7 +85,6 @@ export async function likeCandidate(
     );
   if (error) throw error;
   else {
-    //TODO: CHECK FOR MATCH HERE 
     const { data } = await supabase.functions.invoke('check-for-match', {
       body: { candidate_id : candidateId, project_id : projectId, owner_id : userId }
     })
