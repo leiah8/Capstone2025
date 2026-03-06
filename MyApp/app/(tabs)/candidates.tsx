@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CandidateUI, fetchCandidates, fetchMyProjects, likeCandidate } from '../../lib/candidates';
-import { checkMatchingAPIHealth, getMatchedCandidates, MatchScoreCandidate } from '../../lib/matching-api';
+import { checkMatchingAPIHealth, getMatchedCandidates } from '../../lib/matching-api';
 
 import { router } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
@@ -32,9 +32,7 @@ const SWIPE_THRESHOLD = 120;
    Types (make skills optional & flexible)
    ========================= */
 type Candidate = CandidateUI & {
-//   skillsNeeded?: string[];
-//   // tolerate legacy shape if it exists
-//   skills?: { name: string; level?: number }[];
+  project_id : string;
 };
 
 /* =========================
@@ -251,7 +249,7 @@ const CandidateCard = ({
         {/* ── Personal Projects ── */}
         {candidate.personal_projects.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Projects</Text>
+            <Text style={styles.sectionTitle}>Personal Projects</Text>
             {candidate.personal_projects.map((p, i) => <ProjectBlock key={`pp-${i}`} item={p} />)}
           </View>
         )}
@@ -308,8 +306,8 @@ export default function CandidateFeed() {
           let p = userProjects[i];
           console.log(p.is_active);
           if (p.is_active) {
-            console.log("GOOD HERE")
             one_active = true;
+            break;
           }
         }
 
@@ -318,28 +316,49 @@ export default function CandidateFeed() {
         // setHasProjects(userProjects.length > 0);
 
         if(one_active) {
-            // Fetch all projects
+            // Fetch all candidates
           const allCandidates = await fetchCandidates(50);
-          // console.log("HERE HI")
-          // console.log(allCandidates)
           if (!alive) return;
 
           // Check if matching API is available
           const matchingAvailable = await checkMatchingAPIHealth();
           
           if (matchingAvailable) {
-            console.log('Matching API available - ranking projects by match score...');
+            console.log('Matching API available - ranking candidates by match score...');
             try {
               
-              const matchScores : MatchScoreCandidate[] = []
+              // const firstMatchScores : MatchScoreCandidate[] = []
               
-              userProjects.forEach(async (p) => {
-                  const matchScores = await getMatchedCandidates(p, allCandidates);
-                  matchScores.push()
-              }) //keep seperate so we can tag them: TODO 
-                  
-              // Create a map of project IDs to match scores
-              const scoreMap = new Map(matchScores.map(m => [m.project_id, m.overall_score]));
+              // userProjects.forEach(async (p) => {
+              //     // const matchScores = await getMatchedCandidates(p, allCandidates);
+              //     firstMatchScores.concat((await getMatchedCandidates(p, allCandidates)) & {project_id : p.project_id});
+              // }) //keep seperate so we can tag them: TODO 
+              
+
+              const results = await Promise.all(
+                userProjects
+                  .filter(p => p.is_active)
+                  .map(async (p) => {
+                    const matches = await getMatchedCandidates(p, allCandidates);
+                    return matches.map(m => ({ ...m, project_id: String(p.id) }));
+                  })
+              );
+              const firstMatchScores = results.flat();
+              //TODO:
+              // from matchScores remove duplicates (keep highest match score)
+              const bestMatchMap = new Map<string, (typeof firstMatchScores)[number]>();
+
+              for (const match of firstMatchScores) {
+                const existing = bestMatchMap.get(match.candidate_id);
+                if (!existing || match.overall_score > existing.overall_score) {
+                  bestMatchMap.set(match.candidate_id, match);
+                }
+              }
+
+              const matchScores = Array.from(bestMatchMap.values());
+
+              // Create a map of candidate IDs to match scores
+              const scoreMap = new Map(matchScores.map(m => [m.candidate_id, m.overall_score]));
               
               // Sort candidates by match score
               const rankedCandidates = [...allCandidates].sort((a, b) => {
@@ -352,12 +371,13 @@ export default function CandidateFeed() {
               setUseMatching(true);
               console.log(`Candidates ranked by match score (top: ${(scoreMap.get(rankedCandidates[0].id) || 0) * 100}%)`);
             } catch (matchError) {
-              console.warn('Failed to rank projects, using default order:', matchError);
+              console.warn('Failed to rank candidates, using default order:', matchError);
               setCandidates(allCandidates as Candidate[]);
             }
           } else {
             console.log('Matching API not available - showing candidates in default order');
-            setCandidates(allCandidates as Candidate[]);
+            const pid = String(userProjects.find(p => p.is_active)?.id);
+            setCandidates(allCandidates.map(c => ({ ...c, project_id: pid })) as Candidate[]);
           }
           
           setCurrentIndex(0);
@@ -378,9 +398,11 @@ export default function CandidateFeed() {
   const handleSwipe = async (direction: 'left' | 'right') => {
     const candidate = candidates[currentIndex];
     advance();
-    if (direction !== 'right' || !session?.user?.id || !candidate) return;
+    //if (direction !== 'right' || !session?.user?.id || !candidate) return;
+    if (!session?.user?.id || !candidate) return;
     try {
-      await likeCandidate(session.user.id, null, candidate.id, 'like'); //TODO ADD PROJECT ID WHEN WE ADD THE TAGS 
+      console.log("HERE HELLO", candidate)
+      await likeCandidate(session.user.id, candidate.project_id, candidate.id, direction == 'right' ? 'like' : 'pass');  
     } catch (e: any) {
       console.warn('Failed to record candidate like:', e.message ?? e);
     }
@@ -421,7 +443,7 @@ export default function CandidateFeed() {
 : (
           <View style={[styles.center, { backgroundColor : "#fff"}]}>
             <Text style={{ fontSize: 16, color: '#999', marginBottom: 16 }}>You must have a project to browse candidates.</Text>
-            <TouchableOpacity style={styles.resetButton} onPress={() => router.push('/create-project')}>
+            <TouchableOpacity style={styles.resetButton} onPress={() => router.push('/create-project' as any)}>
               <Text style={styles.resetButtonText}>Create Your First Project</Text>
             </TouchableOpacity>
           </View>

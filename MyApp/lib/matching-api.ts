@@ -58,10 +58,14 @@ export interface MatchScoreProject {
   missing_must_have: string[];
 }
 
-export interface MatchScoreCandidate {
+
+export interface MatchScoreCandidate { //TODO: probably needs to be fixed
   project_id: string;
   project_name: string;
+  candidate_id : string; 
+  candidate_name : string;
   overall_score: number;
+
   semantic_similarity: number;
   must_have_match: number;
   nice_to_have_match: number;
@@ -70,6 +74,7 @@ export interface MatchScoreCandidate {
   matched_nice_to_have: string[];
   matched_interests: string[];
   missing_must_have: string[];
+
 }
 
 export interface MatchResponseProject {
@@ -78,7 +83,7 @@ export interface MatchResponseProject {
 }
 
 export interface MatchResponseCandidate {
-  ranked_candidates: MatchScoreProject[];
+  ranked_candidates: MatchScoreCandidate[];
   total_projects: number;
 }
 
@@ -203,7 +208,7 @@ export async function getMatchedCandidates(
       throw new Error(`Matching API error: ${response.status} - ${errorText}`);
     }
 
-    const data: MatchResponseCandidate = await response.json();
+    const data : MatchResponseCandidate = await response.json();
     return data.ranked_candidates;
   } catch (error) {
     console.error('Error calling matching algorithm:', error);

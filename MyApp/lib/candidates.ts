@@ -73,7 +73,7 @@ type MyProject = {
 
 export async function likeCandidate(
   userId: string,
-  projectId: string | null = null,
+  projectId: string,
   candidateId : string,
   reaction: 'like' | 'pass' = 'like'
 ): Promise<void> {
@@ -81,7 +81,7 @@ export async function likeCandidate(
   const { error } = await supabase
     .from('candidate_likes')
     .upsert(
-      { owner_id: userId, project_id: projectId ? Number(projectId) : null, candidate_id : candidateId, reaction : reaction },
+      { owner_id: userId, project_id: projectId, candidate_id : candidateId, reaction : reaction },
       { onConflict: 'owner_id,project_id,candidate_id' }
     );
   if (error) throw error;
