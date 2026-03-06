@@ -18,7 +18,7 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CandidateUI, fetchCandidates, fetchMyProjects } from '../../lib/candidates';
+import { CandidateUI, fetchCandidates, fetchMyProjects, likeCandidate } from '../../lib/candidates';
 import { checkMatchingAPIHealth, getMatchedCandidates, MatchScoreCandidate } from '../../lib/matching-api';
 
 import { router } from 'expo-router';
@@ -282,7 +282,7 @@ const CandidateCard = ({
    ========================= */
 export default function CandidateFeed() {
   const insets = useSafeAreaInsets();
-  const [projects, setCandidates] = useState<Candidate[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -303,15 +303,21 @@ export default function CandidateFeed() {
         // Get current authenticated user's projects
         const userProjects = await fetchMyProjects(session?.user?.id);
         
-        userProjects.forEach(p => {
+        let one_active = false;
+        for(let i = 0; i < userProjects.length; i++) {
+          let p = userProjects[i];
+          console.log(p.is_active);
           if (p.is_active) {
-            setHasProjects(true);
+            console.log("GOOD HERE")
+            one_active = true;
           }
-        })
+        }
+
+        setHasProjects(one_active)
 
         // setHasProjects(userProjects.length > 0);
 
-        if(hasProjects) {
+        if(one_active) {
             // Fetch all projects
           const allCandidates = await fetchCandidates(50);
           // console.log("HERE HI")
@@ -367,7 +373,18 @@ export default function CandidateFeed() {
     return () => { alive = false; };
   }, []);
 
-  const advance = () => { if (currentIndex < projects.length) setCurrentIndex((i) => i + 1); };
+  const advance = () => { if (currentIndex < candidates.length) setCurrentIndex((i) => i + 1); };
+
+  const handleSwipe = async (direction: 'left' | 'right') => {
+    const candidate = candidates[currentIndex];
+    advance();
+    if (direction !== 'right' || !session?.user?.id || !candidate) return;
+    try {
+      await likeCandidate(session.user.id, null, candidate.id, 'like'); //TODO ADD PROJECT ID WHEN WE ADD THE TAGS 
+    } catch (e: any) {
+      console.warn('Failed to record candidate like:', e.message ?? e);
+    }
+  };
 
   if (loading) return <View style={styles.center}><Text>Loading candidates</Text></View>;
   if (err) return <View style={styles.center}><Text>Failed to load candidates: {err}</Text></View>;
@@ -375,11 +392,11 @@ export default function CandidateFeed() {
   return ( hasProjects ? 
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.cardContainer}>
-        {projects.slice(currentIndex, currentIndex + 2).reverse().map((p, i) => (
-          <CandidateCard key={p.id} candidate={p} isTop={i === 1} onSwipe={advance} />
+        {candidates.slice(currentIndex, currentIndex + 2).reverse().map((p, i) => (
+          <CandidateCard key={p.id} candidate={p} isTop={i === 1} onSwipe={handleSwipe} />
         ))}
 
-        {currentIndex >= projects.length && (
+        {currentIndex >= candidates.length && (
           <View style={styles.endCard}>
             <Text style={styles.endText}>No more candidates!</Text>
             <TouchableOpacity style={styles.resetButton} onPress={() => setCurrentIndex(0)}>
@@ -389,12 +406,12 @@ export default function CandidateFeed() {
         )}
       </View>
 
-      {currentIndex < projects.length && (
+      {currentIndex < candidates.length && (
         <View style={styles.buttonsContainer}>
-          <TouchableOpacity style={styles.passButton} onPress={advance}>
+          <TouchableOpacity style={styles.passButton} onPress={() => handleSwipe('left')}>
             <Ionicons name="close" size={40} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.likeButton} onPress={advance}>
+          <TouchableOpacity style={styles.likeButton} onPress={() => handleSwipe('right')}>
             <Ionicons name="checkmark" size={40} color="#fff" />
           </TouchableOpacity>
         </View>

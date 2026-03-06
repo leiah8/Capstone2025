@@ -71,6 +71,24 @@ type MyProject = {
   created_at: string;
 };
 
+export async function likeCandidate(
+  userId: string,
+  projectId: string | null = null,
+  candidateId : string,
+  reaction: 'like' | 'pass' = 'like'
+): Promise<void> {
+  console.log("HI HERE")
+  const { error } = await supabase
+    .from('candidate_likes')
+    .upsert(
+      { owner_id: userId, project_id: projectId ? Number(projectId) : null, candidate_id : candidateId, reaction : reaction },
+      { onConflict: 'owner_id,project_id,candidate_id' }
+    );
+  if (error) throw error;
+}
+
+
+
 
 export async function fetchCandidates(limit = 50): Promise<CandidateUI[]> {
   const { data, error } = await supabase
