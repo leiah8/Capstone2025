@@ -1,0 +1,67 @@
+MARCH 6TH MEETING NOTES 
+* Need to find a day to all lock in at thode 
+* 10am Monday - all day thode 
+
+
+Progress 
+* Martin: Messaging
+   * Implementation done 
+   * Can live pull from DB 
+   * Not properly tested
+      * Waiting for likes to be implemented 
+   * Pushed to staging: fix for likes not going to db as a candidate for project
+      * Does not record skips right now 
+         * TODO: Will be implemented
+   * Small bugs found (to divy out later)
+      * Remove home page 
+      * Supabase sign up link does not look like it succeeds
+         * Host a github page 
+      * Forgot password functionality 
+      * Explain skills vs tags 
+         * Need to figure out what can be searched on 
+         * TODO later 
+* Tony: 
+   * Project Creation Tab Done
+      * Works and adds to db 
+   * Smth else with projects
+* Andre
+   * Improved OCR, more regexs
+   * Bug fixes 
+   * Added feature where user can select what they want added 
+      * Can fix OCR results
+      * Remove skills 
+   * Improved profile UI 
+* Leiah 
+   * Candidate feed browsing done 
+   * Bug fixes 
+   * Fix projects text at the end when done with projects
+   * TODO: liking (started, not yet done)
+* Nic
+   * Matching algorithm implemented but on separate branch
+   * TODO Will push to staging when laptop fixed 
+   * TODO Will add complexity 
+   * And understand stats on how its matching 
+   * Need to add more test data to supabase 
+
+
+Martin will do QA pass tuesday and wednesday after monday progress 
+* Make chart for poster board 
+* We need unit tests for a lot of stuff 
+* Martin says he will do all of the tests and make report 
+
+
+Should implement docker for matching algorithm 
+Supabase API stuff 
+* Edge functions 
+   * TODO Nic will look at edge functions for matching 
+   * TODO Leiah will add matching on server side 
+
+
+Book meeting with prof 
+* March 20th: 9:30 - 9:45
+* Make slides 
+
+
+Poster and Video: Monday discussion 
+* These will be Martin’s responsibility, he wants to do both 
+* Needs a solo lock in day: Tuesday and Wednesday
