@@ -315,7 +315,6 @@ export default function CandidateFeed() {
         let one_active = false;
         for(let i = 0; i < userProjects.length; i++) {
           let p = userProjects[i];
-          console.log(p.is_active);
           if (p.is_active) {
             one_active = true;
             break;
@@ -405,7 +404,6 @@ export default function CandidateFeed() {
     //if (direction !== 'right' || !session?.user?.id || !candidate) return;
     if (!session?.user?.id || !candidate) return;
     try {
-      console.log("HERE HELLO", candidate)
       await likeCandidate(session.user.id, candidate.project_id, candidate.id, direction == 'right' ? 'like' : 'pass');  
     } catch (e: any) {
       console.warn('Failed to record candidate like:', e.message ?? e);

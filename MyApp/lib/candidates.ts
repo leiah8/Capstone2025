@@ -77,7 +77,6 @@ export async function likeCandidate(
   candidateId : string,
   reaction: 'like' | 'pass' = 'like'
 ): Promise<void> {
-  console.log("HI HERE")
   const { error } = await supabase
     .from('candidate_likes')
     .upsert(
@@ -87,6 +86,10 @@ export async function likeCandidate(
   if (error) throw error;
   else {
     //TODO: CHECK FOR MATCH HERE 
+    const { data } = await supabase.functions.invoke('check-for-match', {
+      body: { candidate_id : candidateId, project_id : projectId, owner_id : userId }
+    })
+    console.log(data.message);
   }
 }
 
