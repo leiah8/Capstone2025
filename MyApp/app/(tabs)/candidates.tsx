@@ -178,12 +178,6 @@ const CandidateCard = ({
 
       {/* Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        
-        {/* TODO: project tag
-        {/* TAGS SECTION */}
-        {/* <View>
-          <Text>{candidate.project_name}</Text>
-        </View> */}
 
         {/* TAGS SECTION */}
         {candidate.project_name && (
