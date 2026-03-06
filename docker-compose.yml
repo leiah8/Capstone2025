@@ -1,0 +1,44 @@
+services:
+  matching-api:
+    build:
+      context: .
+      dockerfile: matching_algorithm/Dockerfile
+    container_name: peer-matching-api
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount code for development hot-reload
+      - ./matching_algorithm:/app/matching_algorithm
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/match/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  resume-parser:
+    build:
+      context: .
+      dockerfile: resume_parser/Dockerfile
+    container_name: peer-resume-parser
+    ports:
+      - "8001:8001"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount code for development hot-reload
+      - ./resume_parser:/app/resume_parser
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  default:
+    name: peer-network

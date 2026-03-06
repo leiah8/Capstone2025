@@ -21,6 +21,15 @@ app.add_middleware(
 )
 
 
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "service": "resume-parser",
+        "version": "0.1.0"
+    }
+
+
 @app.post("/parse/url")
 async def parse_from_url(payload: Dict[str, Any]):
     url = payload.get("url")
