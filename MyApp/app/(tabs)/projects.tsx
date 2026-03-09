@@ -137,6 +137,7 @@ const ProjectCard = ({
       ]}
       {...(isTop ? panResponder.panHandlers : {})}
     >
+      <View style={styles.cardInner}>
       {isTop && (
         <>
           <Animated.View style={[styles.likeOverlay, { opacity: likeOpacity }]}>
@@ -180,6 +181,7 @@ const ProjectCard = ({
           </View>
         )}
       </ScrollView>
+      </View>
     </Animated.View>
   );
 };
@@ -462,18 +464,20 @@ export default function ProjectFeed() {
       {tab === "browse" && (
         <>
           <View style={styles.cardContainer}>
-            {projects
-              .slice(currentIndex, currentIndex + 2)
-              .reverse()
-              .map((p, i) => (
+            {(() => {
+              const visible = projects
+                .slice(currentIndex, currentIndex + 2)
+                .reverse();
+              return visible.map((p, i) => (
                 <ProjectCard
                   key={p.id}
                   project={p}
-                  isTop={i === 1}
+                  isTop={i === visible.length - 1}
                   onSwipe={handleSwipe}
                   onTap={() => setDetailProject(p)}
                 />
-              ))}
+              ));
+            })()}
 
             {currentIndex >= projects.length && (
               <View style={styles.endCard}>
@@ -494,13 +498,13 @@ export default function ProjectFeed() {
                 style={styles.passButton}
                 onPress={() => handleSwipe("left")}
               >
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={32} color="#fff" />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.likeButton}
                 onPress={() => handleSwipe("right")}
               >
-                <Ionicons name="checkmark" size={28} color="#fff" />
+                <Ionicons name="checkmark" size={32} color="#fff" />
               </TouchableOpacity>
             </View>
           )}
@@ -730,7 +734,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    zIndex: 10,
   },
   headerTitle: { fontSize: 24, fontWeight: "bold", color: "#333" },
   createButton: {
@@ -741,13 +746,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  cardContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  cardContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
 
   card: {
     position: "absolute",
     width: SCREEN_WIDTH * 0.9,
     maxWidth: 430,
-    height: SCREEN_HEIGHT * 0.7,
+    height: SCREEN_HEIGHT * 0.62,
     backgroundColor: "#fff",
     borderRadius: 20,
     shadowColor: "#000",
@@ -755,6 +765,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
+  },
+  cardInner: {
+    flex: 1,
+    borderRadius: 20,
     overflow: "hidden",
   },
   cardBehind: { transform: [{ scale: 0.95 }], opacity: 0.8 },
@@ -896,7 +910,7 @@ const styles = StyleSheet.create({
   endCard: {
     width: SCREEN_WIDTH * 0.9,
     maxWidth: 430,
-    height: SCREEN_HEIGHT * 0.7,
+    height: SCREEN_HEIGHT * 0.62,
     backgroundColor: "#fff",
     borderRadius: 20,
     justifyContent: "center",

@@ -17,7 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   CandidateUI,
   fetchCandidates,
@@ -158,8 +158,10 @@ const CandidateCard = ({
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, g) => position.setValue({ x: g.dx, y: g.dy }),
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > 10,
+      onPanResponderMove: (_, g) => position.setValue({ x: g.dx, y: 0 }),
       onPanResponderRelease: (_, g) => {
         if (g.dx > SWIPE_THRESHOLD) swipeRight();
         else if (g.dx < -SWIPE_THRESHOLD) swipeLeft();
@@ -217,6 +219,7 @@ const CandidateCard = ({
       ]}
       {...(isTop ? panResponder.panHandlers : {})}
     >
+      <View style={styles.cardInner}>
       {isTop && (
         <>
           <Animated.View style={[styles.likeOverlay, { opacity: likeOpacity }]}>
@@ -229,7 +232,7 @@ const CandidateCard = ({
       )}
 
       {/* Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} nestedScrollEnabled>
         {/* TAGS SECTION */}
         {candidate.project_name && (
           <View style={styles.projectTagRow}>
@@ -356,6 +359,7 @@ const CandidateCard = ({
           </View>
         )}
       </ScrollView>
+      </View>
     </Animated.View>
   );
 };
@@ -364,7 +368,6 @@ const CandidateCard = ({
    Screen: fetch & swipe stack
    ========================= */
 export default function CandidateFeed() {
-  const insets = useSafeAreaInsets();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -537,24 +540,24 @@ export default function CandidateFeed() {
     );
 
   return hasProjects ? (
-    <View
-      style={[
-        styles.container,
-        { paddingTop: insets.top, paddingBottom: insets.bottom },
-      ]}
-    >
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Candidates</Text>
+      </View>
       <View style={styles.cardContainer}>
-        {candidates
-          .slice(currentIndex, currentIndex + 2)
-          .reverse()
-          .map((p, i) => (
+        {(() => {
+          const visible = candidates
+            .slice(currentIndex, currentIndex + 2)
+            .reverse();
+          return visible.map((p, i) => (
             <CandidateCard
               key={p.id}
               candidate={p}
-              isTop={i === 1}
+              isTop={i === visible.length - 1}
               onSwipe={handleSwipe}
             />
-          ))}
+          ));
+        })()}
 
         {currentIndex >= candidates.length && (
           <View style={styles.endCard}>
@@ -575,19 +578,22 @@ export default function CandidateFeed() {
             style={styles.passButton}
             onPress={() => handleSwipe("left")}
           >
-            <Ionicons name="close" size={40} color="#fff" />
+            <Ionicons name="close" size={32} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.likeButton}
             onPress={() => handleSwipe("right")}
           >
-            <Ionicons name="checkmark" size={40} color="#fff" />
+            <Ionicons name="checkmark" size={32} color="#fff" />
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   ) : (
-    <View style={[styles.center, { backgroundColor: "#fff" }]}>
+    <SafeAreaView
+      style={[styles.center, { backgroundColor: "#fff" }]}
+      edges={["top"]}
+    >
       <Text
         style={{
           fontSize: 16,
@@ -605,7 +611,7 @@ export default function CandidateFeed() {
       >
         <Text style={styles.resetButtonText}>Create Your First Project</Text>
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -615,13 +621,27 @@ export default function CandidateFeed() {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   container: { flex: 1, backgroundColor: "#fff" },
-  cardContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  cardContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    zIndex: 10,
+  },
+  headerTitle: { fontSize: 24, fontWeight: "700", color: "#333" },
 
   card: {
     position: "absolute",
     width: SCREEN_WIDTH * 0.9,
     maxWidth: 430,
-    height: SCREEN_HEIGHT * 0.7,
+    height: SCREEN_HEIGHT * 0.62,
     backgroundColor: "#fff",
     borderRadius: 20,
     shadowColor: "#000",
@@ -629,6 +649,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
+  },
+  cardInner: {
+    flex: 1,
+    borderRadius: 20,
     overflow: "hidden",
   },
   cardBehind: { transform: [{ scale: 0.95 }], opacity: 0.8 },
@@ -753,7 +777,7 @@ const styles = StyleSheet.create({
   endCard: {
     width: SCREEN_WIDTH * 0.9,
     maxWidth: 430,
-    height: SCREEN_HEIGHT * 0.7,
+    height: SCREEN_HEIGHT * 0.62,
     backgroundColor: "#fff",
     borderRadius: 20,
     justifyContent: "center",
@@ -812,7 +836,7 @@ const styles = StyleSheet.create({
   },
   avatar: { width: "100%", height: "100%" },
   candidateName: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: "700",
     color: "#1A1A1A",
     letterSpacing: 0.3,
