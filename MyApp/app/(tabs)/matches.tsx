@@ -26,7 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function MatchesPage() {
     const { signOut, session } = useAuth();
-    const { sessionLastSeen, seenMatchIds } = useNotifications();
+    const { matchNotifs } = useNotifications();
 
     /* State */
     const [name, setName] = useState('');
@@ -40,12 +40,12 @@ export default function MatchesPage() {
 
     const [projectsPage, setPage] = useState(true);
 
-    const projectNewCount = projectMatchesUI.filter(
-        (m) => sessionLastSeen && m.created_at > sessionLastSeen && !seenMatchIds.has(String(m.match_id))
-    ).length;
-    const candidateNewCount = candidateMatchesUI.filter(
-        (m) => sessionLastSeen && m.created_at > sessionLastSeen && !seenMatchIds.has(String(m.match_id))
-    ).length;
+    const projectNewCount = projectMatchesUI.reduce(
+        (sum, m) => sum + (matchNotifs.get(String(m.match_id)) ?? 0), 0
+    );
+    const candidateNewCount = candidateMatchesUI.reduce(
+        (sum, m) => sum + (matchNotifs.get(String(m.match_id)) ?? 0), 0
+    );
 
     const gotoMatch = (pid : string | number) => {
         router.push(`/match/${pid}`)
@@ -303,15 +303,15 @@ export default function MatchesPage() {
                     {/* Content */}
                     <View style={styles.list}>
                         {projectMatchesUI.map((match, index) => {
-                            const isNew = sessionLastSeen && match.created_at > sessionLastSeen && !seenMatchIds.has(String(match.match_id));
+                            const notifCount = matchNotifs.get(String(match.match_id)) ?? 0;
                             return (
                             <TouchableOpacity key={index} onPress={async() => {gotoMatch(match.match_id)}}>
                                 <View style={styles.match}>
                                     <Image source={{ uri: match.project_image }} style={styles.profileImage} />
                                     <Text>{match.project_name}</Text>
-                                    {isNew && (
+                                    {notifCount > 0 && (
                                         <View style={styles.newBadge}>
-                                            <Text style={styles.newBadgeText}>new</Text>
+                                            <Text style={styles.newBadgeText}>{notifCount}</Text>
                                         </View>
                                     )}
                                 </View>
@@ -370,15 +370,15 @@ export default function MatchesPage() {
                     {/* Content */}
                     <View style={styles.list}>
                         {candidateMatchesUI.map((match, index) => {
-                            const isNew = sessionLastSeen && match.created_at > sessionLastSeen && !seenMatchIds.has(String(match.match_id));
+                            const notifCount = matchNotifs.get(String(match.match_id)) ?? 0;
                             return (
                             <TouchableOpacity key={index} onPress={async() => {gotoMatch(match.match_id)}}>
                                 <View style={styles.match}>
                                     <Image source={{ uri: match.project_image }} style={styles.profileImage} />
                                     <Text>{match.candidate_name}</Text>
-                                    {isNew && (
+                                    {notifCount > 0 && (
                                         <View style={styles.newBadge}>
-                                            <Text style={styles.newBadgeText}>new</Text>
+                                            <Text style={styles.newBadgeText}>{notifCount}</Text>
                                         </View>
                                     )}
                                 </View>

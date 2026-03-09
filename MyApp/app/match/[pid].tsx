@@ -35,7 +35,7 @@ const chatCache = new Map<string, CacheEntry>();
 export default function MatchesPage() {
     const { pid } = useLocalSearchParams(); // match_id
     const { session } = useAuth();
-    const { markMatchSeen } = useNotifications();
+    const { setActiveMatchId } = useNotifications();
 
     /* State */
     const cached = chatCache.get(String(pid));
@@ -52,7 +52,8 @@ export default function MatchesPage() {
 
     /* ── 1. Load match, profile, conversation, initial messages ── */
     useEffect(() => {
-        markMatchSeen(String(pid)); // clear "(new)" badge for this match
+        setActiveMatchId(String(pid)); // suppress + clear notifications while in chat
+
         (async () => {
           try {
             // Load the match (pid is match_id)
@@ -141,6 +142,8 @@ export default function MatchesPage() {
             setLoading(false);
           }
         })();
+
+        return () => setActiveMatchId(null); // re-enable notifications on leave
       }, [session?.user?.id]);
 
     /* ── 2. Realtime subscription ── */
