@@ -53,6 +53,32 @@ Deno.serve(async (req: Request) => {
 
     if (upsertError) throw new Error(`matches upsert failed: ${upsertError.message}`);
 
+    // 4. Create a conversation for this match if one doesn't exist yet
+    const { data: existingConv } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("project_id", project_id)
+      .maybeSingle();
+
+    if (!existingConv) {
+      const { data: newConv, error: convError } = await supabase
+        .from("conversations")
+        .insert({ project_id, owner_id })
+        .select()
+        .single();
+
+      if (convError) throw new Error(`conversation insert failed: ${convError.message}`);
+
+      const { error: participantsError } = await supabase
+        .from("conversation_participants")
+        .insert([
+          { conversation_id: newConv.id, user_id: owner_id, role: "owner" },
+          { conversation_id: newConv.id, user_id: candidate_id, role: "member" },
+        ]);
+
+      if (participantsError) throw new Error(`participants insert failed: ${participantsError.message}`);
+    }
+
     return respond({
       match: true,
       message: match ? "New match created!" : "Match already existed.",
