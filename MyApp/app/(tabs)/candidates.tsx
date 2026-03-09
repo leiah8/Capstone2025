@@ -166,17 +166,34 @@ const CandidateCard = ({
     extrapolate: "clamp",
   });
 
+  // const panResponder = useRef(
+  //   PanResponder.create({
+  //     onStartShouldSetPanResponder: () => true,
+  //     onPanResponderMove: (_, g) => position.setValue({ x: g.dx, y: g.dy }),
+  //     onPanResponderRelease: (_, g) => {
+  //       if (g.dx > SWIPE_THRESHOLD) swipeRight();
+  //       else if (g.dx < -SWIPE_THRESHOLD) swipeLeft();
+  //       else resetPosition();
+  //     },
+  //   }),
+  // ).current;
+
   const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, g) => position.setValue({ x: g.dx, y: g.dy }),
-      onPanResponderRelease: (_, g) => {
-        if (g.dx > SWIPE_THRESHOLD) swipeRight();
-        else if (g.dx < -SWIPE_THRESHOLD) swipeLeft();
-        else resetPosition();
-      },
-    }),
-  ).current;
+  PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, g) => {
+      const { dx, dy } = g;
+      // Only hijack the gesture if horizontal movement is dominant
+      return Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8;
+    },
+    onPanResponderMove: (_, g) => position.setValue({ x: g.dx, y: g.dy }),
+    onPanResponderRelease: (_, g) => {
+      if (g.dx > SWIPE_THRESHOLD) swipeRight();
+      else if (g.dx < -SWIPE_THRESHOLD) swipeLeft();
+      else resetPosition();
+    },
+  }),
+).current;
 
   const swipeRight = () => {
     Animated.timing(position, {
@@ -682,6 +699,7 @@ export default function CandidateFeed() {
             >
               <Text style={styles.resetButtonText}>Start Over</Text>
             </TouchableOpacity>
+            <Text style={{ paddingVertical : 10, fontSize: 16, color: '#999', marginBottom: 16, width: "75%", textAlign: "center" }}>Or edit your filter settings</Text>
           </View>
         )}
       </View>
