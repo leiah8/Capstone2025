@@ -21,19 +21,29 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PersonUI } from '../../lib/profile';
 
+/* ── Module-level cache (survives navigation, cleared on app restart) ── */
+type CacheEntry = {
+  conversationId: string | number;
+  messages: Message[];
+  person: PersonUI;
+  projectName: string;
+};
+const chatCache = new Map<string, CacheEntry>();
+
 
 export default function MatchesPage() {
     const { pid } = useLocalSearchParams(); // match_id
     const { session } = useAuth();
 
     /* State */
-    const [loading, setLoading] = useState(true);
-    const [conversationId, setConversationId] = useState<string | number | null>(null);
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [person, setPerson] = useState<PersonUI>({ id: '', name: '', image: '' });
+    const cached = chatCache.get(String(pid));
+    const [loading, setLoading] = useState(!cached);
+    const [conversationId, setConversationId] = useState<string | number | null>(cached?.conversationId ?? null);
+    const [messages, setMessages] = useState<Message[]>(cached?.messages ?? []);
+    const [person, setPerson] = useState<PersonUI>(cached?.person ?? { id: '', name: '', image: '' });
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
-    const [projectName, setProjectName] = useState<string>('');
+    const [projectName, setProjectName] = useState<string>(cached?.projectName ?? '');
 
     const insets = useSafeAreaInsets();
     const scrollRef = useRef<ScrollView>(null);
@@ -111,7 +121,15 @@ export default function MatchesPage() {
             if (messagesError) {
               console.error('Error loading messages:', messagesError);
             } else if (messagesData) {
-              setMessages(messagesData as Message[]);
+              const freshMessages = messagesData as Message[];
+              setMessages(freshMessages);
+              // Update cache
+              chatCache.set(String(pid), {
+                conversationId: convData.id,
+                messages: freshMessages,
+                person: profileData as PersonUI ?? person,
+                projectName: projectData?.title ?? projectName,
+              });
             }
 
           } catch (e) {
@@ -141,7 +159,10 @@ export default function MatchesPage() {
               if (!newMessage) return;
               setMessages((prev) => {
                 if (prev.some((m) => m.id === newMessage.id)) return prev;
-                return [...prev, newMessage];
+                const updated = [...prev, newMessage];
+                const entry = chatCache.get(String(pid));
+                if (entry) chatCache.set(String(pid), { ...entry, messages: updated });
+                return updated;
               });
             }
           )
