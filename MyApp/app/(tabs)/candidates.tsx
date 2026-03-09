@@ -36,6 +36,16 @@ type Candidate = CandidateUI & {
   project_name: string;
 };
 
+type FilterProject = MyProject & {
+  included : boolean;
+}
+
+type FilterSkill = {
+  name : string;
+  included : boolean;
+}
+
+
 /* =========================
    Link Row
    ========================= */
@@ -292,6 +302,7 @@ const CandidateCard = ({
 export default function CandidateFeed() {
   const insets = useSafeAreaInsets();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -300,10 +311,33 @@ export default function CandidateFeed() {
   const [hasProjects, setHasProjects] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const [myProjects, setMyProjects] = useState<MyProject[]>([]);
-  const [filterSkills, setFilterSkills] = useState<Set<string>>(new Set());
-
+  const [myProjects, setMyProjects] = useState<FilterProject[]>([]);
+  const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
+  const [showAllSkills, setShowAllSkills] = useState<Boolean>(true);
   const { session } = useAuth();
+
+  const filterFetchedCandidates = () => {
+
+    let filteredCandidates : Candidate[] = [];
+    const pids = myProjects.filter(p => p.included).map(p => p.id);
+    const skills = filterSkills.filter(s => s.included).map(s => s.name);
+    
+    allCandidates.forEach(c => {
+      if (pids.includes(Number(c.project_id))) {
+        if (!showAllSkills) {
+          const intersection = c.skills.filter(x => skills.includes(x)); 
+          if (intersection.length > 0) {
+            filteredCandidates.push(c)
+          }
+        }
+        else {
+          filteredCandidates.push(c)
+        }
+      }
+    })
+
+    setCandidates(filteredCandidates)
+  }
 
 
   //useEffect(() => {
@@ -316,8 +350,7 @@ export default function CandidateFeed() {
 
           // Get current authenticated user's projects
           const userProjects = await fetchMyProjects(session?.user?.id);
-          setMyProjects(userProjects)
-
+          setMyProjects(userProjects.map(p => ({ ...p, included: true })));
           // let one_active = false;
           // for(let i = 0; i < userProjects.length; i++) {
           //   let p = userProjects[i];
@@ -339,7 +372,8 @@ export default function CandidateFeed() {
               (p.skills_needed ?? []).forEach(s => allSkills.add(s));
             });
 
-            setFilterSkills(allSkills)
+            // setFilterSkills([...allSkills].map(s => ({name : s, included : true})))
+            setFilterSkills([...allSkills].map(s => ({ name: s, included: true })));
 
             // Fetch all candidates
             const allCandidates = await fetchCandidates(50, session?.user?.id);
@@ -384,20 +418,19 @@ export default function CandidateFeed() {
                   return scoreB - scoreA; // Higher scores first
                 });
 
-                setCandidates(rankedCandidates as Candidate[]);
+                setAllCandidates(rankedCandidates as Candidate[]);
                 setUseMatching(true);
                 console.log(`Candidates ranked by match score (top: ${(scoreMap.get(rankedCandidates[0].id) || 0) * 100}%)`);
               } catch (matchError) {
                 console.warn('Failed to rank candidates, using default order:', matchError);
-                setCandidates(allCandidates as Candidate[]);
+                setAllCandidates(allCandidates as Candidate[]);
               }
             } else {
               console.log('Matching API not available - showing candidates in default order');
               const pid = String(userProjects.find(p => p.is_active)?.id);
               const p_name = String(userProjects.find(p => p.is_active)?.title);
-              setCandidates(allCandidates.map(c => ({ ...c, project_id: pid, project_name: p_name })) as Candidate[]);
+              setAllCandidates(allCandidates.map(c => ({ ...c, project_id: pid, project_name: p_name })) as Candidate[]);
             }
-
             setCurrentIndex(0);
           }
 
@@ -432,21 +465,19 @@ export default function CandidateFeed() {
   return (hasProjects ? (dropdownOpen ? (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View>
-        <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setDropdownOpen(false) }}>
+        <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setDropdownOpen(false); filterFetchedCandidates() }}>
           <Ionicons name="close" size={35} color="000" />
         </TouchableOpacity>
       </View>
 
       <View>
-        {/* PROJECTS to browse on */}
-
-        {myProjects.length > 0 && (
+        {/* {myProjects.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Personal Projects</Text>
             {myProjects.map((p, i) =>
-            
-              <TouchableOpacity key={i} style={styles.filterRow}>
-                <Ionicons name="checkmark-circle-outline" size={20} color="#333" />
+
+              <TouchableOpacity key={i} style={styles.filterRow} onPress={() => {p.included = !p.included}}>
+                <Ionicons name={p.included ? "checkmark-circle-outline" : "mic-circle-outline"} size={20} color="#333" />
                 <Text style={styles.filterLabel}>{p.title}</Text>
               </TouchableOpacity>
 
@@ -455,15 +486,66 @@ export default function CandidateFeed() {
         )}
 
 
-        {/* skills to browse on */}
-        {filterSkills.size > 0 && (
+        {filterSkills.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Skills</Text>
             {[...filterSkills].map((s, i) =>
 
-              <TouchableOpacity key={i} style={styles.filterRow}>
+              <TouchableOpacity key={i} style={styles.filterRow} onPress={() => s.included = !s.included}>
                 <Ionicons name="checkmark-circle-outline" size={20} color="#333" />
-                <Text style={styles.filterLabel}>{s}</Text>
+                <Text style={styles.filterLabel}>{s.name}</Text>
+              </TouchableOpacity>
+
+            )}
+          </View>
+        )} */}
+
+        {myProjects.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Personal Projects</Text>
+            {myProjects.map((p, i) => (
+              <TouchableOpacity
+                key={p.id}
+                style={styles.filterRow}
+                onPress={() => setMyProjects(prev =>
+                  prev.map((proj, j) => j === i ? { ...proj, included: !proj.included } : proj)
+                )}
+              >
+                <Ionicons name={p.included ? "checkmark-circle" : "ellipse-outline"} size={20} color="#333" />
+                <Text style={styles.filterLabel}>{p.title}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+
+        {/* skills to browse on */}
+        {filterSkills.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Skills</Text>
+            <TouchableOpacity
+                style={styles.filterRow}
+                onPress={() => {
+                  
+                  setShowAllSkills(!showAllSkills); 
+
+                }}
+              >
+                <Ionicons name={showAllSkills ? "checkmark-circle" : "ellipse-outline"} size={20} color="#333" />
+                <Text style={styles.filterLabel}>Show All Skills</Text>
+              </TouchableOpacity>
+
+            {[...filterSkills].map((s, i) =>
+
+              <TouchableOpacity
+                key={i}
+                style={[styles.filterRow, {paddingHorizontal : 40}]}
+                onPress={() => {
+                  if (!showAllSkills) setFilterSkills(prev => prev.map((skill, j) => j === i ? { ...skill, included: !skill.included } : skill));
+                }}
+              >
+                <Ionicons name={s.included ? "checkmark-circle" : "ellipse-outline"} size={20} color={showAllSkills? "#ddd": "#333"} />
+                <Text style={[styles.filterLabel, {color: showAllSkills ? "#ddd" : "#333" }]}>{s.name}</Text>
               </TouchableOpacity>
 
             )}
