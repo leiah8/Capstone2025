@@ -327,7 +327,7 @@ export default function CandidateFeed() {
 
         if(one_active) {
             // Fetch all candidates
-          const allCandidates = await fetchCandidates(50);
+          const allCandidates = await fetchCandidates(50, session?.user?.id);
           if (!alive) return;
 
           // Check if matching API is available

@@ -4,6 +4,7 @@
    Imports & setup
    ========================= */
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -19,7 +20,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { checkMatchingAPIHealth, getMatchedProjects } from '../../lib/matching-api';
 import { fetchProjects, likeProject, ProjectUI } from '../../lib/projects';
@@ -153,7 +153,6 @@ type MyProject = {
 };
 
 export default function ProjectFeed() {
-  const insets = useSafeAreaInsets();
   const { session } = useAuth();
   const [tab, setTab] = useState<'browse' | 'mine'>('browse');
   const [projects, setProjects] = useState<Project[]>([]);
@@ -289,7 +288,7 @@ export default function ProjectFeed() {
   if (err && tab === 'browse') return <View style={styles.center}><Text>Failed to load projects: {err}</Text></View>;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header with dropdown + create button */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerDropdown} onPress={() => setDropdownOpen(!dropdownOpen)}>
@@ -460,7 +459,7 @@ export default function ProjectFeed() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

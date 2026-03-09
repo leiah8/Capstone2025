@@ -20,6 +20,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 
 export default function MatchesPage() {
@@ -251,7 +252,8 @@ export default function MatchesPage() {
       //project matches
       if (projectsPage) {
         return (
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>  
+            <SafeAreaView style={styles.container} edges={['top']}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                 <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
                     {/* Header */}
                     <View>
@@ -290,35 +292,36 @@ export default function MatchesPage() {
 
 
                 </ScrollView>
-                
+
             </KeyboardAvoidingView>
+            </SafeAreaView>
         );
       }
     else { //candidate matches
         return (
-            
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>  
+            <SafeAreaView style={styles.container} edges={['top']}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                 <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
                     {/* Header */}
                     <View>
                         <Text style={styles.headerTitle}>Matches</Text>
                     </View>
-                    
+
                     {/* Sub Headers */}
                     <View style={styles.tabsContainer}>
                         <TouchableOpacity style={styles.tabButton} onPress={async () => {
-                            setPage(true)} 
+                            setPage(true)}
                             }>
                             <Text style={styles.sectionTitle}>Projects</Text>
                         </TouchableOpacity>
                          <TouchableOpacity style={styles.tabButton} onPress={async () => {
-                            setPage(false)} 
+                            setPage(false)}
                             }>
                             <Text style={styles.sectionTitle && styles.activeTab}>Candidates</Text>
                         </TouchableOpacity>
 
                     </View>
-                    
+
 
                     {/* Content */}
                     <View style={styles.list}>
@@ -327,7 +330,7 @@ export default function MatchesPage() {
                                 <View style={styles.match}>
                                     <Image source={{ uri: match.project_image }} style={styles.profileImage} />
                                     {/* <View style={styles.placeholderImage}>
-                                        <Ionicons name="person" size={40} color="#999" /> 
+                                        <Ionicons name="person" size={40} color="#999" />
                                     </View> */}
                                     <Text key={index}>{match.candidate_name}</Text>
                                 </View>
@@ -337,10 +340,11 @@ export default function MatchesPage() {
 
 
                 </ScrollView>
-                
+
             </KeyboardAvoidingView>
+            </SafeAreaView>
         );
-      
+
     }
 }
 
