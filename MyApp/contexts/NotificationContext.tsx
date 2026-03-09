@@ -238,8 +238,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   };
 
   const setActiveMatchId = (matchId: string | null) => {
+    // When leaving a chat, update the "last read" timestamp to now so that
+    // messages received while the user was in the chat are not counted as
+    // unread on the next app launch (the entry timestamp would be too old).
+    const prev = activeMatchId.current;
+    if (prev && matchId === null) markMatchSeen(prev);
     activeMatchId.current = matchId;
-    // Also clear any count that may have snuck in before this was set
+    // When entering a chat, clear any count that snuck in before this was set
     if (matchId) markMatchSeen(matchId);
   };
 
