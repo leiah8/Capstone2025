@@ -18,7 +18,7 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CandidateUI, fetchCandidates, fetchMyProjects, likeCandidate } from '../../lib/candidates';
+import { CandidateUI, fetchCandidates, fetchMyProjects, likeCandidate, MyProject } from '../../lib/candidates';
 import { checkMatchingAPIHealth, getMatchedCandidates } from '../../lib/matching-api';
 
 import { router, useFocusEffect } from 'expo-router';
@@ -32,8 +32,8 @@ const SWIPE_THRESHOLD = 120;
    Types (make skills optional & flexible)
    ========================= */
 type Candidate = CandidateUI & {
-  project_id : string;
-  project_name : string;
+  project_id: string;
+  project_name: string;
 };
 
 /* =========================
@@ -82,7 +82,7 @@ const ExperienceBlock = ({ item }: { item: any }) => (
    ========================= */
 const EducationBlock = ({ item }: { item: any }) => (
   <View style={styles.timelineItem}>
-    <View style={[styles.timelineDot ]} />
+    <View style={[styles.timelineDot]} />
     <View style={styles.timelineContent}>
       <Text style={styles.timelineTitle}>{item.degree}</Text>
       <Text style={styles.timelineSubtitle}>{item.school}</Text>
@@ -151,10 +151,10 @@ const CandidateCard = ({
   const hasLinks = candidate.links && Object.values(candidate.links).some(Boolean);
 
   // unify skills source (supports either shape)
-//   const skills = candidate.skills
-    // candidate.skills && candidate.skills.length > 0
-    //   ? candidate.skills
-    //   : (candidate.skills?.map(s => s.name) ?? []);
+  //   const skills = candidate.skills
+  // candidate.skills && candidate.skills.length > 0
+  //   ? candidate.skills
+  //   : (candidate.skills?.map(s => s.name) ?? []);
 
   return (
     <Animated.View
@@ -298,7 +298,10 @@ export default function CandidateFeed() {
   const [useMatching, setUseMatching] = useState(false);
 
   const [hasProjects, setHasProjects] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  const [myProjects, setMyProjects] = useState<MyProject[]>([]);
+  const [filterSkills, setFilterSkills] = useState<Set<string>>(new Set());
 
   const { session } = useAuth();
 
@@ -306,97 +309,107 @@ export default function CandidateFeed() {
   //useEffect(() => {
   useFocusEffect(
     useCallback(() => {
-    let alive = true;
-    (async () => {
-      try {
-        setLoading(true);
+      let alive = true;
+      (async () => {
+        try {
+          setLoading(true);
 
-        // Get current authenticated user's projects
-        const userProjects = await fetchMyProjects(session?.user?.id);
-        
-        let one_active = false;
-        for(let i = 0; i < userProjects.length; i++) {
-          let p = userProjects[i];
-          if (p.is_active) {
-            one_active = true;
-            break;
-          }
-        }
+          // Get current authenticated user's projects
+          const userProjects = await fetchMyProjects(session?.user?.id);
+          setMyProjects(userProjects)
 
-        setHasProjects(one_active)
+          // let one_active = false;
+          // for(let i = 0; i < userProjects.length; i++) {
+          //   let p = userProjects[i];
+          //   if (p.is_active) {
+          //     one_active = true;
+          //     break;
+          //   }
+          // }
 
-        // setHasProjects(userProjects.length > 0);
+          let one_active = userProjects.length > 0;
+          setHasProjects(one_active);
 
-        if(one_active) {
+          // setHasProjects(userProjects.length > 0);
+
+          if (one_active) {
+
+            let allSkills = new Set<string>();
+            userProjects.forEach(p => {
+              (p.skills_needed ?? []).forEach(s => allSkills.add(s));
+            });
+
+            setFilterSkills(allSkills)
+
             // Fetch all candidates
-          const allCandidates = await fetchCandidates(50, session?.user?.id);
-          if (!alive) return;
+            const allCandidates = await fetchCandidates(50, session?.user?.id);
+            if (!alive) return;
 
-          // Check if matching API is available
-          const matchingAvailable = await checkMatchingAPIHealth();
-          
-          if (matchingAvailable) {
-            console.log('Matching API available - ranking candidates by match score...');
-            try {
-              
+            // Check if matching API is available
+            const matchingAvailable = await checkMatchingAPIHealth();
 
-              const results = await Promise.all(
-                userProjects
-                  .filter(p => p.is_active)
-                  .map(async (p) => {
-                    const matches = await getMatchedCandidates(p, allCandidates);
-                    return matches.map(m => ({ ...m, project_id: String(p.id) }));
-                  })
-              );
-              const firstMatchScores = results.flat();
-              // from matchScores remove duplicates (keep highest match score)
-              const bestMatchMap = new Map<string, (typeof firstMatchScores)[number]>();
+            if (matchingAvailable) {
+              console.log('Matching API available - ranking candidates by match score...');
+              try {
 
-              for (const match of firstMatchScores) {
-                const existing = bestMatchMap.get(match.candidate_id);
-                if (!existing || match.overall_score > existing.overall_score) {
-                  bestMatchMap.set(match.candidate_id, match);
+
+                const results = await Promise.all(
+                  userProjects
+                    .filter(p => p.is_active)
+                    .map(async (p) => {
+                      const matches = await getMatchedCandidates(p, allCandidates);
+                      return matches.map(m => ({ ...m, project_id: String(p.id) }));
+                    })
+                );
+                const firstMatchScores = results.flat();
+                // from matchScores remove duplicates (keep highest match score)
+                const bestMatchMap = new Map<string, (typeof firstMatchScores)[number]>();
+
+                for (const match of firstMatchScores) {
+                  const existing = bestMatchMap.get(match.candidate_id);
+                  if (!existing || match.overall_score > existing.overall_score) {
+                    bestMatchMap.set(match.candidate_id, match);
+                  }
                 }
+
+                const matchScores = Array.from(bestMatchMap.values());
+
+                // Create a map of candidate IDs to match scores
+                const scoreMap = new Map(matchScores.map(m => [m.candidate_id, m.overall_score]));
+
+                // Sort candidates by match score
+                const rankedCandidates = [...allCandidates].sort((a, b) => {
+                  const scoreA = scoreMap.get(a.id) || 0;
+                  const scoreB = scoreMap.get(b.id) || 0;
+                  return scoreB - scoreA; // Higher scores first
+                });
+
+                setCandidates(rankedCandidates as Candidate[]);
+                setUseMatching(true);
+                console.log(`Candidates ranked by match score (top: ${(scoreMap.get(rankedCandidates[0].id) || 0) * 100}%)`);
+              } catch (matchError) {
+                console.warn('Failed to rank candidates, using default order:', matchError);
+                setCandidates(allCandidates as Candidate[]);
               }
-
-              const matchScores = Array.from(bestMatchMap.values());
-
-              // Create a map of candidate IDs to match scores
-              const scoreMap = new Map(matchScores.map(m => [m.candidate_id, m.overall_score]));
-              
-              // Sort candidates by match score
-              const rankedCandidates = [...allCandidates].sort((a, b) => {
-                const scoreA = scoreMap.get(a.id) || 0;
-                const scoreB = scoreMap.get(b.id) || 0;
-                return scoreB - scoreA; // Higher scores first
-              });
-              
-              setCandidates(rankedCandidates as Candidate[]);
-              setUseMatching(true);
-              console.log(`Candidates ranked by match score (top: ${(scoreMap.get(rankedCandidates[0].id) || 0) * 100}%)`);
-            } catch (matchError) {
-              console.warn('Failed to rank candidates, using default order:', matchError);
-              setCandidates(allCandidates as Candidate[]);
+            } else {
+              console.log('Matching API not available - showing candidates in default order');
+              const pid = String(userProjects.find(p => p.is_active)?.id);
+              const p_name = String(userProjects.find(p => p.is_active)?.title);
+              setCandidates(allCandidates.map(c => ({ ...c, project_id: pid, project_name: p_name })) as Candidate[]);
             }
-          } else {
-            console.log('Matching API not available - showing candidates in default order');
-            const pid = String(userProjects.find(p => p.is_active)?.id);
-            const p_name = String(userProjects.find(p => p.is_active)?.title);
-            setCandidates(allCandidates.map(c => ({ ...c, project_id: pid ,project_name : p_name})) as Candidate[]);
-          }
-          
-          setCurrentIndex(0);
-        }
 
-      } catch (e: any) {
-        if (!alive) return;
-        setErr(e.message ?? String(e));
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
-  //}, []);
+            setCurrentIndex(0);
+          }
+
+        } catch (e: any) {
+          if (!alive) return;
+          setErr(e.message ?? String(e));
+        } finally {
+          if (alive) setLoading(false);
+        }
+      })();
+      return () => { alive = false; };
+      //}, []);
     }, []));
 
   const advance = () => { if (currentIndex < candidates.length) setCurrentIndex((i) => i + 1); };
@@ -407,7 +420,7 @@ export default function CandidateFeed() {
     //if (direction !== 'right' || !session?.user?.id || !candidate) return;
     if (!session?.user?.id || !candidate) return;
     try {
-      await likeCandidate(session.user.id, candidate.project_id, candidate.id, direction == 'right' ? 'like' : 'pass');  
+      await likeCandidate(session.user.id, candidate.project_id, candidate.id, direction == 'right' ? 'like' : 'pass');
     } catch (e: any) {
       console.warn('Failed to record candidate like:', e.message ?? e);
     }
@@ -416,8 +429,59 @@ export default function CandidateFeed() {
   if (loading) return <View style={styles.center}><Text>Loading candidates</Text></View>;
   if (err) return <View style={styles.center}><Text>Failed to load candidates: {err}</Text></View>;
 
-  return ( hasProjects ? 
+  return (hasProjects ? (dropdownOpen ? (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View>
+        <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setDropdownOpen(false) }}>
+          <Ionicons name="close" size={35} color="000" />
+        </TouchableOpacity>
+      </View>
+
+      <View>
+        {/* PROJECTS to browse on */}
+
+        {myProjects.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Personal Projects</Text>
+            {myProjects.map((p, i) =>
+            
+              <TouchableOpacity key={i} style={styles.filterRow}>
+                <Ionicons name="checkmark-circle-outline" size={20} color="#333" />
+                <Text style={styles.filterLabel}>{p.title}</Text>
+              </TouchableOpacity>
+
+            )}
+          </View>
+        )}
+
+
+        {/* skills to browse on */}
+        {filterSkills.size > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Skills</Text>
+            {[...filterSkills].map((s, i) =>
+
+              <TouchableOpacity key={i} style={styles.filterRow}>
+                <Ionicons name="checkmark-circle-outline" size={20} color="#333" />
+                <Text style={styles.filterLabel}>{s}</Text>
+              </TouchableOpacity>
+
+            )}
+          </View>
+        )}
+
+      </View>
+    </View>
+
+  ) : (
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {/* FILTER */}
+      <View>
+        <TouchableOpacity style={styles.filterButton} onPress={() => { setDropdownOpen(true) }}>
+          <Ionicons name="filter" size={30} color="000" />
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.cardContainer}>
         {candidates.slice(currentIndex, currentIndex + 2).reverse().map((p, i) => (
           <CandidateCard key={p.id} candidate={p} isTop={i === 1} onSwipe={handleSwipe} />
@@ -436,25 +500,26 @@ export default function CandidateFeed() {
       {currentIndex < candidates.length && (
         <View style={styles.buttonsContainer}>
           <TouchableOpacity style={styles.passButton} onPress={() => handleSwipe('left')}>
-            <Ionicons name="close" size={40} color="#fff" />
+            <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.likeButton} onPress={() => handleSwipe('right')}>
-            <Ionicons name="checkmark" size={40} color="#fff" />
+            <Ionicons name="checkmark" size={28} color="#fff" />
           </TouchableOpacity>
         </View>
       )}
     </View>
+  ))
 
-: (
-          <View style={[styles.center, { backgroundColor : "#fff"}]}>
-            <Text style={{ fontSize: 16, color: '#999', marginBottom: 16, width : "75%", textAlign : "center"}}>You must have an active project to browse candidates.</Text>
-            <TouchableOpacity style={styles.resetButton} onPress={() => router.push('/create-project' as any)}>
-              <Text style={styles.resetButtonText}>Create Your First Project</Text>
-            </TouchableOpacity>
-          </View>
-        )
+    : (
+      <View style={[styles.center, { backgroundColor: "#fff" }]}>
+        <Text style={{ fontSize: 16, color: '#999', marginBottom: 16, width: "75%", textAlign: "center" }}>You must have an active project to browse candidates.</Text>
+        <TouchableOpacity style={styles.resetButton} onPress={() => router.push('/create-project' as any)}>
+          <Text style={styles.resetButtonText}>Create Your First Project</Text>
+        </TouchableOpacity>
+      </View>
+    )
 
-);
+  );
 }
 
 /* =========================
@@ -493,14 +558,14 @@ const styles = StyleSheet.create({
 
   descriptionSection: { marginBottom: 12 },
   sectionTitle: { fontSize: 18, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
-  description: { fontSize: 14, color: '#333', lineHeight: 20, textAlign: 'center'},
+  description: { fontSize: 14, color: '#333', lineHeight: 20, textAlign: 'center' },
 
   // overlays
   likeOverlay: { position: 'absolute', top: 50, right: 30, zIndex: 5, transform: [{ rotate: '20deg' }], borderWidth: 4, borderColor: '#4CAF50', borderRadius: 10, padding: 10 },
   nopeOverlay: { position: 'absolute', top: 50, left: 30, zIndex: 5, transform: [{ rotate: '-20deg' }], borderWidth: 4, borderColor: '#F44336', borderRadius: 10, padding: 10 },
   overlayText: { fontSize: 32, fontWeight: 'bold', color: '#4CAF50' },
 
-  buttonsContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 60, paddingBottom: 10, paddingTop: 0},
+  buttonsContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 60, paddingBottom: 10, paddingTop: 0 },
   passButton: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
   likeButton: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
 
@@ -514,7 +579,7 @@ const styles = StyleSheet.create({
   chip: { backgroundColor: '#fff', borderColor: '#ddd', borderWidth: 1, borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12, marginBottom: 8 },
   chipText: { fontSize: 13, color: '#333' },
 
-  section : {marginBottom : 12},
+  section: { marginBottom: 12 },
 
   // avatar
   avatarSection: { alignItems: 'center', paddingTop: 32, paddingBottom: 20, paddingHorizontal: 24 },
@@ -558,4 +623,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
 
+  //filtering drop down 
+  filterButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 60, borderRadius: 25 },
+  closeDropDownButton: { alignSelf: 'flex-end', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 70, borderRadius: 25 },
+
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 20 },
+  filterLabel: { fontSize: 14, color: '#333' },
 });
