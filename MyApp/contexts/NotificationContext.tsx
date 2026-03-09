@@ -34,7 +34,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   // Refs so realtime callbacks always see up-to-date mappings without stale closures
   const conversationToMatch = useRef<Map<string | number, string>>(new Map());
-  const projectIdToMatch = useRef<Map<string, string>>(new Map());
   const activeMatchId = useRef<string | null>(null);
 
   // Apply a functional update and keep matchCount in sync atomically
@@ -72,14 +71,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       // ── 2. Load all of the user's matches ─────────────────────────────────
       const [{ data: ownerMatches }, { data: candidateMatches }] = await Promise.all([
-        supabase.from('matches').select('id, project_id, created_at').eq('owner_id', userId),
-        supabase.from('matches').select('id, project_id, created_at').eq('candidate_id', userId),
+        supabase.from('matches').select('id, project_id, created_at, owner_id, candidate_id').eq('owner_id', userId),
+        supabase.from('matches').select('id, project_id, created_at, owner_id, candidate_id').eq('candidate_id', userId),
       ]);
       const allMatches = [...(ownerMatches ?? []), ...(candidateMatches ?? [])];
-
-      for (const m of allMatches) {
-        projectIdToMatch.current.set(String(m.project_id), String(m.id));
-      }
 
       // ── 3. Load per-match last-read timestamps from AsyncStorage ──────────
       const matchIds = allMatches.map((m) => String(m.id));
@@ -113,15 +108,26 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         .eq('user_id', userId);
       const convIds = (participantRows ?? []).map((r) => r.conversation_id);
 
-      // ── 6. Build conversationId → matchId via conversations.project_id ────
+      // ── 6. Build conversationId → matchId via shared participants ─────────
+      // Key: "<userId>|<otherPersonId>" → matchId
+      const pairToMatch = new Map<string, string>();
+      for (const m of allMatches) {
+        const otherId = m.owner_id === userId
+          ? (m as any).candidate_id
+          : m.owner_id;
+        pairToMatch.set(`${userId}|${otherId}`, String(m.id));
+      }
+
       if (convIds.length > 0) {
-        const { data: convRows } = await supabase
-          .from('conversations')
-          .select('id, project_id')
-          .in('id', convIds);
-        for (const conv of convRows ?? []) {
-          const matchId = projectIdToMatch.current.get(String(conv.project_id));
-          if (matchId) conversationToMatch.current.set(conv.id, matchId);
+        // Fetch all participants in the user's conversations who are NOT the user
+        const { data: otherParts } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id, user_id')
+          .in('conversation_id', convIds)
+          .neq('user_id', userId);
+        for (const row of otherParts ?? []) {
+          const matchId = pairToMatch.get(`${userId}|${row.user_id}`);
+          if (matchId) conversationToMatch.current.set(row.conversation_id, matchId);
         }
       }
 
@@ -161,7 +167,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches', filter: `owner_id=eq.${userId}` },
           (payload) => {
             const matchId = String(payload.new.id);
-            projectIdToMatch.current.set(String(payload.new.project_id), matchId);
             incrementMatch(matchId);
             setNewMatchIds((prev) => new Set(prev).add(matchId));
           })
@@ -169,22 +174,30 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches', filter: `candidate_id=eq.${userId}` },
           (payload) => {
             const matchId = String(payload.new.id);
-            projectIdToMatch.current.set(String(payload.new.project_id), matchId);
             incrementMatch(matchId);
             setNewMatchIds((prev) => new Set(prev).add(matchId));
           })
-        // Added to a new conversation — wire up conversationToMatch
+        // Added to a new conversation — wire up conversationToMatch via other participant
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversation_participants', filter: `user_id=eq.${userId}` },
           async (payload) => {
             const convId = payload.new.conversation_id;
-            const { data: convData } = await supabase
-              .from('conversations')
-              .select('project_id')
-              .eq('id', convId)
-              .single();
-            if (convData) {
-              const matchId = projectIdToMatch.current.get(String(convData.project_id));
-              if (matchId) conversationToMatch.current.set(convId, matchId);
+            // Find the other participant in this conversation
+            const { data: otherPart } = await supabase
+              .from('conversation_participants')
+              .select('user_id')
+              .eq('conversation_id', convId)
+              .neq('user_id', userId)
+              .limit(1)
+              .maybeSingle();
+            if (otherPart) {
+              // Find the match between userId and the other participant
+              const { data: matchRow } = await supabase
+                .from('matches')
+                .select('id')
+                .or(`and(owner_id.eq.${userId},candidate_id.eq.${otherPart.user_id}),and(owner_id.eq.${otherPart.user_id},candidate_id.eq.${userId})`)
+                .limit(1)
+                .maybeSingle();
+              if (matchRow) conversationToMatch.current.set(convId, String(matchRow.id));
             }
           })
         // New message — look up which match it belongs to

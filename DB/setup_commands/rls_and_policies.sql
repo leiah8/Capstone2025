@@ -154,10 +154,37 @@ WITH CHECK (owner_id = auth.uid());
 --------------------------------------------------------------------
 -- 8. CONVERSATION_PARTICIPANTS
 --------------------------------------------------------------------
+
+-- Helper used by the co-members policy below.
+-- SECURITY DEFINER lets it read conversation_participants without going
+-- through RLS, which would otherwise cause infinite recursion.
+CREATE OR REPLACE FUNCTION public.user_in_conversation(conv_id bigint, uid uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.conversation_participants
+    WHERE conversation_id = conv_id AND user_id = uid
+  );
+$$;
+
+-- Own rows are always visible
 CREATE POLICY conv_participants_select_member
 ON public.conversation_participants
 FOR SELECT
 USING (user_id = auth.uid());
+
+-- Co-members of the same conversation are visible too (needed for participant
+-- intersection lookup used in the app and the edge function)
+CREATE POLICY conv_participants_select_co_members
+ON public.conversation_participants
+FOR SELECT
+USING (
+  public.user_in_conversation(conversation_id, auth.uid())
+);
 
 CREATE POLICY conv_participants_insert_owner
 ON public.conversation_participants
