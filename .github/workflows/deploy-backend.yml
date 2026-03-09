@@ -1,0 +1,54 @@
+name: Deploy Python Backend Services
+
+on:
+  push:
+    branches:
+      - staging
+    paths:
+      - 'matching_algorithm/**'
+      - 'resume_parser/**'
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  deploy-matching-algo:
+    # Only runs if matching_algorithm files changed
+    if: |
+      contains(join(github.event.commits.*.modified, ','), 'matching_algorithm/') ||
+      contains(join(github.event.commits.*.added, ','), 'matching_algorithm/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy Matching Algorithm
+        working-directory: ./matching_algorithm
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_MATCHING_SERVICE_ID }}
+        run: railway up --service $RAILWAY_SERVICE_ID
+
+  deploy-resume-parser:
+    # Only runs if resume_parser files changed
+    if: |
+      contains(join(github.event.commits.*.modified, ','), 'resume_parser/') ||
+      contains(join(github.event.commits.*.added, ','), 'resume_parser/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy Resume Parser
+        working-directory: ./resume_parser
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_RESUME_SERVICE_ID }}
+        run: railway up --service $RAILWAY_SERVICE_ID
