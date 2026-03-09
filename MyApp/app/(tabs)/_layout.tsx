@@ -31,13 +31,12 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,
       }}>
-      {/* <Tabs.Screen
+      <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          href: null, // hides it from the tab bar
         }}
-      /> */}
+      />
       <Tabs.Screen
         name="projects"
         options={{
