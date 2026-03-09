@@ -40,12 +40,12 @@ useEffect(() => {
 
     // If profile row doesn’t exist, create a blank one
     if (profileError && profileError.code === 'PGRST116') {
-      const { error: upsertErr } = await supabase.from('profiles').upsert({ id: user.id, name: null });
+      const { error: upsertErr } = await supabase.from('profiles').upsert({ id: user.id, name: '' });
       if (upsertErr) {
         console.error(upsertErr);
         return;
       }
-      profile = { name: null };
+      profile = { name: '' };
     } else if (profileError) {
       console.error(profileError);
       return;
@@ -125,7 +125,7 @@ useEffect(() => {
     if (!profile && status === 406) {
       const { error: upsertErr } = await supabase
         .from('profiles')
-        .upsert({ id: user.id, name: null });
+        .upsert({ id: user.id, name: '' });
       if (upsertErr) {
         console.error(upsertErr);
         Alert.alert('Error', 'Unable to initialize profile.');
