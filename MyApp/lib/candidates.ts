@@ -95,8 +95,8 @@ export async function likeCandidate(
 
 
 
-export async function fetchCandidates(limit = 50): Promise<CandidateUI[]> {
-  const { data, error } = await supabase
+export async function fetchCandidates(limit = 50, userId : string | undefined): Promise<CandidateUI[]> {
+  let query = supabase
     .from('profiles')
     .select( 
       `
@@ -117,7 +117,14 @@ export async function fetchCandidates(limit = 50): Promise<CandidateUI[]> {
     .eq('visible', true)
     .order('resume_updated_at', { ascending: false })
     .limit(limit);
+  
 
+  if (userId) {
+    query = query.neq('id', userId);
+  }
+  
+
+  const { data, error } = await query
   if (error) throw error;
 
   const rows = (data ?? []) as unknown as DbCandidate[];
