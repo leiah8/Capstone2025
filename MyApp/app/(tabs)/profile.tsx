@@ -30,6 +30,7 @@ import ParseReviewModal, {
   type ParsedData,
   type ConfirmedData,
 } from "../../components/ParseReviewModal";
+import DateRangePickerModal from "../../components/DateRangePickerModal";
 
 /* =========================
    Helpers
@@ -80,25 +81,72 @@ export default function ProfilePage() {
   const [instagram, setInstagram] = useState("");
   const [twitter, setTwitter] = useState("");
 
-  const [education, setEducation] = useState([
-    { id: Date.now().toString(), school: "", degree: "", year: "" },
-  ]);
+  const [education, setEducation] = useState<
+    { id: string; school: string; degree: string; year: string }[]
+  >([]);
 
-  const [experience, setExperience] = useState([
+  const [experience, setExperience] = useState<
     {
-      id: Date.now().toString(),
-      company: "",
-      position: "",
-      duration: "",
-      description: "",
-    },
-  ]);
+      id: string;
+      company: string;
+      position: string;
+      duration: string;
+      description: string;
+    }[]
+  >([]);
 
-  const [projects, setProjects] = useState([
-    { id: Date.now().toString(), name: "", description: "", link: "" },
-  ]);
+  const [projects, setProjects] = useState<
+    { id: string; name: string; description: string; link: string }[]
+  >([]);
 
   const [loading, setLoading] = useState(true);
+
+  /* Draft state for adding new entries */
+  const [showEduDraft, setShowEduDraft] = useState(false);
+  const [eduDraft, setEduDraft] = useState({
+    school: "",
+    degree: "",
+    year: "",
+  });
+  const [eduDraftTried, setEduDraftTried] = useState(false);
+
+  const [showExpDraft, setShowExpDraft] = useState(false);
+  const [expDraft, setExpDraft] = useState({
+    company: "",
+    position: "",
+    duration: "",
+    description: "",
+  });
+  const [expDraftTried, setExpDraftTried] = useState(false);
+
+  const [showProjDraft, setShowProjDraft] = useState(false);
+  const [projDraft, setProjDraft] = useState({
+    name: "",
+    description: "",
+    link: "",
+  });
+  const [projDraftTried, setProjDraftTried] = useState(false);
+
+  /* Date picker state */
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [datePickerMode, setDatePickerMode] = useState<"year" | "monthYear">(
+    "year",
+  );
+  const [datePickerValue, setDatePickerValue] = useState("");
+  const [datePickerCallback, setDatePickerCallback] = useState<
+    ((v: string) => void) | null
+  >(null);
+
+  const openDatePicker = (
+    mode: "year" | "monthYear",
+    currentValue: string,
+    onConfirm: (v: string) => void,
+  ) => {
+    setDatePickerMode(mode);
+    setDatePickerValue(currentValue);
+    setDatePickerCallback(() => onConfirm);
+    setDatePickerVisible(true);
+  };
 
   /* Resume state (derived name only) */
   const [resumeUrl, setResumeUrl] = useState<string | null>(null); // or swap to resume_path if you prefer
@@ -151,47 +199,22 @@ export default function ProfilePage() {
             setInstagram(data.links.instagram || "");
             setTwitter(data.links.twitter || "");
           }
-          const loadedEducation = data.education || [];
+          // Filter out completely blank placeholder entries
           setEducation(
-            loadedEducation.length
-              ? loadedEducation
-              : [
-                  {
-                    id: Date.now().toString(),
-                    school: "",
-                    degree: "",
-                    year: "",
-                  },
-                ],
+            (data.education || []).filter(
+              (e: any) => e.school || e.degree || e.year,
+            ),
           );
-
-          const loadedExperience = data.experience || [];
           setExperience(
-            loadedExperience.length
-              ? loadedExperience
-              : [
-                  {
-                    id: Date.now().toString(),
-                    company: "",
-                    position: "",
-                    duration: "",
-                    description: "",
-                  },
-                ],
+            (data.experience || []).filter(
+              (e: any) =>
+                e.company || e.position || e.duration || e.description,
+            ),
           );
-
-          const loadedProjects = data.personal_projects || [];
           setProjects(
-            loadedProjects.length
-              ? loadedProjects
-              : [
-                  {
-                    id: Date.now().toString(),
-                    name: "",
-                    description: "",
-                    link: "",
-                  },
-                ],
+            (data.personal_projects || []).filter(
+              (p: any) => p.name || p.description || p.link,
+            ),
           );
 
           // Resume fields (we only derive filename in UI)
@@ -716,11 +739,13 @@ export default function ProfilePage() {
   };
 
   const addEducation = () => {
-    const next = [
-      ...education,
-      { id: Date.now().toString(), school: "", degree: "", year: "" },
-    ];
+    setEduDraftTried(true);
+    if (!eduDraft.school.trim() || !eduDraft.degree.trim()) return;
+    const next = [...education, { id: Date.now().toString(), ...eduDraft }];
     setEducation(next);
+    setEduDraft({ school: "", degree: "", year: "" });
+    setEduDraftTried(false);
+    setShowEduDraft(false);
     saveProfile();
   };
   const updateEducation = (id: string, field: string, value: string) => {
@@ -734,17 +759,13 @@ export default function ProfilePage() {
   };
 
   const addExperience = () => {
-    const next = [
-      ...experience,
-      {
-        id: Date.now().toString(),
-        company: "",
-        position: "",
-        duration: "",
-        description: "",
-      },
-    ];
+    setExpDraftTried(true);
+    if (!expDraft.company.trim() || !expDraft.position.trim()) return;
+    const next = [...experience, { id: Date.now().toString(), ...expDraft }];
     setExperience(next);
+    setExpDraft({ company: "", position: "", duration: "", description: "" });
+    setExpDraftTried(false);
+    setShowExpDraft(false);
     saveProfile();
   };
   const updateExperience = (id: string, field: string, value: string) => {
@@ -758,11 +779,13 @@ export default function ProfilePage() {
   };
 
   const addProject = () => {
-    const next = [
-      ...projects,
-      { id: Date.now().toString(), name: "", description: "", link: "" },
-    ];
+    setProjDraftTried(true);
+    if (!projDraft.name.trim()) return;
+    const next = [...projects, { id: Date.now().toString(), ...projDraft }];
     setProjects(next);
+    setProjDraft({ name: "", description: "", link: "" });
+    setProjDraftTried(false);
+    setShowProjDraft(false);
     saveProfile();
   };
   const updateProject = (id: string, field: string, value: string) => {
@@ -792,7 +815,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -801,535 +824,833 @@ export default function ProfilePage() {
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
         >
-        {/* Header */}
-        <View style={styles.headerContainer}>
-          <Text style={styles.headerTitle}>My Profile</Text>
-          <TouchableOpacity
-            style={styles.signOutButton}
-            onPress={handleSignOut}
-          >
-            <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
-            <Text style={styles.signOutText}>Sign Out</Text>
-          </TouchableOpacity>
-        </View>
+          {/* Header */}
+          <View style={styles.headerContainer}>
+            <Text style={styles.headerTitle}>My Profile</Text>
+            <TouchableOpacity
+              style={styles.signOutButton}
+              onPress={handleSignOut}
+            >
+              <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
+              <Text style={styles.signOutText}>Sign Out</Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* Profile Image */}
-        <View style={styles.profileImageContainer}>
-          <TouchableOpacity
-            style={styles.profileImageButton}
-            onPress={pickImage}
-            disabled={uploadingImage}
-          >
-            {profileImage ? (
-              <Image
-                source={{ uri: profileImage }}
-                style={styles.profileImage}
-              />
-            ) : (
-              <View style={styles.placeholderImage}>
-                <Ionicons name="person" size={60} color="#999" />
-              </View>
-            )}
-            {uploadingImage && (
-              <View style={styles.uploadingOverlay}>
-                <ActivityIndicator size="large" color="#007AFF" />
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.changePhotoButton}
-            onPress={pickImage}
-            disabled={uploadingImage}
-          >
-            <Ionicons name="camera" size={16} color="#007AFF" />
-            <Text style={styles.changePhotoText}>
-              {uploadingImage ? "Uploading..." : "Change Photo"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Basic Info */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Name</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            onBlur={saveProfile}
-            placeholder="Enter your name"
-            placeholderTextColor="#999"
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={[styles.input, styles.disabledInput]}
-            value={email}
-            placeholder="Enter your email"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholderTextColor="#999"
-            editable={false}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Location</Text>
-          <TextInput
-            style={styles.input}
-            value={location}
-            onChangeText={setLocation}
-            onBlur={saveProfile}
-            placeholder="City, Country"
-            placeholderTextColor="#999"
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Bio</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={bio}
-            onChangeText={setBio}
-            onBlur={saveProfile}
-            placeholder="Tell us about yourself"
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            placeholderTextColor="#999"
-          />
-        </View>
-
-        {/* Resume (pretty card, tidy filename, setup-style button) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Resume</Text>
-
-          <View style={styles.resumeCard}>
-            <View style={styles.resumeRow}>
-              <View style={styles.resumeIconBubble}>
-                <Ionicons
-                  name="document-text-outline"
-                  size={20}
-                  color="#2563eb"
+          {/* Profile Image */}
+          <View style={styles.profileImageContainer}>
+            <TouchableOpacity
+              style={styles.profileImageButton}
+              onPress={pickImage}
+              disabled={uploadingImage}
+            >
+              {profileImage ? (
+                <Image
+                  source={{ uri: profileImage }}
+                  style={styles.profileImage}
                 />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.resumeNameText} numberOfLines={1}>
-                  {resumeFileName ?? "No resume on file"}
-                </Text>
-                <Text style={styles.resumeMetaText}>
-                  Last uploaded:{" "}
-                  {resumeUpdatedAt
-                    ? new Date(resumeUpdatedAt).toLocaleString()
-                    : "—"}
-                </Text>
-              </View>
-
-              {!!resumeUrl && (
-                <TouchableOpacity
-                  onPress={() => Linking.openURL(resumeUrl!)}
-                  style={styles.smallLinkBtn}
-                >
-                  <Text style={styles.smallLinkText}>View</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <TouchableOpacity
-              onPress={pickResume}
-              disabled={uploadingResume}
-              style={[
-                styles.primaryBtn,
-                uploadingResume && styles.primaryBtnDisabled,
-              ]}
-              activeOpacity={0.9}
-            >
-              {uploadingResume ? (
-                <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.primaryBtnText}>Upload New Resume</Text>
+                <View style={styles.placeholderImage}>
+                  <Ionicons name="person" size={60} color="#999" />
+                </View>
+              )}
+              {uploadingImage && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="large" color="#007AFF" />
+                </View>
               )}
             </TouchableOpacity>
-
             <TouchableOpacity
-              onPress={reparseResume}
-              disabled={parsingResume || !PARSER_URL}
-              style={[
-                styles.secondaryBtn,
-                (parsingResume || !PARSER_URL) && styles.secondaryBtnDisabled,
-              ]}
-              activeOpacity={0.9}
+              style={styles.changePhotoButton}
+              onPress={pickImage}
+              disabled={uploadingImage}
             >
-              {parsingResume ? (
-                <ActivityIndicator color="#2563eb" />
-              ) : (
-                <Text style={styles.secondaryBtnText}>Re-parse Resume</Text>
-              )}
+              <Ionicons name="camera" size={16} color="#007AFF" />
+              <Text style={styles.changePhotoText}>
+                {uploadingImage ? "Uploading..." : "Change Photo"}
+              </Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Skills */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderLeft}>
-              <Ionicons name="construct-outline" size={20} color="#2563eb" />
-              <Text style={styles.sectionTitle}>Skills</Text>
-            </View>
-            {skills.length > 0 && !selectingSkills && (
-              <TouchableOpacity
-                onPress={() => setSelectingSkills(true)}
-                style={styles.smallLinkBtn}
-              >
-                <Text style={styles.smallLinkText}>Select</Text>
-              </TouchableOpacity>
-            )}
-            {selectingSkills && (
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <TouchableOpacity
-                  onPress={cancelSkillSelection}
-                  style={styles.smallLinkBtn}
-                >
-                  <Text style={styles.smallLinkText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={deleteSelectedSkills}
-                  disabled={selectedSkills.length === 0}
-                  style={[
-                    styles.smallLinkBtn,
-                    selectedSkills.length === 0 && { opacity: 0.5 },
-                  ]}
-                >
-                  <Text style={[styles.smallLinkText, { color: "#FF3B30" }]}>
-                    Delete ({selectedSkills.length})
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-          <View style={styles.searchContainer}>
+          {/* Basic Info */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Name</Text>
             <TextInput
-              style={styles.searchInput}
-              value={skillSearch}
-              onChangeText={setSkillSearch}
-              placeholder="Add a skill"
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              onBlur={saveProfile}
+              placeholder="Enter your name"
               placeholderTextColor="#999"
-              onSubmitEditing={addSkill}
             />
-            <TouchableOpacity style={styles.addButton} onPress={addSkill}>
-              <Ionicons name="add" size={24} color="#fff" />
-            </TouchableOpacity>
           </View>
-          {skills.length === 0 && (
-            <View style={styles.emptyState}>
-              <Ionicons name="construct-outline" size={28} color="#d1d5db" />
-              <Text style={styles.emptyStateText}>No skills added yet</Text>
-            </View>
-          )}
-          <View style={styles.tagsContainer}>
-            {skills.map((skill, index) => (
-              <TouchableOpacity
-                key={index}
-                activeOpacity={0.8}
-                onPress={() => {
-                  if (selectingSkills) toggleSelectSkill(skill);
-                }}
-                onLongPress={() => {
-                  if (!selectingSkills) setSelectingSkills(true);
-                  toggleSelectSkill(skill);
-                }}
-                style={[
-                  styles.tag,
-                  selectingSkills &&
-                    selectedSkills.includes(skill) &&
-                    styles.tagSelected,
-                ]}
-              >
-                <Text style={styles.tagText}>{skill}</Text>
-                {!selectingSkills && (
-                  <TouchableOpacity onPress={() => removeSkill(skill)}>
-                    <Ionicons name="close-circle" size={20} color="#666" />
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={[styles.input, styles.disabledInput]}
+              value={email}
+              placeholder="Enter your email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholderTextColor="#999"
+              editable={false}
+            />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Location</Text>
+            <TextInput
+              style={styles.input}
+              value={location}
+              onChangeText={setLocation}
+              onBlur={saveProfile}
+              placeholder="City, Country"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Bio</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={bio}
+              onChangeText={setBio}
+              onBlur={saveProfile}
+              placeholder="Tell us about yourself"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          {/* Resume (pretty card, tidy filename, setup-style button) */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Resume</Text>
+
+            <View style={styles.resumeCard}>
+              <View style={styles.resumeRow}>
+                <View style={styles.resumeIconBubble}>
+                  <Ionicons
+                    name="document-text-outline"
+                    size={20}
+                    color="#2563eb"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.resumeNameText} numberOfLines={1}>
+                    {resumeFileName ?? "No resume on file"}
+                  </Text>
+                  <Text style={styles.resumeMetaText}>
+                    Last uploaded:{" "}
+                    {resumeUpdatedAt
+                      ? new Date(resumeUpdatedAt).toLocaleString()
+                      : "—"}
+                  </Text>
+                </View>
+
+                {!!resumeUrl && (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(resumeUrl!)}
+                    style={styles.smallLinkBtn}
+                  >
+                    <Text style={styles.smallLinkText}>View</Text>
                   </TouchableOpacity>
                 )}
+              </View>
+
+              <TouchableOpacity
+                onPress={pickResume}
+                disabled={uploadingResume}
+                style={[
+                  styles.primaryBtn,
+                  uploadingResume && styles.primaryBtnDisabled,
+                ]}
+                activeOpacity={0.9}
+              >
+                {uploadingResume ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>Upload New Resume</Text>
+                )}
               </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={reparseResume}
+                disabled={parsingResume || !PARSER_URL}
+                style={[
+                  styles.secondaryBtn,
+                  (parsingResume || !PARSER_URL) && styles.secondaryBtnDisabled,
+                ]}
+                activeOpacity={0.9}
+              >
+                {parsingResume ? (
+                  <ActivityIndicator color="#2563eb" />
+                ) : (
+                  <Text style={styles.secondaryBtnText}>Re-parse Resume</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Skills */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <Ionicons name="construct-outline" size={20} color="#2563eb" />
+                <Text style={styles.sectionTitle}>Skills</Text>
+              </View>
+              {skills.length > 0 && !selectingSkills && (
+                <TouchableOpacity
+                  onPress={() => setSelectingSkills(true)}
+                  style={styles.smallLinkBtn}
+                >
+                  <Text style={styles.smallLinkText}>Select</Text>
+                </TouchableOpacity>
+              )}
+              {selectingSkills && (
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={cancelSkillSelection}
+                    style={styles.smallLinkBtn}
+                  >
+                    <Text style={styles.smallLinkText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={deleteSelectedSkills}
+                    disabled={selectedSkills.length === 0}
+                    style={[
+                      styles.smallLinkBtn,
+                      selectedSkills.length === 0 && { opacity: 0.5 },
+                    ]}
+                  >
+                    <Text style={[styles.smallLinkText, { color: "#FF3B30" }]}>
+                      Delete ({selectedSkills.length})
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                value={skillSearch}
+                onChangeText={setSkillSearch}
+                placeholder="Add a skill"
+                placeholderTextColor="#999"
+                onSubmitEditing={addSkill}
+              />
+              <TouchableOpacity style={styles.addButton} onPress={addSkill}>
+                <Ionicons name="add" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            {skills.length === 0 && (
+              <View style={styles.emptyState}>
+                <Ionicons name="construct-outline" size={28} color="#d1d5db" />
+                <Text style={styles.emptyStateText}>No skills added yet</Text>
+              </View>
+            )}
+            <View style={styles.tagsContainer}>
+              {skills.map((skill, index) => (
+                <TouchableOpacity
+                  key={index}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    if (selectingSkills) toggleSelectSkill(skill);
+                  }}
+                  onLongPress={() => {
+                    if (!selectingSkills) setSelectingSkills(true);
+                    toggleSelectSkill(skill);
+                  }}
+                  style={[
+                    styles.tag,
+                    selectingSkills &&
+                      selectedSkills.includes(skill) &&
+                      styles.tagSelected,
+                  ]}
+                >
+                  <Text style={styles.tagText}>{skill}</Text>
+                  {!selectingSkills && (
+                    <TouchableOpacity onPress={() => removeSkill(skill)}>
+                      <Ionicons name="close-circle" size={20} color="#666" />
+                    </TouchableOpacity>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Interests */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <Ionicons name="heart-outline" size={20} color="#2563eb" />
+                <Text style={styles.sectionTitle}>Interests</Text>
+              </View>
+            </View>
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                value={interestSearch}
+                onChangeText={setInterestSearch}
+                placeholder="Add an interest"
+                placeholderTextColor="#999"
+                onSubmitEditing={addInterest}
+              />
+              <TouchableOpacity style={styles.addButton} onPress={addInterest}>
+                <Ionicons name="add" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            {interests.length === 0 && (
+              <View style={styles.emptyState}>
+                <Ionicons name="heart-outline" size={28} color="#d1d5db" />
+                <Text style={styles.emptyStateText}>
+                  No interests added yet
+                </Text>
+              </View>
+            )}
+            <View style={styles.tagsContainer}>
+              {interests.map((interest, index) => (
+                <View key={index} style={styles.tag}>
+                  <Text style={styles.tagText}>{interest}</Text>
+                  <TouchableOpacity onPress={() => removeInterest(interest)}>
+                    <Ionicons name="close-circle" size={20} color="#666" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Education */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <Ionicons name="school-outline" size={20} color="#2563eb" />
+                <Text style={styles.sectionTitle}>Education</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowEduDraft(!showEduDraft);
+                  setEduDraftTried(false);
+                }}
+                style={styles.addIconButton}
+              >
+                <Ionicons
+                  name={showEduDraft ? "close-circle" : "add-circle"}
+                  size={28}
+                  color="#2563eb"
+                />
+              </TouchableOpacity>
+            </View>
+            {education.length === 0 && !showEduDraft && (
+              <View style={styles.emptyState}>
+                <Ionicons name="school-outline" size={28} color="#d1d5db" />
+                <Text style={styles.emptyStateText}>
+                  No education added yet
+                </Text>
+                <Text style={styles.emptyStateHint}>
+                  Tap + to add your education
+                </Text>
+              </View>
+            )}
+            {education.map((edu, idx) => (
+              <View key={edu.id} style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardLabelRow}>
+                    <Ionicons name="school-outline" size={18} color="#6b7280" />
+                    <Text style={styles.cardLabel}>
+                      Education {education.length > 1 ? idx + 1 : ""}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => removeEducation(edu.id)}
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.fieldLabel}>School/University</Text>
+                <TextInput
+                  style={styles.input}
+                  value={edu.school}
+                  onChangeText={(t) => updateEducation(edu.id, "school", t)}
+                  onBlur={saveProfile}
+                  placeholder="School/University"
+                  placeholderTextColor="#999"
+                />
+                <Text style={styles.fieldLabel}>Degree/Field of Study</Text>
+                <TextInput
+                  style={styles.input}
+                  value={edu.degree}
+                  onChangeText={(t) => updateEducation(edu.id, "degree", t)}
+                  onBlur={saveProfile}
+                  placeholder="Degree/Field of Study"
+                  placeholderTextColor="#999"
+                />
+                <Text style={styles.fieldLabel}>Year</Text>
+                <TouchableOpacity
+                  style={styles.datePickerBtn}
+                  onPress={() =>
+                    openDatePicker("year", edu.year, (v) => {
+                      updateEducation(edu.id, "year", v);
+                      saveProfile();
+                    })
+                  }
+                >
+                  <Ionicons name="calendar-outline" size={18} color="#6b7280" />
+                  <Text
+                    style={
+                      edu.year
+                        ? styles.datePickerText
+                        : styles.datePickerPlaceholder
+                    }
+                  >
+                    {edu.year || "Select year range"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             ))}
-          </View>
-        </View>
-
-        {/* Interests */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderLeft}>
-              <Ionicons name="heart-outline" size={20} color="#2563eb" />
-              <Text style={styles.sectionTitle}>Interests</Text>
-            </View>
-          </View>
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              value={interestSearch}
-              onChangeText={setInterestSearch}
-              placeholder="Add an interest"
-              placeholderTextColor="#999"
-              onSubmitEditing={addInterest}
-            />
-            <TouchableOpacity style={styles.addButton} onPress={addInterest}>
-              <Ionicons name="add" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          {interests.length === 0 && (
-            <View style={styles.emptyState}>
-              <Ionicons name="heart-outline" size={28} color="#d1d5db" />
-              <Text style={styles.emptyStateText}>No interests added yet</Text>
-            </View>
-          )}
-          <View style={styles.tagsContainer}>
-            {interests.map((interest, index) => (
-              <View key={index} style={styles.tag}>
-                <Text style={styles.tagText}>{interest}</Text>
-                <TouchableOpacity onPress={() => removeInterest(interest)}>
-                  <Ionicons name="close-circle" size={20} color="#666" />
+            {showEduDraft && (
+              <View style={[styles.card, styles.draftCard]}>
+                <Text style={styles.draftTitle}>New Education</Text>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    eduDraftTried &&
+                      !eduDraft.school.trim() &&
+                      styles.fieldLabelError,
+                  ]}
+                >
+                  School/University*
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    eduDraftTried &&
+                      !eduDraft.school.trim() &&
+                      styles.errorInput,
+                  ]}
+                  value={eduDraft.school}
+                  onChangeText={(t) => setEduDraft({ ...eduDraft, school: t })}
+                  placeholder="School/University"
+                  placeholderTextColor="#999"
+                />
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    eduDraftTried &&
+                      !eduDraft.degree.trim() &&
+                      styles.fieldLabelError,
+                  ]}
+                >
+                  Degree/Field of Study*
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    eduDraftTried &&
+                      !eduDraft.degree.trim() &&
+                      styles.errorInput,
+                  ]}
+                  value={eduDraft.degree}
+                  onChangeText={(t) => setEduDraft({ ...eduDraft, degree: t })}
+                  placeholder="Degree/Field of Study"
+                  placeholderTextColor="#999"
+                />
+                <Text style={styles.fieldLabel}>Year</Text>
+                <TouchableOpacity
+                  style={styles.datePickerBtn}
+                  onPress={() =>
+                    openDatePicker("year", eduDraft.year, (v) =>
+                      setEduDraft({ ...eduDraft, year: v }),
+                    )
+                  }
+                >
+                  <Ionicons name="calendar-outline" size={18} color="#6b7280" />
+                  <Text
+                    style={
+                      eduDraft.year
+                        ? styles.datePickerText
+                        : styles.datePickerPlaceholder
+                    }
+                  >
+                    {eduDraft.year || "Select year range"}
+                  </Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.draftAddBtn}
+                  onPress={addEducation}
+                >
+                  <Text style={styles.draftAddBtnText}>Add Education</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* Experience */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <Ionicons name="briefcase-outline" size={20} color="#2563eb" />
+                <Text style={styles.sectionTitle}>Experience</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowExpDraft(!showExpDraft);
+                  setExpDraftTried(false);
+                }}
+                style={styles.addIconButton}
+              >
+                <Ionicons
+                  name={showExpDraft ? "close-circle" : "add-circle"}
+                  size={28}
+                  color="#2563eb"
+                />
+              </TouchableOpacity>
+            </View>
+            {experience.length === 0 && !showExpDraft && (
+              <View style={styles.emptyState}>
+                <Ionicons name="briefcase-outline" size={28} color="#d1d5db" />
+                <Text style={styles.emptyStateText}>
+                  No experience added yet
+                </Text>
+                <Text style={styles.emptyStateHint}>
+                  Tap + to add your experience
+                </Text>
+              </View>
+            )}
+            {experience.map((exp, idx) => (
+              <View key={exp.id} style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardLabelRow}>
+                    <Ionicons
+                      name="briefcase-outline"
+                      size={18}
+                      color="#6b7280"
+                    />
+                    <Text style={styles.cardLabel}>
+                      Experience {experience.length > 1 ? idx + 1 : ""}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => removeExperience(exp.id)}
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.fieldLabel}>Company</Text>
+                <TextInput
+                  style={styles.input}
+                  value={exp.company}
+                  onChangeText={(t) => updateExperience(exp.id, "company", t)}
+                  onBlur={saveProfile}
+                  placeholder="Company"
+                  placeholderTextColor="#999"
+                />
+                <Text style={styles.fieldLabel}>Position/Role</Text>
+                <TextInput
+                  style={styles.input}
+                  value={exp.position}
+                  onChangeText={(t) => updateExperience(exp.id, "position", t)}
+                  onBlur={saveProfile}
+                  placeholder="Position/Role"
+                  placeholderTextColor="#999"
+                />
+                <Text style={styles.fieldLabel}>Duration</Text>
+                <TouchableOpacity
+                  style={styles.datePickerBtn}
+                  onPress={() =>
+                    openDatePicker("monthYear", exp.duration, (v) => {
+                      updateExperience(exp.id, "duration", v);
+                      saveProfile();
+                    })
+                  }
+                >
+                  <Ionicons name="calendar-outline" size={18} color="#6b7280" />
+                  <Text
+                    style={
+                      exp.duration
+                        ? styles.datePickerText
+                        : styles.datePickerPlaceholder
+                    }
+                  >
+                    {exp.duration || "Select date range"}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.fieldLabel}>Description</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={exp.description}
+                  onChangeText={(t) =>
+                    updateExperience(exp.id, "description", t)
+                  }
+                  onBlur={saveProfile}
+                  placeholder="Description"
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  placeholderTextColor="#999"
+                />
               </View>
             ))}
-          </View>
-        </View>
-
-        {/* Education */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderLeft}>
-              <Ionicons name="school-outline" size={20} color="#2563eb" />
-              <Text style={styles.sectionTitle}>Education</Text>
-            </View>
-            <TouchableOpacity
-              onPress={addEducation}
-              style={styles.addIconButton}
-            >
-              <Ionicons name="add-circle" size={28} color="#2563eb" />
-            </TouchableOpacity>
-          </View>
-          {education.length === 0 && (
-            <View style={styles.emptyState}>
-              <Ionicons name="school-outline" size={28} color="#d1d5db" />
-              <Text style={styles.emptyStateText}>No education added yet</Text>
-              <Text style={styles.emptyStateHint}>
-                Tap + to add your education
-              </Text>
-            </View>
-          )}
-          {education.map((edu, idx) => (
-            <View key={edu.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardLabelRow}>
-                  <Ionicons name="school-outline" size={18} color="#6b7280" />
-                  <Text style={styles.cardLabel}>
-                    Education {education.length > 1 ? idx + 1 : ""}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.removeButton}
-                  onPress={() => removeEducation(edu.id)}
+            {showExpDraft && (
+              <View style={[styles.card, styles.draftCard]}>
+                <Text style={styles.draftTitle}>New Experience</Text>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    expDraftTried &&
+                      !expDraft.company.trim() &&
+                      styles.fieldLabelError,
+                  ]}
                 >
-                  <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                  Company*
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    expDraftTried &&
+                      !expDraft.company.trim() &&
+                      styles.errorInput,
+                  ]}
+                  value={expDraft.company}
+                  onChangeText={(t) => setExpDraft({ ...expDraft, company: t })}
+                  placeholder="Company"
+                  placeholderTextColor="#999"
+                />
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    expDraftTried &&
+                      !expDraft.position.trim() &&
+                      styles.fieldLabelError,
+                  ]}
+                >
+                  Position/Role*
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    expDraftTried &&
+                      !expDraft.position.trim() &&
+                      styles.errorInput,
+                  ]}
+                  value={expDraft.position}
+                  onChangeText={(t) =>
+                    setExpDraft({ ...expDraft, position: t })
+                  }
+                  placeholder="Position/Role"
+                  placeholderTextColor="#999"
+                />
+                <Text style={styles.fieldLabel}>Duration</Text>
+                <TouchableOpacity
+                  style={styles.datePickerBtn}
+                  onPress={() =>
+                    openDatePicker("monthYear", expDraft.duration, (v) =>
+                      setExpDraft({ ...expDraft, duration: v }),
+                    )
+                  }
+                >
+                  <Ionicons name="calendar-outline" size={18} color="#6b7280" />
+                  <Text
+                    style={
+                      expDraft.duration
+                        ? styles.datePickerText
+                        : styles.datePickerPlaceholder
+                    }
+                  >
+                    {expDraft.duration || "Select date range"}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.fieldLabel}>Description</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={expDraft.description}
+                  onChangeText={(t) =>
+                    setExpDraft({ ...expDraft, description: t })
+                  }
+                  placeholder="Description"
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  placeholderTextColor="#999"
+                />
+                <TouchableOpacity
+                  style={styles.draftAddBtn}
+                  onPress={addExperience}
+                >
+                  <Text style={styles.draftAddBtnText}>Add Experience</Text>
                 </TouchableOpacity>
               </View>
-              <TextInput
-                style={styles.input}
-                value={edu.school}
-                onChangeText={(t) => updateEducation(edu.id, "school", t)}
-                onBlur={saveProfile}
-                placeholder="School/University"
-                placeholderTextColor="#999"
-              />
-              <TextInput
-                style={styles.input}
-                value={edu.degree}
-                onChangeText={(t) => updateEducation(edu.id, "degree", t)}
-                onBlur={saveProfile}
-                placeholder="Degree/Field of Study"
-                placeholderTextColor="#999"
-              />
-              <TextInput
-                style={styles.input}
-                value={edu.year}
-                onChangeText={(t) => updateEducation(edu.id, "year", t)}
-                onBlur={saveProfile}
-                placeholder="Year (e.g., 2020-2024)"
-                placeholderTextColor="#999"
-              />
-            </View>
-          ))}
-        </View>
-
-        {/* Experience */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderLeft}>
-              <Ionicons name="briefcase-outline" size={20} color="#2563eb" />
-              <Text style={styles.sectionTitle}>Experience</Text>
-            </View>
-            <TouchableOpacity
-              onPress={addExperience}
-              style={styles.addIconButton}
-            >
-              <Ionicons name="add-circle" size={28} color="#2563eb" />
-            </TouchableOpacity>
+            )}
           </View>
-          {experience.length === 0 && (
-            <View style={styles.emptyState}>
-              <Ionicons name="briefcase-outline" size={28} color="#d1d5db" />
-              <Text style={styles.emptyStateText}>No experience added yet</Text>
-              <Text style={styles.emptyStateHint}>
-                Tap + to add your experience
-              </Text>
+
+          {/* Projects */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <Ionicons name="code-slash-outline" size={20} color="#2563eb" />
+                <Text style={styles.sectionTitle}>Projects</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowProjDraft(!showProjDraft);
+                  setProjDraftTried(false);
+                }}
+                style={styles.addIconButton}
+              >
+                <Ionicons
+                  name={showProjDraft ? "close-circle" : "add-circle"}
+                  size={28}
+                  color="#2563eb"
+                />
+              </TouchableOpacity>
             </View>
-          )}
-          {experience.map((exp, idx) => (
-            <View key={exp.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardLabelRow}>
-                  <Ionicons
-                    name="briefcase-outline"
-                    size={18}
-                    color="#6b7280"
-                  />
-                  <Text style={styles.cardLabel}>
-                    Experience {experience.length > 1 ? idx + 1 : ""}
-                  </Text>
+            {projects.length === 0 && !showProjDraft && (
+              <View style={styles.emptyState}>
+                <Ionicons name="code-slash-outline" size={28} color="#d1d5db" />
+                <Text style={styles.emptyStateText}>No projects added yet</Text>
+                <Text style={styles.emptyStateHint}>
+                  Tap + to add your projects
+                </Text>
+              </View>
+            )}
+            {projects.map((project, idx) => (
+              <View key={project.id} style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardLabelRow}>
+                    <Ionicons
+                      name="code-slash-outline"
+                      size={18}
+                      color="#6b7280"
+                    />
+                    <Text style={styles.cardLabel}>
+                      Project {projects.length > 1 ? idx + 1 : ""}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => removeProject(project.id)}
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  style={styles.removeButton}
-                  onPress={() => removeExperience(exp.id)}
+                <Text style={styles.fieldLabel}>Project Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={project.name}
+                  onChangeText={(t) => updateProject(project.id, "name", t)}
+                  onBlur={saveProfile}
+                  placeholder="Project Name"
+                  placeholderTextColor="#999"
+                />
+                <Text style={styles.fieldLabel}>Description</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={project.description}
+                  onChangeText={(t) =>
+                    updateProject(project.id, "description", t)
+                  }
+                  onBlur={saveProfile}
+                  placeholder="Project Description"
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  placeholderTextColor="#999"
+                />
+                <Text style={styles.fieldLabel}>Link</Text>
+                <TextInput
+                  style={styles.input}
+                  value={project.link}
+                  onChangeText={(t) => updateProject(project.id, "link", t)}
+                  onBlur={saveProfile}
+                  placeholder="Project Link (URL)"
+                  keyboardType="url"
+                  autoCapitalize="none"
+                  placeholderTextColor="#999"
+                />
+              </View>
+            ))}
+            {showProjDraft && (
+              <View style={[styles.card, styles.draftCard]}>
+                <Text style={styles.draftTitle}>New Project</Text>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    projDraftTried &&
+                      !projDraft.name.trim() &&
+                      styles.fieldLabelError,
+                  ]}
                 >
-                  <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                  Project Name*
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    projDraftTried &&
+                      !projDraft.name.trim() &&
+                      styles.errorInput,
+                  ]}
+                  value={projDraft.name}
+                  onChangeText={(t) => setProjDraft({ ...projDraft, name: t })}
+                  placeholder="Project Name"
+                  placeholderTextColor="#999"
+                />
+                <Text style={styles.fieldLabel}>Description</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={projDraft.description}
+                  onChangeText={(t) =>
+                    setProjDraft({ ...projDraft, description: t })
+                  }
+                  placeholder="Project Description"
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  placeholderTextColor="#999"
+                />
+                <Text style={styles.fieldLabel}>Link</Text>
+                <TextInput
+                  style={styles.input}
+                  value={projDraft.link}
+                  onChangeText={(t) => setProjDraft({ ...projDraft, link: t })}
+                  placeholder="Project Link (URL)"
+                  keyboardType="url"
+                  autoCapitalize="none"
+                  placeholderTextColor="#999"
+                />
+                <TouchableOpacity
+                  style={styles.draftAddBtn}
+                  onPress={addProject}
+                >
+                  <Text style={styles.draftAddBtnText}>Add Project</Text>
                 </TouchableOpacity>
               </View>
-              <TextInput
-                style={styles.input}
-                value={exp.company}
-                onChangeText={(t) => updateExperience(exp.id, "company", t)}
-                onBlur={saveProfile}
-                placeholder="Company"
-                placeholderTextColor="#999"
-              />
-              <TextInput
-                style={styles.input}
-                value={exp.position}
-                onChangeText={(t) => updateExperience(exp.id, "position", t)}
-                onBlur={saveProfile}
-                placeholder="Position/Role"
-                placeholderTextColor="#999"
-              />
-              <TextInput
-                style={styles.input}
-                value={exp.duration}
-                onChangeText={(t) => updateExperience(exp.id, "duration", t)}
-                onBlur={saveProfile}
-                placeholder="Duration (e.g., Jan 2020 - Dec 2022)"
-                placeholderTextColor="#999"
-              />
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={exp.description}
-                onChangeText={(t) => updateExperience(exp.id, "description", t)}
-                onBlur={saveProfile}
-                placeholder="Description"
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-                placeholderTextColor="#999"
-              />
-            </View>
-          ))}
-        </View>
-
-        {/* Projects */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderLeft}>
-              <Ionicons name="code-slash-outline" size={20} color="#2563eb" />
-              <Text style={styles.sectionTitle}>Projects</Text>
-            </View>
-            <TouchableOpacity onPress={addProject} style={styles.addIconButton}>
-              <Ionicons name="add-circle" size={28} color="#2563eb" />
-            </TouchableOpacity>
+            )}
           </View>
-          {projects.length === 0 && (
-            <View style={styles.emptyState}>
-              <Ionicons name="code-slash-outline" size={28} color="#d1d5db" />
-              <Text style={styles.emptyStateText}>No projects added yet</Text>
-              <Text style={styles.emptyStateHint}>
-                Tap + to add your projects
-              </Text>
-            </View>
-          )}
-          {projects.map((project, idx) => (
-            <View key={project.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardLabelRow}>
-                  <Ionicons
-                    name="code-slash-outline"
-                    size={18}
-                    color="#6b7280"
-                  />
-                  <Text style={styles.cardLabel}>
-                    Project {projects.length > 1 ? idx + 1 : ""}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.removeButton}
-                  onPress={() => removeProject(project.id)}
-                >
-                  <Ionicons name="trash-outline" size={16} color="#FF3B30" />
-                </TouchableOpacity>
-              </View>
-              <TextInput
-                style={styles.input}
-                value={project.name}
-                onChangeText={(t) => updateProject(project.id, "name", t)}
-                onBlur={saveProfile}
-                placeholder="Project Name"
-                placeholderTextColor="#999"
-              />
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={project.description}
-                onChangeText={(t) =>
-                  updateProject(project.id, "description", t)
-                }
-                onBlur={saveProfile}
-                placeholder="Project Description"
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-                placeholderTextColor="#999"
-              />
-              <TextInput
-                style={styles.input}
-                value={project.link}
-                onChangeText={(t) => updateProject(project.id, "link", t)}
-                onBlur={saveProfile}
-                placeholder="Project Link (URL)"
-                keyboardType="url"
-                autoCapitalize="none"
-                placeholderTextColor="#999"
-              />
-            </View>
-          ))}
-        </View>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
 
-    <ParseReviewModal
-      visible={reviewModalVisible}
-      data={parsedResumeData}
-      onConfirm={handleReviewConfirm}
-      onCancel={() => setReviewModalVisible(false)}
-    />
+      <ParseReviewModal
+        visible={reviewModalVisible}
+        data={parsedResumeData}
+        onConfirm={handleReviewConfirm}
+        onCancel={() => setReviewModalVisible(false)}
+      />
+
+      <DateRangePickerModal
+        visible={datePickerVisible}
+        mode={datePickerMode}
+        initialValue={datePickerValue}
+        onConfirm={(v) => {
+          datePickerCallback?.(v);
+          setDatePickerVisible(false);
+        }}
+        onCancel={() => setDatePickerVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -1426,6 +1747,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   disabledInput: { backgroundColor: "#f0f0f0", color: "#666" },
+  errorInput: { borderColor: "#e53935" },
   textArea: { minHeight: 100, paddingTop: 14 },
 
   socialLinkContainer: {
@@ -1593,4 +1915,54 @@ const styles = StyleSheet.create({
   },
   secondaryBtnDisabled: { opacity: 0.5 },
   secondaryBtnText: { color: "#2563eb", fontSize: 15, fontWeight: "600" },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#6b7280",
+    marginBottom: 4,
+  },
+  fieldLabelError: { color: "#e53935" },
+  draftCard: {
+    borderColor: "#2563eb",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    backgroundColor: "#f0f6ff",
+  },
+  draftTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#2563eb",
+    marginBottom: 10,
+  },
+  draftAddBtn: {
+    backgroundColor: "#2563eb",
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  draftAddBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  datePickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    marginBottom: 10,
+    gap: 10,
+  },
+  datePickerText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  datePickerPlaceholder: {
+    fontSize: 16,
+    color: "#999",
+  },
 });
