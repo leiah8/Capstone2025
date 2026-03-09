@@ -5,10 +5,8 @@ import { DbMatch, MatchUI } from '../../lib/match';
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
-import { useNotifications } from '../../contexts/NotificationContext';
 
+import { useNotifications } from '../../contexts/NotificationContext';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 
@@ -28,9 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function MatchesPage() {
     const { signOut, session } = useAuth();
-    const { clearMatchCount } = useNotifications();
-
-    useFocusEffect(useCallback(() => { clearMatchCount(); }, []));
+    const { sessionLastSeen, seenMatchIds } = useNotifications();
 
     /* State */
     const [name, setName] = useState('');
@@ -77,6 +73,7 @@ export default function MatchesPage() {
 
                         owner_id : "0", 
                         candidate_id : "0", 
+                        created_at: "",
                         
                         project_image: "0",
                         candidate_image : "0",
@@ -86,9 +83,9 @@ export default function MatchesPage() {
                     obj.match_id = m1[i].id;
                     obj.owner_id = m1[i].owner_id;
                     obj.candidate_id = m1[i].candidate_id;
+                    obj.created_at = m1[i].created_at;
 
-                        
-                    const { data : d1, error : e11} = await supabase
+                    const { data : d1, error : e11 } = await supabase
                         .from('projects')
                         .select('*')
                         .eq('id', m1[i].project_id)
@@ -168,6 +165,7 @@ export default function MatchesPage() {
 
                         owner_id : "0", 
                         candidate_id : "0",
+                        created_at: "",
                         
                         project_image: "0",
                         candidate_image : "0",
@@ -177,9 +175,9 @@ export default function MatchesPage() {
                     obj.match_id = m2[i].id;
                     obj.owner_id = m2[i].owner_id;
                     obj.candidate_id = m2[i].candidate_id;
+                    obj.created_at = m2[i].created_at;
 
-                        
-                    const { data : d1, error : e11} = await supabase
+                    const { data : d1, error : e11 } = await supabase
                         .from('projects')
                         .select('*')
                         .eq('id', m2[i].project_id)
@@ -283,17 +281,22 @@ export default function MatchesPage() {
 
                     {/* Content */}
                     <View style={styles.list}>
-                        {projectMatchesUI.map((match, index) => (
-                            <TouchableOpacity onPress={async() => {gotoMatch(match.match_id)}}>
+                        {projectMatchesUI.map((match, index) => {
+                            const isNew = sessionLastSeen && match.created_at > sessionLastSeen && !seenMatchIds.has(String(match.match_id));
+                            return (
+                            <TouchableOpacity key={index} onPress={async() => {gotoMatch(match.match_id)}}>
                                 <View style={styles.match}>
                                     <Image source={{ uri: match.project_image }} style={styles.profileImage} />
-                                    {/* <View style={styles.placeholderImage}>
-                                        <Ionicons name="person" size={30} color="#999" />
-                                    </View> */}
                                     <Text>{match.project_name}</Text>
+                                    {isNew && (
+                                        <View style={styles.newBadge}>
+                                            <Text style={styles.newBadgeText}>new</Text>
+                                        </View>
+                                    )}
                                 </View>
                             </TouchableOpacity>
-                        ))}
+                            );
+                        })}
                     </View>
 
 
@@ -331,17 +334,22 @@ export default function MatchesPage() {
 
                     {/* Content */}
                     <View style={styles.list}>
-                        {candidateMatchesUI.map((match, index) => (
-                            <TouchableOpacity onPress={async() => {gotoMatch(match.match_id)}}>
+                        {candidateMatchesUI.map((match, index) => {
+                            const isNew = sessionLastSeen && match.created_at > sessionLastSeen && !seenMatchIds.has(String(match.match_id));
+                            return (
+                            <TouchableOpacity key={index} onPress={async() => {gotoMatch(match.match_id)}}>
                                 <View style={styles.match}>
                                     <Image source={{ uri: match.project_image }} style={styles.profileImage} />
-                                    {/* <View style={styles.placeholderImage}>
-                                        <Ionicons name="person" size={40} color="#999" />
-                                    </View> */}
-                                    <Text key={index}>{match.candidate_name}</Text>
+                                    <Text>{match.candidate_name}</Text>
+                                    {isNew && (
+                                        <View style={styles.newBadge}>
+                                            <Text style={styles.newBadgeText}>new</Text>
+                                        </View>
+                                    )}
                                 </View>
                             </TouchableOpacity>
-                        ))}
+                            );
+                        })}
                     </View>
 
 
@@ -388,7 +396,20 @@ tabsContainer: {
 
 placeholderImage: { width: 60, height: 60, borderRadius: 60, backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center' },
   
-activeTab : {fontWeight : "bold", fontSize : 18, justifyContent :"center"}
+activeTab : {fontWeight : "bold", fontSize : 18, justifyContent :"center"},
+
+newBadge: {
+    backgroundColor: 'red',
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginLeft: 6,
+},
+newBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+},
     
 });
 

@@ -5,11 +5,17 @@ import { useAuth } from './AuthContext';
 
 type NotificationContextType = {
   matchCount: number;
+  sessionLastSeen: string | null;
+  seenMatchIds: Set<string>;
+  markMatchSeen: (id: string) => void;
   clearMatchCount: () => void;
 };
 
 const NotificationContext = createContext<NotificationContextType>({
   matchCount: 0,
+  sessionLastSeen: null,
+  seenMatchIds: new Set(),
+  markMatchSeen: () => {},
   clearMatchCount: () => {},
 });
 
@@ -18,6 +24,8 @@ const LAST_SEEN_KEY = 'notifications_last_seen';
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
   const [matchCount, setMatchCount] = useState(0);
+  const [sessionLastSeen, setSessionLastSeen] = useState<string | null>(null);
+  const [seenMatchIds, setSeenMatchIds] = useState<Set<string>>(new Set());
   // Keep conversation IDs in a ref so realtime callbacks always see the latest set
   const myConversationIds = useRef<Set<string | number>>(new Set());
 
@@ -27,10 +35,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const userId = session.user.id;
 
     (async () => {
-      // 1. Load last-seen timestamp; default to now if first launch
+      // 1. Load last-seen timestamp; default to now if first launch.
+      //    Use the stored value as the stable baseline for this session,
+      //    then immediately advance storage to now so the next session
+      //    only shows matches/messages created after this moment.
       const stored = await AsyncStorage.getItem(LAST_SEEN_KEY);
-      const lastSeen = stored ?? new Date().toISOString();
-      if (!stored) await AsyncStorage.setItem(LAST_SEEN_KEY, lastSeen);
+      const baseline = stored ?? new Date().toISOString();
+      await AsyncStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
+      setSessionLastSeen(baseline);
 
       // 2. Fetch conversations the user participates in
       const { data: participantRows } = await supabase
@@ -45,13 +57,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         .from('matches')
         .select('*', { count: 'exact', head: true })
         .eq('owner_id', userId)
-        .gt('created_at', lastSeen);
+        .gt('created_at', baseline);
 
       const { count: candidateCount } = await supabase
         .from('matches')
         .select('*', { count: 'exact', head: true })
         .eq('candidate_id', userId)
-        .gt('created_at', lastSeen);
+        .gt('created_at', baseline);
 
       // 4. Count missed messages while app was closed (not sent by self)
       let missedMessages = 0;
@@ -61,7 +73,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           .select('*', { count: 'exact', head: true })
           .in('conversation_id', convIds)
           .neq('sender_id', userId)
-          .gt('created_at', lastSeen);
+          .gt('created_at', baseline);
         missedMessages = msgCount ?? 0;
       }
 
@@ -99,13 +111,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     })();
   }, [session?.user?.id]);
 
-  const clearMatchCount = async () => {
+  const clearMatchCount = () => {
     setMatchCount(0);
-    await AsyncStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
+  };
+
+  const markMatchSeen = (id: string) => {
+    setSeenMatchIds((prev) => {
+      if (prev.has(id)) return prev; // already seen, no change
+      setMatchCount((c) => Math.max(0, c - 1));
+      return new Set(prev).add(id);
+    });
   };
 
   return (
-    <NotificationContext.Provider value={{ matchCount, clearMatchCount }}>
+    <NotificationContext.Provider value={{ matchCount, sessionLastSeen, seenMatchIds, markMatchSeen, clearMatchCount }}>
       {children}
     </NotificationContext.Provider>
   );

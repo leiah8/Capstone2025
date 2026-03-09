@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 import { supabase } from '../../lib/supabase';
 
@@ -34,6 +35,7 @@ const chatCache = new Map<string, CacheEntry>();
 export default function MatchesPage() {
     const { pid } = useLocalSearchParams(); // match_id
     const { session } = useAuth();
+    const { markMatchSeen } = useNotifications();
 
     /* State */
     const cached = chatCache.get(String(pid));
@@ -50,6 +52,7 @@ export default function MatchesPage() {
 
     /* ── 1. Load match, profile, conversation, initial messages ── */
     useEffect(() => {
+        markMatchSeen(String(pid)); // clear "(new)" badge for this match
         (async () => {
           try {
             // Load the match (pid is match_id)

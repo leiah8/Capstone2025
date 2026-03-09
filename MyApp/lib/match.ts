@@ -12,6 +12,7 @@ export type MatchUI = {
     project_image: string;
     candidate_image : string; 
     owner_image : string;
+    created_at: string;
 };
 
 export type DbMatch = {
