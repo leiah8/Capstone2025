@@ -30,3 +30,11 @@ export type Message = {
     body: string;
     created_at : string;
 }
+
+export type Conversation = {
+    id : string | number;
+    project_id : string | number;
+    owner_id : string;
+    title : string | null;
+    created_at : string;
+}
