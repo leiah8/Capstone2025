@@ -198,6 +198,10 @@ export default function SetupScreen() {
         console.log("[Setup] Starting resume parsing...");
         try {
           const PARSER_URL =
+            process.env.EXPO_PUBLIC_PARSER_EDGE_URL ||
+            (process.env.EXPO_PUBLIC_SUPABASE_URL
+              ? `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/resume-parser`
+              : "") ||
             (Constants.expoConfig?.extra as any)?.parserUrl ||
             process.env.EXPO_PUBLIC_PARSER_URL ||
             "";

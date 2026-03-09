@@ -3,7 +3,12 @@
  * Connects to the FastAPI matching service
  */
 
-const MATCHING_API_URL = 'http://localhost:8000';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+const MATCHING_API_URL =
+  process.env.EXPO_PUBLIC_MATCHING_EDGE_URL ||
+  (SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/match-api` : "") ||
+  process.env.EXPO_PUBLIC_MATCHING_API_URL ||
+  "http://localhost:8000";
 
 import { ed, job, profile_project } from 'lib/candidates';
 

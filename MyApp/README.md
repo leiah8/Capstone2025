@@ -15,7 +15,12 @@ Expo application with profile management, resume upload, and automatic skill ext
 ```bash
 export EXPO_PUBLIC_SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
 export EXPO_PUBLIC_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
-export EXPO_PUBLIC_PARSER_URL="http://localhost:8000"  # FastAPI resume parser
+# Optional edge URL overrides (if omitted, app derives from EXPO_PUBLIC_SUPABASE_URL)
+export EXPO_PUBLIC_MATCHING_EDGE_URL="https://YOUR_PROJECT.supabase.co/functions/v1/match-api"
+export EXPO_PUBLIC_PARSER_EDGE_URL="https://YOUR_PROJECT.supabase.co/functions/v1/resume-parser"
+
+# Optional local direct parser fallback (dev only)
+export EXPO_PUBLIC_PARSER_URL="http://localhost:8000"
 ```
 
 3. Start the app
@@ -62,7 +67,7 @@ pip install -r requirements.txt
 uvicorn api.main:app --reload --port 8000
 ```
 
-Set `EXPO_PUBLIC_PARSER_URL` so the app can call the service. After uploading a resume in the Profile screen, the app sends it to `/parse/upload` and merges unique skills returned.
+Set edge function URLs (or let the app derive them from `EXPO_PUBLIC_SUPABASE_URL`) so the app can call parsing and matching via Supabase. After uploading a resume in the Profile screen, the app sends it to `/parse/upload` and merges unique skills returned.
 
 ### Troubleshooting
 
