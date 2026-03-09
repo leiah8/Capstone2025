@@ -4,7 +4,7 @@
    Imports & setup
    ========================= */
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -21,9 +21,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CandidateUI, fetchCandidates, fetchMyProjects, likeCandidate } from '../../lib/candidates';
 import { checkMatchingAPIHealth, getMatchedCandidates } from '../../lib/matching-api';
 
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 120;
@@ -303,7 +303,9 @@ export default function CandidateFeed() {
   const { session } = useAuth();
 
 
-  useEffect(() => {
+  //useEffect(() => {
+  useFocusEffect(
+    useCallback(() => {
     let alive = true;
     (async () => {
       try {
@@ -394,7 +396,8 @@ export default function CandidateFeed() {
       }
     })();
     return () => { alive = false; };
-  }, []);
+  //}, []);
+    }, []));
 
   const advance = () => { if (currentIndex < candidates.length) setCurrentIndex((i) => i + 1); };
 
@@ -444,7 +447,7 @@ export default function CandidateFeed() {
 
 : (
           <View style={[styles.center, { backgroundColor : "#fff"}]}>
-            <Text style={{ fontSize: 16, color: '#999', marginBottom: 16 }}>You must have a project to browse candidates.</Text>
+            <Text style={{ fontSize: 16, color: '#999', marginBottom: 16, width : "75%", textAlign : "center"}}>You must have an active project to browse candidates.</Text>
             <TouchableOpacity style={styles.resetButton} onPress={() => router.push('/create-project' as any)}>
               <Text style={styles.resetButtonText}>Create Your First Project</Text>
             </TouchableOpacity>
