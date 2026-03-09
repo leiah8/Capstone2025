@@ -26,7 +26,7 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             {/* index.tsx will run first and Redirect appropriately */}
             <Stack.Screen name="index" />
-            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(tabs)" options={{ headerBackTitle: 'Back' }} />
             <Stack.Screen name="login" />
             <Stack.Screen name="setup" />
             <Stack.Screen name="forgot-password" />

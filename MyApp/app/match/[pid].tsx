@@ -18,6 +18,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PersonUI } from '../../lib/profile';
 
 
@@ -32,7 +33,9 @@ export default function MatchesPage() {
     const [person, setPerson] = useState<PersonUI>({ id: '', name: '', image: '' });
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
+    const [projectName, setProjectName] = useState<string>('');
 
+    const insets = useSafeAreaInsets();
     const scrollRef = useRef<ScrollView>(null);
 
     /* ── 1. Load match, profile, conversation, initial messages ── */
@@ -52,6 +55,14 @@ export default function MatchesPage() {
             }
 
             const match = matchData as DbMatch;
+
+            // Load the project name
+            const { data: projectData } = await supabase
+              .from('projects')
+              .select('title')
+              .eq('id', match.project_id)
+              .single();
+            if (projectData) setProjectName(projectData.title);
 
             // Determine the other person
             const otherPersonId = match.owner_id === session?.user?.id
@@ -168,14 +179,19 @@ export default function MatchesPage() {
       <>
       <Stack.Screen options={{
           headerShown: true,
+          headerBackTitle: 'Back',
           headerTitle: () => (
               <View>
                     <Text style={styles.headerTitle}>{person?.name || ''}</Text>
-                    <Text style={styles.sectionTitle}>Project Name(s)</Text>
+                    {projectName ? <Text style={styles.sectionTitle}>{projectName}</Text> : null}
                 </View>
           ),
         }}/>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.container}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
 
             <ScrollView
               ref={scrollRef}
@@ -205,7 +221,7 @@ export default function MatchesPage() {
             </ScrollView>
 
             {/* Input bar */}
-            <View style={styles.inputBar}>
+            <View style={[styles.inputBar, { paddingBottom: (insets.bottom || 0) + 8 }]}>
               <TextInput
                 style={styles.textInput}
                 placeholder="Message..."
@@ -288,7 +304,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingTop: 8,
+    paddingBottom: 8,
     borderTopWidth: 1,
     borderTopColor: '#e8e8e8',
     backgroundColor: '#fff',
