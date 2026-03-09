@@ -77,7 +77,7 @@ useEffect(() => {
   setLoading(true);
   try {
     if (isSignUp) {
-      const websiteUrl = process.env.EXPO_PUBLIC_WEBSITE_URL || 'http://localhost:3000';
+      const websiteUrl = process.env.EXPO_PUBLIC_WEBSITE_URL || 'https://pairschedule.com';
       const { error } = await supabase.auth.signUp({
         email,
         password,

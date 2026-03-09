@@ -3,7 +3,7 @@
  * Connects to the FastAPI matching service
  */
 
-const MATCHING_API_URL = 'http://localhost:8000';
+const MATCHING_API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://pairschedule.com';
 
 import { ed, job, profile_project } from 'lib/candidates';
 

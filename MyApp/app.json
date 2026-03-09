@@ -47,8 +47,8 @@
       "reactCompiler": true
     },
     "extra": {
-      "apiUrl": "http://localhost:8000",
-      "parserUrl": "http://localhost:8010"
+      "apiUrl": "https://pairschedule.com",
+      "parserUrl": "https://pairschedule.com"
     }
   }
 }

@@ -25,20 +25,10 @@ export default function ForgotPasswordScreen() {
     }
     setLoading(true);
     try {
-<<<<<<< HEAD
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        email.trim(),
-        {
-          redirectTo:
-            Platform.OS === "web" ? window.location.origin : "myapp://",
-        },
-      );
-=======
-      const websiteUrl = process.env.EXPO_PUBLIC_WEBSITE_URL || 'http://localhost:3000';
+      const websiteUrl = process.env.EXPO_PUBLIC_WEBSITE_URL || 'https://pairschedule.com';
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${websiteUrl}/reset-password`,
       });
->>>>>>> 432fde7 (updated routing)
       if (error) {
         Alert.alert("Error", error.message);
       } else {
