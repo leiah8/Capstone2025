@@ -1,6 +1,8 @@
 from __future__ import annotations
+import os
 from typing import Any, Dict, List, Optional
 
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -72,3 +74,8 @@ async def match_health_check():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Health check failed: {e}")
+
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

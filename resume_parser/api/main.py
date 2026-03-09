@@ -4,6 +4,7 @@ import tempfile
 from typing import Any, Dict
 
 import httpx
+import uvicorn
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -69,3 +70,8 @@ async def parse_upload(file: UploadFile = File(...)):
         return out
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Parse failed: {e}")
+
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8001"))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
