@@ -26,7 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function MatchesPage() {
     const { signOut, session } = useAuth();
-    const { matchNotifs } = useNotifications();
+    const { matchNotifs, newMatchIds } = useNotifications();
 
     /* State */
     const [name, setName] = useState('');
@@ -304,11 +304,17 @@ export default function MatchesPage() {
                     <View style={styles.list}>
                         {projectMatchesUI.map((match, index) => {
                             const notifCount = matchNotifs.get(String(match.match_id)) ?? 0;
+                            const isNewMatch = newMatchIds.has(String(match.match_id));
                             return (
                             <TouchableOpacity key={index} onPress={async() => {gotoMatch(match.match_id)}}>
                                 <View style={styles.match}>
                                     <Image source={{ uri: match.project_image }} style={styles.profileImage} />
                                     <Text>{match.project_name}</Text>
+                                    {isNewMatch && (
+                                        <View style={styles.newMatchPill}>
+                                            <Text style={styles.newMatchPillText}>new</Text>
+                                        </View>
+                                    )}
                                     {notifCount > 0 && (
                                         <View style={styles.newBadge}>
                                             <Text style={styles.newBadgeText}>{notifCount}</Text>
@@ -371,11 +377,17 @@ export default function MatchesPage() {
                     <View style={styles.list}>
                         {candidateMatchesUI.map((match, index) => {
                             const notifCount = matchNotifs.get(String(match.match_id)) ?? 0;
+                            const isNewMatch = newMatchIds.has(String(match.match_id));
                             return (
                             <TouchableOpacity key={index} onPress={async() => {gotoMatch(match.match_id)}}>
                                 <View style={styles.match}>
                                     <Image source={{ uri: match.project_image }} style={styles.profileImage} />
                                     <Text>{match.candidate_name}</Text>
+                                    {isNewMatch && (
+                                        <View style={styles.newMatchPill}>
+                                            <Text style={styles.newMatchPillText}>new</Text>
+                                        </View>
+                                    )}
                                     {notifCount > 0 && (
                                         <View style={styles.newBadge}>
                                             <Text style={styles.newBadgeText}>{notifCount}</Text>
@@ -441,6 +453,18 @@ newBadge: {
     marginLeft: 6,
 },
 newBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+},
+newMatchPill: {
+    backgroundColor: '#22c55e',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 6,
+},
+newMatchPillText: {
     color: '#fff',
     fontSize: 11,
     fontWeight: '700',

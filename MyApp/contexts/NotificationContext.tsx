@@ -8,6 +8,7 @@ import { useAuth } from './AuthContext';
 type NotificationContextType = {
   matchCount: number;
   matchNotifs: Map<string, number>;
+  newMatchIds: Set<string>;
   markMatchSeen: (matchId: string) => void;
   setActiveMatchId: (matchId: string | null) => void;
 };
@@ -15,6 +16,7 @@ type NotificationContextType = {
 const NotificationContext = createContext<NotificationContextType>({
   matchCount: 0,
   matchNotifs: new Map(),
+  newMatchIds: new Set(),
   markMatchSeen: () => {},
   setActiveMatchId: () => {},
 });
@@ -28,6 +30,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const { session } = useAuth();
   const [matchCount, setMatchCount] = useState(0);
   const [matchNotifs, setMatchNotifs] = useState<Map<string, number>>(new Map());
+  const [newMatchIds, setNewMatchIds] = useState<Set<string>>(new Set());
 
   // Refs so realtime callbacks always see up-to-date mappings without stale closures
   const conversationToMatch = useRef<Map<string | number, string>>(new Map());
@@ -92,12 +95,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       // ── 4. New matches since baseline → +1 per match ──────────────────────
       const notifsInit = new Map<string, number>();
+      const newMatchIdsInit = new Set<string>();
       for (const m of allMatches) {
         const mid = String(m.id);
         // A match is "new" if it was created after the global baseline AND
         // the user has never opened that chat (no per-match seen timestamp)
         if (m.created_at > baseline && !matchSeen.has(mid)) {
           notifsInit.set(mid, (notifsInit.get(mid) ?? 0) + 1);
+          newMatchIdsInit.add(mid);
         }
       }
 
@@ -147,6 +152,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const total = Array.from(notifsInit.values()).reduce((a, b) => a + b, 0);
       setMatchNotifs(new Map(notifsInit));
       setMatchCount(total);
+      setNewMatchIds(newMatchIdsInit);
 
       // ── 7. Realtime subscriptions ─────────────────────────────────────────
       const channel = supabase
@@ -157,6 +163,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             const matchId = String(payload.new.id);
             projectIdToMatch.current.set(String(payload.new.project_id), matchId);
             incrementMatch(matchId);
+            setNewMatchIds((prev) => new Set(prev).add(matchId));
           })
         // New match where I am the candidate
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches', filter: `candidate_id=eq.${userId}` },
@@ -164,6 +171,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             const matchId = String(payload.new.id);
             projectIdToMatch.current.set(String(payload.new.project_id), matchId);
             incrementMatch(matchId);
+            setNewMatchIds((prev) => new Set(prev).add(matchId));
           })
         // Added to a new conversation — wire up conversationToMatch
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversation_participants', filter: `user_id=eq.${userId}` },
@@ -202,6 +210,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const now = new Date().toISOString();
     // Persist so the next session knows this chat was read at this time
     AsyncStorage.setItem(matchSeenKey(matchId), now);
+    setNewMatchIds((prev) => {
+      if (!prev.has(matchId)) return prev;
+      const next = new Set(prev);
+      next.delete(matchId);
+      return next;
+    });
     applyUpdate((prev) => {
       if (!prev.has(matchId) || prev.get(matchId) === 0) return prev;
       const next = new Map(prev);
@@ -217,7 +231,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   };
 
   return (
-    <NotificationContext.Provider value={{ matchCount, matchNotifs, markMatchSeen, setActiveMatchId }}>
+    <NotificationContext.Provider value={{ matchCount, matchNotifs, newMatchIds, markMatchSeen, setActiveMatchId }}>
       {children}
     </NotificationContext.Provider>
   );
