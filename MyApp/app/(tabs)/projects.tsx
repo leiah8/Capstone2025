@@ -465,11 +465,11 @@ export default function ProjectFeed() {
             {projects
               .slice(currentIndex, currentIndex + 2)
               .reverse()
-              .map((p, i) => (
+              .map((p, i, arr) => (
                 <ProjectCard
                   key={p.id}
                   project={p}
-                  isTop={i === 1}
+                  isTop={i === arr.length - 1}
                   onSwipe={handleSwipe}
                   onTap={() => setDetailProject(p)}
                 />

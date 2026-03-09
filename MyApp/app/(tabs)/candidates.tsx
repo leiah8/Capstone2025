@@ -681,11 +681,12 @@ export default function CandidateFeed() {
         {candidates
           .slice(currentIndex, currentIndex + 2)
           .reverse()
-          .map((p, i) => (
+          .map((p, i, arr) => (
             <CandidateCard
               key={p.id}
               candidate={p}
-              isTop={i === 1}
+              // isTop={i === 1}
+              isTop={i === arr.length - 1}
               onSwipe={handleSwipe}
             />
           ))}
