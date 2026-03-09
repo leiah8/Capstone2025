@@ -5,6 +5,9 @@ import { DbMatch, MatchUI } from '../../lib/match';
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -25,6 +28,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function MatchesPage() {
     const { signOut, session } = useAuth();
+    const { clearMatchCount } = useNotifications();
+
+    useFocusEffect(useCallback(() => { clearMatchCount(); }, []));
 
     /* State */
     const [name, setName] = useState('');
