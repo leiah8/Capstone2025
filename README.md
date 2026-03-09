@@ -1,5 +1,5 @@
 # peer.io
-Project Matching Website
+Project Matching IOS App
 
 # how to run app
 
