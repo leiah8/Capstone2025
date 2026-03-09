@@ -77,7 +77,14 @@ useEffect(() => {
   setLoading(true);
   try {
     if (isSignUp) {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const websiteUrl = process.env.EXPO_PUBLIC_WEBSITE_URL || 'http://localhost:3000';
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${websiteUrl}/confirm-email`,
+        },
+      });
       if (error) {
         Alert.alert('Sign Up Error', error.message);
       } else {
