@@ -4,7 +4,6 @@
    Imports & setup
    ========================= */
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -20,6 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { checkMatchingAPIHealth, getMatchedProjects } from '../../lib/matching-api';
 import { fetchProjects, likeProject, ProjectUI } from '../../lib/projects';
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
   nopeOverlay: { position: 'absolute', top: 50, left: 30, zIndex: 5, transform: [{ rotate: '-20deg' }], borderWidth: 4, borderColor: '#F44336', borderRadius: 10, padding: 10 },
   overlayText: { fontSize: 32, fontWeight: 'bold', color: '#4CAF50' },
 
-  buttonsContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 60, paddingBottom: 0, paddingTop: 0 },
+  buttonsContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 60, paddingBottom: 10, paddingTop: 0 },
   passButton: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
   likeButton: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
 
