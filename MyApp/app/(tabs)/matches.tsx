@@ -40,6 +40,13 @@ export default function MatchesPage() {
 
     const [projectsPage, setPage] = useState(true);
 
+    const projectNewCount = projectMatchesUI.filter(
+        (m) => sessionLastSeen && m.created_at > sessionLastSeen && !seenMatchIds.has(String(m.match_id))
+    ).length;
+    const candidateNewCount = candidateMatchesUI.filter(
+        (m) => sessionLastSeen && m.created_at > sessionLastSeen && !seenMatchIds.has(String(m.match_id))
+    ).length;
+
     const gotoMatch = (pid : string | number) => {
         router.push(`/match/${pid}`)
     }
@@ -269,12 +276,26 @@ export default function MatchesPage() {
                         <TouchableOpacity style={styles.tabButton} onPress={async () => {
                             setPage(true)} 
                             }>
-                            <Text style={styles.sectionTitle && styles.activeTab}>Projects</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.sectionTitle && styles.activeTab}>Projects</Text>
+                                {projectNewCount > 0 && (
+                                    <View style={styles.tabBadge}>
+                                        <Text style={styles.tabBadgeText}>{projectNewCount}</Text>
+                                    </View>
+                                )}
+                            </View>
                         </TouchableOpacity>
                          <TouchableOpacity style={styles.tabButton} onPress={async () => {
                             setPage(false)} 
                             }>
-                            <Text style={styles.sectionTitle}>Candidates</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.sectionTitle}>Candidates</Text>
+                                {candidateNewCount > 0 && (
+                                    <View style={styles.tabBadge}>
+                                        <Text style={styles.tabBadgeText}>{candidateNewCount}</Text>
+                                    </View>
+                                )}
+                            </View>
                         </TouchableOpacity>
                      
                     </View>
@@ -321,12 +342,26 @@ export default function MatchesPage() {
                         <TouchableOpacity style={styles.tabButton} onPress={async () => {
                             setPage(true)}
                             }>
-                            <Text style={styles.sectionTitle}>Projects</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.sectionTitle}>Projects</Text>
+                                {projectNewCount > 0 && (
+                                    <View style={styles.tabBadge}>
+                                        <Text style={styles.tabBadgeText}>{projectNewCount}</Text>
+                                    </View>
+                                )}
+                            </View>
                         </TouchableOpacity>
                          <TouchableOpacity style={styles.tabButton} onPress={async () => {
                             setPage(false)}
                             }>
-                            <Text style={styles.sectionTitle && styles.activeTab}>Candidates</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.sectionTitle && styles.activeTab}>Candidates</Text>
+                                {candidateNewCount > 0 && (
+                                    <View style={styles.tabBadge}>
+                                        <Text style={styles.tabBadgeText}>{candidateNewCount}</Text>
+                                    </View>
+                                )}
+                            </View>
                         </TouchableOpacity>
 
                     </View>
@@ -406,6 +441,20 @@ newBadge: {
     marginLeft: 6,
 },
 newBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+},
+tabBadge: {
+    backgroundColor: 'red',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+},
+tabBadgeText: {
     color: '#fff',
     fontSize: 11,
     fontWeight: '700',
