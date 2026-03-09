@@ -127,7 +127,7 @@ export default function MatchesPage() {
         if (!conversationId) return;
 
         const channel = supabase
-          .channel(`messages:conversation_id=eq.${conversationId}`)
+          .channel(`conversation-${conversationId}`)
           .on(
             'postgres_changes',
             {
@@ -138,10 +138,14 @@ export default function MatchesPage() {
             },
             (payload) => {
               const newMessage = payload.new as Message;
-              setMessages((prev) => [...prev, newMessage]);
+              if (!newMessage) return;
+              setMessages((prev) => {
+                if (prev.some((m) => m.id === newMessage.id)) return prev;
+                return [...prev, newMessage];
+              });
             }
           )
-          .subscribe();
+          .subscribe((status) => console.log('Realtime status:', status));
 
         return () => {
           supabase.removeChannel(channel);
@@ -161,15 +165,30 @@ export default function MatchesPage() {
         setSending(true);
         setInput('');
 
-        const { error } = await supabase.from('messages').insert({
+        // Optimistically show the message immediately
+        const optimistic: Message = {
+          id: `pending-${Date.now()}`,
+          conversation_id: String(conversationId),
+          sender_id: session.user.id,
+          body,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, optimistic]);
+
+        const { data: inserted, error } = await supabase.from('messages').insert({
           conversation_id: conversationId,
           sender_id: session.user.id,
           body,
-        });
+        }).select().single();
 
         if (error) {
           console.error('Error sending message:', error);
-          setInput(body); // restore input on failure
+          setInput(body);
+          // Remove the optimistic message on failure
+          setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+        } else if (inserted) {
+          // Replace optimistic message with the real one (gives it the real DB id)
+          setMessages((prev) => prev.map((m) => m.id === optimistic.id ? inserted as Message : m));
         }
 
         setSending(false);
