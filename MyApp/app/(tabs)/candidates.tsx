@@ -376,7 +376,7 @@ const CandidateCard = ({
 export default function CandidateFeed() {
   const insets = useSafeAreaInsets();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
+  const [overallCandidates, setAllCandidates] = useState<Candidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -396,7 +396,7 @@ export default function CandidateFeed() {
     const pids = myProjects.filter(p => p.included).map(p => p.id);
     const skills = filterSkills.filter(s => s.included).map(s => s.name);
     
-    allCandidates.forEach(c => {
+    overallCandidates.forEach(c => {
       if (pids.includes(Number(c.project_id))) {
         if (!showAllSkills) {
           const intersection = c.skills.filter(x => skills.includes(x)); 
@@ -493,17 +493,22 @@ export default function CandidateFeed() {
                 });
 
                 setAllCandidates(rankedCandidates as Candidate[]);
+                setCandidates(rankedCandidates as Candidate[]);
+
                 setUseMatching(true);
                 console.log(`Candidates ranked by match score (top: ${(scoreMap.get(rankedCandidates[0].id) || 0) * 100}%)`);
               } catch (matchError) {
                 console.warn('Failed to rank candidates, using default order:', matchError);
                 setAllCandidates(allCandidates as Candidate[]);
+                setCandidates(allCandidates as Candidate[]);
               }
             } else {
               console.log('Matching API not available - showing candidates in default order');
               const pid = String(userProjects.find(p => p.is_active)?.id);
               const p_name = String(userProjects.find(p => p.is_active)?.title);
-              setAllCandidates(allCandidates.map(c => ({ ...c, project_id: pid, project_name: p_name })) as Candidate[]);
+              const temp = allCandidates.map(c => ({ ...c, project_id: pid, project_name: p_name })) as Candidate[]
+              setAllCandidates(temp);
+              setCandidates(temp);
             }
             setCurrentIndex(0);
           }
