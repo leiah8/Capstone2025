@@ -14,35 +14,40 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 import { router } from "expo-router";
 
-export default function ForgotPasswordScreen() {
-  const [email, setEmail] = useState("");
+export default function ResetPasswordScreen() {
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [success, setSuccess] = useState(false);
 
-  async function handleResetPassword() {
-    if (!email.trim()) {
-      Alert.alert("Error", "Please enter your email address.");
+  async function handleUpdatePassword() {
+    setErrorMsg("");
+
+    if (!password.trim()) {
+      setErrorMsg("Please enter a new password.");
       return;
     }
+    if (password.length < 6) {
+      setErrorMsg("Password must be at least 6 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg("Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        email.trim(),
-        {
-          redirectTo:
-            Platform.OS === "web" ? window.location.origin : "myapp://",
-        },
-      );
+      const { error } = await supabase.auth.updateUser({ password });
       if (error) {
-        Alert.alert("Error", error.message);
+        setErrorMsg(error.message);
       } else {
-        Alert.alert(
-          "Check your email",
-          "A password reset link has been sent to your email.",
-          [{ text: "OK", onPress: () => router.back() }],
-        );
+        setSuccess(true);
+        setTimeout(() => router.replace("/login"), 2000);
       }
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Something went wrong.");
+      setErrorMsg(e?.message ?? "Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -55,39 +60,45 @@ export default function ForgotPasswordScreen() {
         style={{ flex: 1 }}
       >
         <View style={styles.content}>
-          <Text style={styles.title}>Reset Password</Text>
-          <Text style={styles.subtitle}>
-            Enter your email and we'll send you a link to reset your password.
-          </Text>
+          <Text style={styles.title}>Set New Password</Text>
+          <Text style={styles.subtitle}>Enter your new password below.</Text>
+
+          {!!errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
+
+          {success && (
+            <Text style={styles.successText}>
+              Password updated! Redirecting to login…
+            </Text>
+          )}
 
           <TextInput
             style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
+            placeholder="New Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
             autoCapitalize="none"
-            keyboardType="email-address"
-            autoComplete="email"
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Confirm New Password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            autoCapitalize="none"
           />
 
           <TouchableOpacity
             style={styles.button}
-            onPress={handleResetPassword}
+            onPress={handleUpdatePassword}
             disabled={loading}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Send Reset Link</Text>
+              <Text style={styles.buttonText}>Update Password</Text>
             )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            disabled={loading}
-          >
-            <Text style={styles.backText}>Back to Sign In</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -145,12 +156,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
   },
-  backButton: {
-    marginTop: 20,
-    alignItems: "center",
+  errorText: {
+    color: "#e53935",
+    textAlign: "center",
+    marginBottom: 16,
+    fontSize: 14,
   },
-  backText: {
-    color: "#007AFF",
-    fontSize: 16,
+  successText: {
+    color: "#2e7d32",
+    textAlign: "center",
+    marginBottom: 16,
+    fontSize: 15,
+    fontWeight: "600",
   },
 });

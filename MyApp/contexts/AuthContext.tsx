@@ -1,7 +1,7 @@
-
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import React, { createContext, useState, useEffect, useContext } from "react";
+import { Session } from "@supabase/supabase-js";
+import { supabase } from "../lib/supabase";
+import { router } from "expo-router";
 
 type AuthContextType = {
   session: Session | null;
@@ -27,8 +27,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+      if (event === "PASSWORD_RECOVERY") {
+        // User clicked the reset-password link — navigate to the reset screen
+        router.replace("/reset-password");
+      }
     });
 
     return () => subscription.unsubscribe();
