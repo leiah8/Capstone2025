@@ -60,7 +60,7 @@ type DbCandidate = {
   experience : JSON[] | null;
 };
 
-type MyProject = {
+export type MyProject = {
   id: number;
   title: string;
   description: string;
@@ -162,6 +162,7 @@ export async function fetchMyProjects(ownerId : string | undefined) : Promise<My
         .from('projects')
         .select('id, title, description, skills_needed, tags, image, is_active, created_at')
         .eq('owner_id', ownerId)
+        .eq('is_active', true)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return ((data ?? []) as MyProject[]);
