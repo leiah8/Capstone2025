@@ -8,7 +8,7 @@ import {
   View, Text, Image, StyleSheet, Dimensions, Animated, PanResponder, TouchableOpacity, ScrollView, Modal, ActivityIndicator, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { fetchProjects, ProjectUI } from '../../lib/projects';
 import { getUserProfile } from '../../lib/user-profile';
@@ -143,7 +143,6 @@ type MyProject = {
 };
 
 export default function ProjectFeed() {
-  const insets = useSafeAreaInsets();
   const { session } = useAuth();
   const [tab, setTab] = useState<'browse' | 'mine'>('browse');
   const [projects, setProjects] = useState<Project[]>([]);
@@ -268,7 +267,7 @@ export default function ProjectFeed() {
   if (err && tab === 'browse') return <View style={styles.center}><Text>Failed to load projects: {err}</Text></View>;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header with dropdown + create button */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerDropdown} onPress={() => setDropdownOpen(!dropdownOpen)}>
@@ -439,7 +438,7 @@ export default function ProjectFeed() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

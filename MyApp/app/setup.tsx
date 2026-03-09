@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
@@ -259,82 +260,84 @@ export default function SetupScreen() {
     loading || !firstName.trim() || !lastName.trim() || !resume;
 
   return (
-    <ScrollView style={styles.root}>
-      <View style={styles.wrapper}>
-        <View style={styles.headerBlock}>
-          <Text style={styles.headerTitle}>Welcome to Peer.io</Text>
-          <Text style={styles.headerSubtitle}>Let&apos;s get you set up</Text>
-        </View>
-
-        <View style={styles.formGap}>
-          <View>
-            <Text style={styles.label}>First Name</Text>
-            <TextInput
-              value={firstName}
-              onChangeText={setFirstName}
-              onSubmitEditing={handleSubmit}
-              style={styles.input}
-              placeholder="John"
-              placeholderTextColor="#9ca3af"
-              autoCapitalize="words"
-            />
+    <SafeAreaView style={styles.root}>
+      <ScrollView style={{ flex: 1 }}>
+        <View style={styles.wrapper}>
+          <View style={styles.headerBlock}>
+            <Text style={styles.headerTitle}>Welcome to Peer.io</Text>
+            <Text style={styles.headerSubtitle}>Let&apos;s get you set up</Text>
           </View>
 
-          <View>
-            <Text style={styles.label}>Last Name</Text>
-            <TextInput
-              value={lastName}
-              onChangeText={setLastName}
-              onSubmitEditing={handleSubmit}
-              style={styles.input}
-              placeholder="Doe"
-              placeholderTextColor="#9ca3af"
-              autoCapitalize="words"
-            />
-          </View>
-
-          <View>
-            <Text style={styles.label}>Resume</Text>
-            <TouchableOpacity
-              style={styles.uploadBtn}
-              onPress={handleFileSelection}
-            >
-              <Text style={styles.uploadText}>
-                📄 {resume ? resume.name : "Upload resume"}
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.helpText}>PDF or Word document (max 5MB)</Text>
-          </View>
-
-          {!!error && (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
+          <View style={styles.formGap}>
+            <View>
+              <Text style={styles.label}>First Name</Text>
+              <TextInput
+                value={firstName}
+                onChangeText={setFirstName}
+                onSubmitEditing={handleSubmit}
+                style={styles.input}
+                placeholder="John"
+                placeholderTextColor="#9ca3af"
+                autoCapitalize="words"
+              />
             </View>
-          )}
 
-          <View style={styles.ctaGap}>
-            <TouchableOpacity
-              onPress={handleSubmit}
-              disabled={submitDisabled}
-              style={[
-                styles.primaryBtn,
-                submitDisabled && styles.primaryBtnDisabled,
-              ]}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.primaryBtnText}>Get Started</Text>
-              )}
-            </TouchableOpacity>
+            <View>
+              <Text style={styles.label}>Last Name</Text>
+              <TextInput
+                value={lastName}
+                onChangeText={setLastName}
+                onSubmitEditing={handleSubmit}
+                style={styles.input}
+                placeholder="Doe"
+                placeholderTextColor="#9ca3af"
+                autoCapitalize="words"
+              />
+            </View>
 
-            {/* <TouchableOpacity onPress={() => router.replace('/(tabs)')} style={styles.linkBtn}>
-              <Text style={styles.linkText}>Skip for now</Text>
-            </TouchableOpacity> */}
+            <View>
+              <Text style={styles.label}>Resume</Text>
+              <TouchableOpacity
+                style={styles.uploadBtn}
+                onPress={handleFileSelection}
+              >
+                <Text style={styles.uploadText}>
+                  📄 {resume ? resume.name : "Upload resume"}
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.helpText}>PDF or Word document (max 5MB)</Text>
+            </View>
+
+            {!!error && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            <View style={styles.ctaGap}>
+              <TouchableOpacity
+                onPress={handleSubmit}
+                disabled={submitDisabled}
+                style={[
+                  styles.primaryBtn,
+                  submitDisabled && styles.primaryBtnDisabled,
+                ]}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>Get Started</Text>
+                )}
+              </TouchableOpacity>
+
+              {/* <TouchableOpacity onPress={() => router.replace('/(tabs)')} style={styles.linkBtn}>
+                <Text style={styles.linkText}>Skip for now</Text>
+              </TouchableOpacity> */}
+            </View>
           </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

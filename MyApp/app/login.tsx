@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
@@ -149,11 +150,12 @@ useEffect(() => {
 
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <View style={styles.content}>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.content}>
         <Text style={styles.title}>Peer.io</Text>
         <Text style={styles.subtitle}>Find a project!</Text>
 
@@ -215,8 +217,9 @@ useEffect(() => {
               : "Don't have an account? Sign Up"}
           </Text>
         </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
