@@ -22,6 +22,11 @@ app.add_middleware(
 )
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 @app.post("/parse/url")
 async def parse_from_url(payload: Dict[str, Any]):
     url = payload.get("url")

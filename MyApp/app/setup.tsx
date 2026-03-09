@@ -207,6 +207,7 @@ export default function SetupScreen() {
             "";
 
           if (PARSER_URL) {
+            const { data: { session: parserSession } } = await supabase.auth.getSession();
             const resp = await fetch(
               `${String(PARSER_URL).replace(/\/$/, "")}/parse/url`,
               {
@@ -214,6 +215,9 @@ export default function SetupScreen() {
                 headers: {
                   "Content-Type": "application/json",
                   Accept: "application/json",
+                  ...(parserSession?.access_token
+                    ? { Authorization: `Bearer ${parserSession.access_token}` }
+                    : {}),
                 },
                 body: JSON.stringify({ url: resumeUrl }),
               },

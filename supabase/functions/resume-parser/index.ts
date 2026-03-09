@@ -45,6 +45,8 @@ Deno.serve(async (req: Request) => {
     routePath = "/parse/upload";
   } else if (normalizedPath.endsWith("/parse/url")) {
     routePath = "/parse/url";
+  } else if (normalizedPath.endsWith("/health")) {
+    routePath = "/health";
   }
 
   if (!routePath) {

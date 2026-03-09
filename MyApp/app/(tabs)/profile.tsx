@@ -406,12 +406,18 @@ export default function ProfilePage() {
             name: originalName,
             type: mime,
           } as any);
+          const { data: { session: uploadSession } } = await supabase.auth.getSession();
           const resp = await fetch(
             `${PARSER_URL.replace(/\/$/, "")}/parse/upload`,
             {
               method: "POST",
               body: formData,
-              headers: { Accept: "application/json" },
+              headers: {
+                Accept: "application/json",
+                ...(uploadSession?.access_token
+                  ? { Authorization: `Bearer ${uploadSession.access_token}` }
+                  : {}),
+              },
             },
           );
           if (!resp.ok) throw new Error(`Parser HTTP ${resp.status}`);
@@ -520,11 +526,15 @@ export default function ProfilePage() {
         return;
       }
 
+      const { data: { session: reparseSession } } = await supabase.auth.getSession();
       const resp = await fetch(`${PARSER_URL.replace(/\/$/, "")}/parse/url`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          ...(reparseSession?.access_token
+            ? { Authorization: `Bearer ${reparseSession.access_token}` }
+            : {}),
         },
         body: JSON.stringify({ url }),
       });
