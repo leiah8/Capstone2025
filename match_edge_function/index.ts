@@ -42,7 +42,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // 3. Upsert the match (safe to call multiple times)
-    const { data: match, error: upsertError } = await supabase
+    let { data: match, error: upsertError } = await supabase
       .from("matches")
       .upsert(
         { project_id, owner_id, candidate_id },
@@ -53,14 +53,39 @@ Deno.serve(async (req: Request) => {
 
     if (upsertError) throw new Error(`matches upsert failed: ${upsertError.message}`);
 
-    // 4. Create a conversation for this match if one doesn't exist yet
-    const { data: existingConv } = await supabase
-      .from("conversations")
-      .select("id")
-      .eq("project_id", project_id)
-      .maybeSingle();
+    // ignoreDuplicates returns null when the row already existed — fetch it
+    if (!match) {
+      const { data: existing, error: fetchError } = await supabase
+        .from("matches")
+        .select()
+        .eq("project_id", project_id)
+        .eq("candidate_id", candidate_id)
+        .single();
+      if (fetchError) throw new Error(`matches fetch failed: ${fetchError.message}`);
+      match = existing;
+    }
 
-    if (!existingConv) {
+    // 4. Create a conversation for this match if one doesn't exist yet
+    //    Find an existing conversation shared between owner and candidate.
+    const { data: ownerConvs } = await supabase
+      .from("conversation_participants")
+      .select("conversation_id")
+      .eq("user_id", owner_id);
+    const ownerConvIds = (ownerConvs ?? []).map((r: any) => r.conversation_id);
+
+    let existingConvId: string | null = null;
+    if (ownerConvIds.length > 0) {
+      const { data: shared } = await supabase
+        .from("conversation_participants")
+        .select("conversation_id")
+        .eq("user_id", candidate_id)
+        .in("conversation_id", ownerConvIds)
+        .limit(1)
+        .maybeSingle();
+      existingConvId = shared?.conversation_id ?? null;
+    }
+
+    if (!existingConvId) {
       const { data: newConv, error: convError } = await supabase
         .from("conversations")
         .insert({ project_id, owner_id })

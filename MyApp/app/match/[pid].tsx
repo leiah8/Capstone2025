@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 import { supabase } from '../../lib/supabase';
 
@@ -34,6 +35,7 @@ const chatCache = new Map<string, CacheEntry>();
 export default function MatchesPage() {
     const { pid } = useLocalSearchParams(); // match_id
     const { session } = useAuth();
+    const { setActiveMatchId } = useNotifications();
 
     /* State */
     const cached = chatCache.get(String(pid));
@@ -50,6 +52,8 @@ export default function MatchesPage() {
 
     /* ── 1. Load match, profile, conversation, initial messages ── */
     useEffect(() => {
+        setActiveMatchId(String(pid)); // suppress + clear notifications while in chat
+
         (async () => {
           try {
             // Load the match (pid is match_id)
@@ -92,16 +96,32 @@ export default function MatchesPage() {
               setPerson(profileData as PersonUI);
             }
 
-            // Find the conversation for this project
-            const { data: convData, error: convError } = await supabase
-              .from('conversations')
-              .select('*')
-              .eq('project_id', match.project_id)
-              .single();
+            // Find the conversation shared between both participants
+            // Step 1: get all conversation_ids the current user is in
+            const { data: myParts } = await supabase
+              .from('conversation_participants')
+              .select('conversation_id')
+              .eq('user_id', session!.user.id);
+            const myConvIds = (myParts ?? []).map((r) => r.conversation_id);
 
-            if (convError && convError.code !== 'PGRST116') {
-              console.error('Error loading conversation:', convError);
-              return;
+            // Step 2: find which of those also has the other person
+            let convData = null;
+            if (myConvIds.length > 0) {
+              const { data: shared } = await supabase
+                .from('conversation_participants')
+                .select('conversation_id')
+                .eq('user_id', otherPersonId)
+                .in('conversation_id', myConvIds)
+                .limit(1)
+                .maybeSingle();
+              if (shared) {
+                const { data: conv } = await supabase
+                  .from('conversations')
+                  .select('*')
+                  .eq('id', shared.conversation_id)
+                  .single();
+                convData = conv;
+              }
             }
 
             if (!convData) {
@@ -138,6 +158,8 @@ export default function MatchesPage() {
             setLoading(false);
           }
         })();
+
+        return () => setActiveMatchId(null); // re-enable notifications on leave
       }, [session?.user?.id]);
 
     /* ── 2. Realtime subscription ── */

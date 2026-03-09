@@ -6,6 +6,7 @@ import { DbMatch, MatchUI } from '../../lib/match';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
+import { useNotifications } from '../../contexts/NotificationContext';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 
@@ -25,6 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function MatchesPage() {
     const { signOut, session } = useAuth();
+    const { matchNotifs, newMatchIds } = useNotifications();
 
     /* State */
     const [name, setName] = useState('');
@@ -37,6 +39,13 @@ export default function MatchesPage() {
     const [candidateMatchesUI, setCandidateMatchesUI] = useState<MatchUI[]>([]);
 
     const [projectsPage, setPage] = useState(true);
+
+    const projectNewCount = projectMatchesUI.reduce(
+        (sum, m) => sum + (matchNotifs.get(String(m.match_id)) ?? 0), 0
+    );
+    const candidateNewCount = candidateMatchesUI.reduce(
+        (sum, m) => sum + (matchNotifs.get(String(m.match_id)) ?? 0), 0
+    );
 
     const gotoMatch = (pid : string | number) => {
         router.push(`/match/${pid}`)
@@ -71,6 +80,7 @@ export default function MatchesPage() {
 
                         owner_id : "0", 
                         candidate_id : "0", 
+                        created_at: "",
                         
                         project_image: "0",
                         candidate_image : "0",
@@ -80,9 +90,9 @@ export default function MatchesPage() {
                     obj.match_id = m1[i].id;
                     obj.owner_id = m1[i].owner_id;
                     obj.candidate_id = m1[i].candidate_id;
+                    obj.created_at = m1[i].created_at;
 
-                        
-                    const { data : d1, error : e11} = await supabase
+                    const { data : d1, error : e11 } = await supabase
                         .from('projects')
                         .select('*')
                         .eq('id', m1[i].project_id)
@@ -162,6 +172,7 @@ export default function MatchesPage() {
 
                         owner_id : "0", 
                         candidate_id : "0",
+                        created_at: "",
                         
                         project_image: "0",
                         candidate_image : "0",
@@ -171,9 +182,9 @@ export default function MatchesPage() {
                     obj.match_id = m2[i].id;
                     obj.owner_id = m2[i].owner_id;
                     obj.candidate_id = m2[i].candidate_id;
+                    obj.created_at = m2[i].created_at;
 
-                        
-                    const { data : d1, error : e11} = await supabase
+                    const { data : d1, error : e11 } = await supabase
                         .from('projects')
                         .select('*')
                         .eq('id', m2[i].project_id)
@@ -265,29 +276,54 @@ export default function MatchesPage() {
                         <TouchableOpacity style={styles.tabButton} onPress={async () => {
                             setPage(true)} 
                             }>
-                            <Text style={styles.sectionTitle && styles.activeTab}>Projects</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.sectionTitle && styles.activeTab}>Projects</Text>
+                                {projectNewCount > 0 && (
+                                    <View style={styles.tabBadge}>
+                                        <Text style={styles.tabBadgeText}>{projectNewCount}</Text>
+                                    </View>
+                                )}
+                            </View>
                         </TouchableOpacity>
                          <TouchableOpacity style={styles.tabButton} onPress={async () => {
                             setPage(false)} 
                             }>
-                            <Text style={styles.sectionTitle}>Candidates</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.sectionTitle}>Candidates</Text>
+                                {candidateNewCount > 0 && (
+                                    <View style={styles.tabBadge}>
+                                        <Text style={styles.tabBadgeText}>{candidateNewCount}</Text>
+                                    </View>
+                                )}
+                            </View>
                         </TouchableOpacity>
                      
                     </View>
 
                     {/* Content */}
                     <View style={styles.list}>
-                        {projectMatchesUI.map((match, index) => (
-                            <TouchableOpacity onPress={async() => {gotoMatch(match.match_id)}}>
+                        {projectMatchesUI.map((match, index) => {
+                            const notifCount = matchNotifs.get(String(match.match_id)) ?? 0;
+                            const isNewMatch = newMatchIds.has(String(match.match_id));
+                            return (
+                            <TouchableOpacity key={index} onPress={async() => {gotoMatch(match.match_id)}}>
                                 <View style={styles.match}>
                                     <Image source={{ uri: match.project_image }} style={styles.profileImage} />
-                                    {/* <View style={styles.placeholderImage}>
-                                        <Ionicons name="person" size={30} color="#999" />
-                                    </View> */}
                                     <Text>{match.project_name}</Text>
+                                    {isNewMatch && (
+                                        <View style={styles.newMatchPill}>
+                                            <Text style={styles.newMatchPillText}>new</Text>
+                                        </View>
+                                    )}
+                                    {notifCount > 0 && (
+                                        <View style={styles.newBadge}>
+                                            <Text style={styles.newBadgeText}>{notifCount}</Text>
+                                        </View>
+                                    )}
                                 </View>
                             </TouchableOpacity>
-                        ))}
+                            );
+                        })}
                     </View>
 
 
@@ -312,12 +348,26 @@ export default function MatchesPage() {
                         <TouchableOpacity style={styles.tabButton} onPress={async () => {
                             setPage(true)}
                             }>
-                            <Text style={styles.sectionTitle}>Projects</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.sectionTitle}>Projects</Text>
+                                {projectNewCount > 0 && (
+                                    <View style={styles.tabBadge}>
+                                        <Text style={styles.tabBadgeText}>{projectNewCount}</Text>
+                                    </View>
+                                )}
+                            </View>
                         </TouchableOpacity>
                          <TouchableOpacity style={styles.tabButton} onPress={async () => {
                             setPage(false)}
                             }>
-                            <Text style={styles.sectionTitle && styles.activeTab}>Candidates</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.sectionTitle && styles.activeTab}>Candidates</Text>
+                                {candidateNewCount > 0 && (
+                                    <View style={styles.tabBadge}>
+                                        <Text style={styles.tabBadgeText}>{candidateNewCount}</Text>
+                                    </View>
+                                )}
+                            </View>
                         </TouchableOpacity>
 
                     </View>
@@ -325,17 +375,28 @@ export default function MatchesPage() {
 
                     {/* Content */}
                     <View style={styles.list}>
-                        {candidateMatchesUI.map((match, index) => (
-                            <TouchableOpacity onPress={async() => {gotoMatch(match.match_id)}}>
+                        {candidateMatchesUI.map((match, index) => {
+                            const notifCount = matchNotifs.get(String(match.match_id)) ?? 0;
+                            const isNewMatch = newMatchIds.has(String(match.match_id));
+                            return (
+                            <TouchableOpacity key={index} onPress={async() => {gotoMatch(match.match_id)}}>
                                 <View style={styles.match}>
                                     <Image source={{ uri: match.project_image }} style={styles.profileImage} />
-                                    {/* <View style={styles.placeholderImage}>
-                                        <Ionicons name="person" size={40} color="#999" />
-                                    </View> */}
-                                    <Text key={index}>{match.candidate_name}</Text>
+                                    <Text>{match.candidate_name}</Text>
+                                    {isNewMatch && (
+                                        <View style={styles.newMatchPill}>
+                                            <Text style={styles.newMatchPillText}>new</Text>
+                                        </View>
+                                    )}
+                                    {notifCount > 0 && (
+                                        <View style={styles.newBadge}>
+                                            <Text style={styles.newBadgeText}>{notifCount}</Text>
+                                        </View>
+                                    )}
                                 </View>
                             </TouchableOpacity>
-                        ))}
+                            );
+                        })}
                     </View>
 
 
@@ -382,7 +443,46 @@ tabsContainer: {
 
 placeholderImage: { width: 60, height: 60, borderRadius: 60, backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center' },
   
-activeTab : {fontWeight : "bold", fontSize : 18, justifyContent :"center"}
+activeTab : {fontWeight : "bold", fontSize : 18, justifyContent :"center"},
+
+newBadge: {
+    backgroundColor: 'red',
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginLeft: 6,
+},
+newBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+},
+newMatchPill: {
+    backgroundColor: '#22c55e',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 6,
+},
+newMatchPillText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+},
+tabBadge: {
+    backgroundColor: 'red',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+},
+tabBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+},
     
 });
 

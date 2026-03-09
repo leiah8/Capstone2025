@@ -3,12 +3,14 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Redirect, Tabs } from 'expo-router';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { session, loading } = useAuth();
+  const { matchCount } = useNotifications();
 
   // Show loading spinner while checking auth
   if (loading) {
@@ -57,7 +59,24 @@ export default function TabLayout() {
         name="matches"
         options={{
           title: 'Matches',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="star.fill" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <View>
+              <IconSymbol size={28} name="star.fill" color={color} />
+              {matchCount > 0 && (
+                <View style={{
+                  position: 'absolute', top: -4, right: -8,
+                  backgroundColor: 'red', borderRadius: 8,
+                  minWidth: 16, height: 16,
+                  justifyContent: 'center', alignItems: 'center',
+                  paddingHorizontal: 3,
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>
+                    {matchCount > 99 ? '99+' : matchCount}
+                  </Text>
+                </View>
+              )}
+            </View>
+          ),
         }}
       />
 
