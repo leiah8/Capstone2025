@@ -54,7 +54,7 @@ type DbCandidate = {
   location : string | null; 
   skills : string[] | null;
   interests : string[] | null;
-  links : [] | JSON; //TODO: parse this 
+  links : [] | JSON; 
   education : JSON[] | null;
   personal_projects : JSON[] | null;
   experience : JSON[] | null;
@@ -70,6 +70,29 @@ type MyProject = {
   is_active: boolean;
   created_at: string;
 };
+
+export async function likeCandidate(
+  userId: string,
+  projectId: string,
+  candidateId : string,
+  reaction: 'like' | 'pass' = 'like'
+): Promise<void> {
+  const { error } = await supabase
+    .from('candidate_likes')
+    .upsert(
+      { owner_id: userId, project_id: projectId, candidate_id : candidateId, reaction : reaction },
+      { onConflict: 'owner_id,project_id,candidate_id' }
+    );
+  if (error) throw error;
+  else if (reaction === 'like') {
+    const { data } = await supabase.functions.invoke('check-for-match', {
+      body: { candidate_id : candidateId, project_id : projectId, owner_id : userId }
+    })
+    console.log(data.message);
+  }
+}
+
+
 
 
 export async function fetchCandidates(limit = 50): Promise<CandidateUI[]> {

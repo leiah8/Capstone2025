@@ -1,9 +1,10 @@
 // lib/projects.ts
-import { supabase } from './supabase';
 import { resolveProfileImageUrl } from './profile';
+import { supabase } from './supabase';
 
 export type ProjectUI = {
   id: string;
+  owner_id : string
   name: string;
   location: string;
   image: string;
@@ -37,6 +38,7 @@ const asSingleProfile = (
 
 export async function likeProject(
   userId: string,
+  ownerId : string,
   projectId: string,
   reaction: 'like' | 'pass' = 'like'
 ): Promise<void> {
@@ -47,6 +49,12 @@ export async function likeProject(
       { onConflict: 'user_id,project_id' }
     );
   if (error) throw error;
+  else {
+    const { data } = await supabase.functions.invoke('check-for-match', {
+      body: { candidate_id : userId, project_id : projectId, owner_id : ownerId }
+    })
+    console.log(data.message);
+  }
 }
 
 export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promise<ProjectUI[]> {
@@ -86,6 +94,7 @@ export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promis
     const prof = asSingleProfile(row.profiles);
     return {
       id: String(row.id),
+      owner_id : String(row.owner_id),
       name: row.title,
       location: prof?.location ?? '—',
       image: row.image ?? 'https://picsum.photos/400/300?blur=2',

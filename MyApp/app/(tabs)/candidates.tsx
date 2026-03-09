@@ -18,8 +18,8 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CandidateUI, fetchCandidates, fetchMyProjects } from '../../lib/candidates';
-import { checkMatchingAPIHealth, getMatchedCandidates, MatchScoreCandidate } from '../../lib/matching-api';
+import { CandidateUI, fetchCandidates, fetchMyProjects, likeCandidate } from '../../lib/candidates';
+import { checkMatchingAPIHealth, getMatchedCandidates } from '../../lib/matching-api';
 
 import { router } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
@@ -32,9 +32,8 @@ const SWIPE_THRESHOLD = 120;
    Types (make skills optional & flexible)
    ========================= */
 type Candidate = CandidateUI & {
-//   skillsNeeded?: string[];
-//   // tolerate legacy shape if it exists
-//   skills?: { name: string; level?: number }[];
+  project_id : string;
+  project_name : string;
 };
 
 /* =========================
@@ -179,7 +178,17 @@ const CandidateCard = ({
 
       {/* Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        
+
+        {/* TAGS SECTION */}
+        {candidate.project_name && (
+          <View style={styles.projectTagRow}>
+            <View style={styles.projectTag}>
+              <Ionicons name="briefcase-outline" size={11} color="#000" style={{ marginRight: 5 }} />
+              <Text>{candidate.project_name}</Text>
+            </View>
+          </View>
+        )}
+
         {/* ── Hero Header ── */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarWrapper}>
@@ -251,7 +260,7 @@ const CandidateCard = ({
         {/* ── Personal Projects ── */}
         {candidate.personal_projects.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Projects</Text>
+            <Text style={styles.sectionTitle}>Personal Projects</Text>
             {candidate.personal_projects.map((p, i) => <ProjectBlock key={`pp-${i}`} item={p} />)}
           </View>
         )}
@@ -282,7 +291,7 @@ const CandidateCard = ({
    ========================= */
 export default function CandidateFeed() {
   const insets = useSafeAreaInsets();
-  const [projects, setCandidates] = useState<Candidate[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -302,32 +311,56 @@ export default function CandidateFeed() {
 
         // Get current authenticated user's projects
         const userProjects = await fetchMyProjects(session?.user?.id);
+        
+        let one_active = false;
+        for(let i = 0; i < userProjects.length; i++) {
+          let p = userProjects[i];
+          if (p.is_active) {
+            one_active = true;
+            break;
+          }
+        }
 
-        setHasProjects(userProjects.length > 0);
+        setHasProjects(one_active)
 
-        if(hasProjects) {
-            // Fetch all projects
+        // setHasProjects(userProjects.length > 0);
+
+        if(one_active) {
+            // Fetch all candidates
           const allCandidates = await fetchCandidates(50);
-          // console.log("HERE HI")
-          // console.log(allCandidates)
           if (!alive) return;
 
           // Check if matching API is available
           const matchingAvailable = await checkMatchingAPIHealth();
           
           if (matchingAvailable) {
-            console.log('Matching API available - ranking projects by match score...');
+            console.log('Matching API available - ranking candidates by match score...');
             try {
               
-              const matchScores : MatchScoreCandidate[] = []
-              
-              userProjects.forEach(async (p) => {
-                  const matchScores = await getMatchedCandidates(p, allCandidates);
-                  matchScores.push()
-              }) //keep seperate so we can tag them: TODO 
-                  
-              // Create a map of project IDs to match scores
-              const scoreMap = new Map(matchScores.map(m => [m.project_id, m.overall_score]));
+
+              const results = await Promise.all(
+                userProjects
+                  .filter(p => p.is_active)
+                  .map(async (p) => {
+                    const matches = await getMatchedCandidates(p, allCandidates);
+                    return matches.map(m => ({ ...m, project_id: String(p.id) }));
+                  })
+              );
+              const firstMatchScores = results.flat();
+              // from matchScores remove duplicates (keep highest match score)
+              const bestMatchMap = new Map<string, (typeof firstMatchScores)[number]>();
+
+              for (const match of firstMatchScores) {
+                const existing = bestMatchMap.get(match.candidate_id);
+                if (!existing || match.overall_score > existing.overall_score) {
+                  bestMatchMap.set(match.candidate_id, match);
+                }
+              }
+
+              const matchScores = Array.from(bestMatchMap.values());
+
+              // Create a map of candidate IDs to match scores
+              const scoreMap = new Map(matchScores.map(m => [m.candidate_id, m.overall_score]));
               
               // Sort candidates by match score
               const rankedCandidates = [...allCandidates].sort((a, b) => {
@@ -340,12 +373,14 @@ export default function CandidateFeed() {
               setUseMatching(true);
               console.log(`Candidates ranked by match score (top: ${(scoreMap.get(rankedCandidates[0].id) || 0) * 100}%)`);
             } catch (matchError) {
-              console.warn('Failed to rank projects, using default order:', matchError);
+              console.warn('Failed to rank candidates, using default order:', matchError);
               setCandidates(allCandidates as Candidate[]);
             }
           } else {
             console.log('Matching API not available - showing candidates in default order');
-            setCandidates(allCandidates as Candidate[]);
+            const pid = String(userProjects.find(p => p.is_active)?.id);
+            const p_name = String(userProjects.find(p => p.is_active)?.title);
+            setCandidates(allCandidates.map(c => ({ ...c, project_id: pid ,project_name : p_name})) as Candidate[]);
           }
           
           setCurrentIndex(0);
@@ -361,21 +396,33 @@ export default function CandidateFeed() {
     return () => { alive = false; };
   }, []);
 
-  const advance = () => { if (currentIndex < projects.length) setCurrentIndex((i) => i + 1); };
+  const advance = () => { if (currentIndex < candidates.length) setCurrentIndex((i) => i + 1); };
 
-  if (loading) return <View style={styles.center}><Text>Loading projects…</Text></View>;
+  const handleSwipe = async (direction: 'left' | 'right') => {
+    const candidate = candidates[currentIndex];
+    advance();
+    //if (direction !== 'right' || !session?.user?.id || !candidate) return;
+    if (!session?.user?.id || !candidate) return;
+    try {
+      await likeCandidate(session.user.id, candidate.project_id, candidate.id, direction == 'right' ? 'like' : 'pass');  
+    } catch (e: any) {
+      console.warn('Failed to record candidate like:', e.message ?? e);
+    }
+  };
+
+  if (loading) return <View style={styles.center}><Text>Loading candidates</Text></View>;
   if (err) return <View style={styles.center}><Text>Failed to load candidates: {err}</Text></View>;
 
   return ( hasProjects ? 
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.cardContainer}>
-        {projects.slice(currentIndex, currentIndex + 2).reverse().map((p, i) => (
-          <CandidateCard key={p.id} candidate={p} isTop={i === 1} onSwipe={advance} />
+        {candidates.slice(currentIndex, currentIndex + 2).reverse().map((p, i) => (
+          <CandidateCard key={p.id} candidate={p} isTop={i === 1} onSwipe={handleSwipe} />
         ))}
 
-        {currentIndex >= projects.length && (
+        {currentIndex >= candidates.length && (
           <View style={styles.endCard}>
-            <Text style={styles.endText}>No more projects!</Text>
+            <Text style={styles.endText}>No more candidates!</Text>
             <TouchableOpacity style={styles.resetButton} onPress={() => setCurrentIndex(0)}>
               <Text style={styles.resetButtonText}>Start Over</Text>
             </TouchableOpacity>
@@ -383,12 +430,12 @@ export default function CandidateFeed() {
         )}
       </View>
 
-      {currentIndex < projects.length && (
+      {currentIndex < candidates.length && (
         <View style={styles.buttonsContainer}>
-          <TouchableOpacity style={styles.passButton} onPress={advance}>
+          <TouchableOpacity style={styles.passButton} onPress={() => handleSwipe('left')}>
             <Ionicons name="close" size={40} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.likeButton} onPress={advance}>
+          <TouchableOpacity style={styles.likeButton} onPress={() => handleSwipe('right')}>
             <Ionicons name="checkmark" size={40} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -398,7 +445,7 @@ export default function CandidateFeed() {
 : (
           <View style={[styles.center, { backgroundColor : "#fff"}]}>
             <Text style={{ fontSize: 16, color: '#999', marginBottom: 16 }}>You must have a project to browse candidates.</Text>
-            <TouchableOpacity style={styles.resetButton} onPress={() => router.push('/create-project')}>
+            <TouchableOpacity style={styles.resetButton} onPress={() => router.push('/create-project' as any)}>
               <Text style={styles.resetButtonText}>Create Your First Project</Text>
             </TouchableOpacity>
           </View>
@@ -493,5 +540,19 @@ const styles = StyleSheet.create({
   linksContainer: { gap: 10 },
   linkRow: { flexDirection: 'row', alignItems: 'center' },
   linkText: { fontSize: 12, color: '#666', flex: 1 },
+
+  //tags
+
+  // project name tag
+  projectTagRow: { alignItems: 'flex-start', marginBottom: 8 },
+  projectTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 20,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    alignSelf: 'flex-start',
+  },
 
 });

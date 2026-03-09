@@ -3,18 +3,28 @@
 /* =========================
    Imports & setup
    ========================= */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  View, Text, Image, StyleSheet, Dimensions, Animated, PanResponder, TouchableOpacity, ScrollView, Modal, ActivityIndicator, Alert,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
-import { fetchProjects, likeProject, ProjectUI } from '../../lib/projects';
-import { getUserProfile } from '../../lib/user-profile';
-import { getMatchedProjects, checkMatchingAPIHealth } from '../../lib/matching-api';
-import { supabase } from '../../lib/supabase';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator, Alert,
+  Animated,
+  Dimensions,
+  Image,
+  Modal,
+  PanResponder,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
+import { checkMatchingAPIHealth, getMatchedProjects } from '../../lib/matching-api';
+import { fetchProjects, likeProject, ProjectUI } from '../../lib/projects';
+import { supabase } from '../../lib/supabase';
+import { getUserProfile } from '../../lib/user-profile';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 120;
@@ -218,7 +228,7 @@ export default function ProjectFeed() {
     advance();
     if (direction !== 'right' || !session?.user?.id || !project) return;
     try {
-      await likeProject(session.user.id, project.id, 'like');
+      await likeProject(session.user.id, project.owner_id, project.id, 'like');
     } catch (e: any) {
       console.warn('Failed to record project like:', e.message ?? e);
     }
@@ -349,7 +359,7 @@ export default function ProjectFeed() {
         ) : myProjects.length === 0 ? (
           <View style={styles.center}>
             <Text style={{ fontSize: 16, color: '#999', marginBottom: 16 }}>You haven't created any projects yet.</Text>
-            <TouchableOpacity style={styles.resetButton} onPress={() => router.push('/create-project')}>
+            <TouchableOpacity style={styles.resetButton} onPress={() => router.push('/create-project' as any)}>
               <Text style={styles.resetButtonText}>Create Your First Project</Text>
             </TouchableOpacity>
           </View>
