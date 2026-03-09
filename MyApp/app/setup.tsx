@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
@@ -341,8 +342,8 @@ export default function SetupScreen() {
     loading || !firstName.trim() || !lastName.trim() || !resume;
 
   return (
-    <>
-      <ScrollView style={styles.root}>
+    <SafeAreaView style={styles.root}>
+      <ScrollView style={{ flex: 1 }}>
         <View style={styles.wrapper}>
           <View style={styles.headerBlock}>
             <Text style={styles.headerTitle}>Welcome to Peer.io</Text>
@@ -386,9 +387,7 @@ export default function SetupScreen() {
                   📄 {resume ? resume.name : "Upload resume"}
                 </Text>
               </TouchableOpacity>
-              <Text style={styles.helpText}>
-                PDF or Word document (max 5MB)
-              </Text>
+              <Text style={styles.helpText}>PDF or Word document (max 5MB)</Text>
             </View>
 
             {!!error && (
@@ -414,8 +413,8 @@ export default function SetupScreen() {
               </TouchableOpacity>
 
               {/* <TouchableOpacity onPress={() => router.replace('/(tabs)')} style={styles.linkBtn}>
-              <Text style={styles.linkText}>Skip for now</Text>
-            </TouchableOpacity> */}
+                <Text style={styles.linkText}>Skip for now</Text>
+              </TouchableOpacity> */}
             </View>
           </View>
         </View>
@@ -428,7 +427,7 @@ export default function SetupScreen() {
         onConfirm={handleReviewConfirm}
         onCancel={handleReviewCancel}
       />
-    </>
+    </SafeAreaView>
   );
 }
 

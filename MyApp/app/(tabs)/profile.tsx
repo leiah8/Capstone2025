@@ -18,6 +18,7 @@ import {
   ActivityIndicator,
   Linking,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -791,14 +792,15 @@ export default function ProfilePage() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+        >
         {/* Header */}
         <View style={styles.headerContainer}>
           <Text style={styles.headerTitle}>My Profile</Text>
@@ -1320,14 +1322,6 @@ export default function ProfilePage() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-
-      {/* Parsed-resume review popup */}
-      <ParseReviewModal
-        visible={reviewModalVisible}
-        data={parsedResumeData}
-        onConfirm={handleReviewConfirm}
-        onCancel={() => setReviewModalVisible(false)}
-      />
     </KeyboardAvoidingView>
   );
 }
