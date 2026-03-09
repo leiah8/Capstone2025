@@ -157,13 +157,7 @@ WITH CHECK (owner_id = auth.uid());
 CREATE POLICY conv_participants_select_member
 ON public.conversation_participants
 FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM public.conversation_participants cp2
-    WHERE cp2.conversation_id = conversation_participants.conversation_id
-      AND cp2.user_id = auth.uid()
-  )
-);
+USING (user_id = auth.uid());
 
 CREATE POLICY conv_participants_insert_owner
 ON public.conversation_participants
