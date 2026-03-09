@@ -84,7 +84,7 @@ export async function likeCandidate(
       { onConflict: 'owner_id,project_id,candidate_id' }
     );
   if (error) throw error;
-  else {
+  else if (reaction === 'like') {
     const { data } = await supabase.functions.invoke('check-for-match', {
       body: { candidate_id : candidateId, project_id : projectId, owner_id : userId }
     })
