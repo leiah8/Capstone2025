@@ -29,6 +29,7 @@ export default function CreateProjectScreen() {
   const [tagInput, setTagInput] = useState("");
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [tried, setTried] = useState(false);
 
   /* =========================
      Image picker
@@ -38,7 +39,7 @@ export default function CreateProjectScreen() {
     if (status !== "granted") {
       Alert.alert(
         "Permission needed",
-        "Please allow access to your photos to upload a project image."
+        "Please allow access to your photos to upload a project image.",
       );
       return;
     }
@@ -123,12 +124,14 @@ export default function CreateProjectScreen() {
      Submit
      ========================= */
   const handleSubmit = async () => {
-    if (!title.trim()) {
-      Alert.alert("Required", "Please enter a project title.");
-      return;
-    }
-    if (!description.trim()) {
-      Alert.alert("Required", "Please enter a project description.");
+    setTried(true);
+
+    if (
+      !title.trim() ||
+      !description.trim() ||
+      skillsNeeded.length === 0 ||
+      tags.length === 0
+    ) {
       return;
     }
     if (!session?.user?.id) {
@@ -192,7 +195,11 @@ export default function CreateProjectScreen() {
         </TouchableOpacity>
 
         {/* Title */}
-        <Text style={styles.label}>Title *</Text>
+        <Text
+          style={[styles.label, tried && !title.trim() && styles.errorLabel]}
+        >
+          Title*
+        </Text>
         <TextInput
           style={styles.input}
           value={title}
@@ -203,7 +210,14 @@ export default function CreateProjectScreen() {
         />
 
         {/* Description */}
-        <Text style={styles.label}>Description *</Text>
+        <Text
+          style={[
+            styles.label,
+            tried && !description.trim() && styles.errorLabel,
+          ]}
+        >
+          Description*
+        </Text>
         <TextInput
           style={[styles.input, styles.textArea]}
           value={description}
@@ -216,18 +230,32 @@ export default function CreateProjectScreen() {
         />
 
         {/* Skills Needed */}
-        <Text style={styles.label}>Skills Needed</Text>
+        <Text
+          style={[
+            styles.label,
+            tried && skillsNeeded.length === 0 && styles.errorLabel,
+          ]}
+        >
+          Skills Needed*
+        </Text>
         <View style={styles.chipInputRow}>
           <TextInput
             style={styles.chipInput}
             value={skillInput}
             onChangeText={setSkillInput}
-            placeholder="Add a skill"
+            placeholder="e.g. React, Python, JavaScript"
             placeholderTextColor="#999"
             onSubmitEditing={addSkill}
             returnKeyType="done"
           />
-          <TouchableOpacity style={styles.addButton} onPress={addSkill}>
+          <TouchableOpacity
+            style={[
+              styles.addButton,
+              !skillInput.trim() && styles.addButtonDisabled,
+            ]}
+            onPress={addSkill}
+            disabled={!skillInput.trim()}
+          >
             <Ionicons name="add" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -245,18 +273,32 @@ export default function CreateProjectScreen() {
         )}
 
         {/* Tags */}
-        <Text style={styles.label}>Tags</Text>
+        <Text
+          style={[
+            styles.label,
+            tried && tags.length === 0 && styles.errorLabel,
+          ]}
+        >
+          Tags*
+        </Text>
         <View style={styles.chipInputRow}>
           <TextInput
             style={styles.chipInput}
             value={tagInput}
             onChangeText={setTagInput}
-            placeholder="Add a tag"
+            placeholder="e.g. full-stack, mobile, AI"
             placeholderTextColor="#999"
             onSubmitEditing={addTag}
             returnKeyType="done"
           />
-          <TouchableOpacity style={styles.addButton} onPress={addTag}>
+          <TouchableOpacity
+            style={[
+              styles.addButton,
+              !tagInput.trim() && styles.addButtonDisabled,
+            ]}
+            onPress={addTag}
+            disabled={!tagInput.trim()}
+          >
             <Ionicons name="add" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -360,7 +402,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
+  addButtonDisabled: {
+    backgroundColor: "#ccc",
+  },
   chipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -387,4 +431,5 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: { opacity: 0.6 },
   submitButtonText: { color: "#fff", fontSize: 17, fontWeight: "600" },
+  errorLabel: { color: "#e53935" },
 });
