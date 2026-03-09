@@ -1323,6 +1323,14 @@ export default function ProfilePage() {
         <View style={{ height: 40 }} />
       </ScrollView>
     </KeyboardAvoidingView>
+
+    <ParseReviewModal
+      visible={reviewModalVisible}
+      data={parsedResumeData}
+      onConfirm={handleReviewConfirm}
+      onCancel={() => setReviewModalVisible(false)}
+    />
+    </SafeAreaView>
   );
 }
 

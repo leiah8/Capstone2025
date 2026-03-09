@@ -178,6 +178,12 @@ useEffect(() => {
           autoComplete="password"
         />
 
+        {!isSignUp && (
+          <TouchableOpacity onPress={() => router.push('/forgot-password')} disabled={loading}>
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </TouchableOpacity>
+        )}
+
         {isSignUp && (
           <TextInput
             style={styles.input}
@@ -279,5 +285,11 @@ const styles = StyleSheet.create({
   toggleText: {
     color: '#007AFF',
     fontSize: 16,
+  },
+  forgotText: {
+    color: '#007AFF',
+    fontSize: 14,
+    textAlign: 'right',
+    marginBottom: 10,
   },
 });

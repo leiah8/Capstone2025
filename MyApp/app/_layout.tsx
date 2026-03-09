@@ -29,6 +29,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="login" />
             <Stack.Screen name="setup" />
+            <Stack.Screen name="forgot-password" />
             <Stack.Screen name="create-project" options={{
               headerShown: true,
               title: 'Create Project',
