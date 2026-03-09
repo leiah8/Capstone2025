@@ -18,6 +18,8 @@ const LAST_SEEN_KEY = 'notifications_last_seen';
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
   const [matchCount, setMatchCount] = useState(0);
+  // Keep conversation IDs in a ref so realtime callbacks always see the latest set
+  const myConversationIds = useRef<Set<string | number>>(new Set());
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -30,7 +32,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const lastSeen = stored ?? new Date().toISOString();
       if (!stored) await AsyncStorage.setItem(LAST_SEEN_KEY, lastSeen);
 
-      // 2. Count matches created while the app was closed
+      // 2. Fetch conversations the user participates in
+      const { data: participantRows } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', userId);
+      const convIds = (participantRows ?? []).map((r) => r.conversation_id);
+      myConversationIds.current = new Set(convIds);
+
+      // 3. Count missed matches while app was closed
       const { count: ownerCount } = await supabase
         .from('matches')
         .select('*', { count: 'exact', head: true })
@@ -43,16 +53,46 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         .eq('candidate_id', userId)
         .gt('created_at', lastSeen);
 
-      const missed = (ownerCount ?? 0) + (candidateCount ?? 0);
-      if (missed > 0) setMatchCount(missed);
+      // 4. Count missed messages while app was closed (not sent by self)
+      let missedMessages = 0;
+      if (convIds.length > 0) {
+        const { count: msgCount } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .in('conversation_id', convIds)
+          .neq('sender_id', userId)
+          .gt('created_at', lastSeen);
+        missedMessages = msgCount ?? 0;
+      }
 
-      // 3. Subscribe to new matches going forward
+      const total = (ownerCount ?? 0) + (candidateCount ?? 0) + missedMessages;
+      if (total > 0) setMatchCount(total);
+
+      // 5. Subscribe to new matches and messages going forward
       const channel = supabase
-        .channel(`new-matches-${userId}`)
+        .channel(`notifications-${userId}`)
+        // New match as owner
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches', filter: `owner_id=eq.${userId}` },
           () => setMatchCount((c) => c + 1))
+        // New match as candidate
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches', filter: `candidate_id=eq.${userId}` },
           () => setMatchCount((c) => c + 1))
+        // New conversation participant row (added to a new conversation)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversation_participants', filter: `user_id=eq.${userId}` },
+          (payload) => {
+            myConversationIds.current.add(payload.new.conversation_id);
+          })
+        // New message — filter client-side
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
+          (payload) => {
+            const msg = payload.new;
+            if (
+              msg.sender_id !== userId &&
+              myConversationIds.current.has(msg.conversation_id)
+            ) {
+              setMatchCount((c) => c + 1);
+            }
+          })
         .subscribe();
 
       return () => { supabase.removeChannel(channel); };
@@ -61,7 +101,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const clearMatchCount = async () => {
     setMatchCount(0);
-    // Mark now as the new last-seen so missed matches reset
     await AsyncStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
   };
 
