@@ -1,0 +1,70 @@
+name: Deploy Python Backend Services
+
+on:
+  push:
+    branches:
+      - staging
+    paths:
+      - 'matching_algorithm/**'
+      - 'resume_parser/**'
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matching: ${{ steps.filter.outputs.matching }}
+      resume: ${{ steps.filter.outputs.resume }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            matching:
+              - 'matching_algorithm/**'
+            resume:
+              - 'resume_parser/**'
+
+  deploy-matching-algo:
+    needs: changes
+    if: |
+      needs.changes.outputs.matching == 'true' &&
+      (github.event_name == 'push' || github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy Matching Algorithm
+        working-directory: ./matching_algorithm
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_MATCHING_SERVICE_ID }}
+        run: railway up --service $RAILWAY_SERVICE_ID
+
+  deploy-resume-parser:
+    needs: changes
+    if: |
+      needs.changes.outputs.resume == 'true' &&
+      (github.event_name == 'push' || github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy Resume Parser
+        working-directory: ./resume_parser
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_RESUME_SERVICE_ID }}
+        run: railway up --service $RAILWAY_SERVICE_ID

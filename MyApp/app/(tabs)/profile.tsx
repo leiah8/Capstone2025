@@ -154,7 +154,12 @@ export default function ProfilePage() {
   const [resumeFileName, setResumeFileName] = useState<string | null>(null);
   const [uploadingResume, setUploadingResume] = useState(false);
   const [parsingResume, setParsingResume] = useState(false);
+  const supabaseFunctionParserUrl = process.env.EXPO_PUBLIC_SUPABASE_URL
+    ? `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/resume-parser`
+    : "";
   const PARSER_URL =
+    process.env.EXPO_PUBLIC_PARSER_EDGE_URL ||
+    supabaseFunctionParserUrl ||
     Constants.expoConfig?.extra?.parserUrl ||
     process.env.EXPO_PUBLIC_PARSER_URL ||
     "";
@@ -401,12 +406,18 @@ export default function ProfilePage() {
             name: originalName,
             type: mime,
           } as any);
+          const { data: { session: uploadSession } } = await supabase.auth.getSession();
           const resp = await fetch(
             `${PARSER_URL.replace(/\/$/, "")}/parse/upload`,
             {
               method: "POST",
               body: formData,
-              headers: { Accept: "application/json" },
+              headers: {
+                Accept: "application/json",
+                ...(uploadSession?.access_token
+                  ? { Authorization: `Bearer ${uploadSession.access_token}` }
+                  : {}),
+              },
             },
           );
           if (!resp.ok) throw new Error(`Parser HTTP ${resp.status}`);
@@ -477,7 +488,7 @@ export default function ProfilePage() {
       if (!PARSER_URL) {
         Alert.alert(
           "Parser not configured",
-          "Set EXPO_PUBLIC_PARSER_URL or app.json extra.parserUrl.",
+          "Set EXPO_PUBLIC_PARSER_EDGE_URL, EXPO_PUBLIC_PARSER_URL, or app.json extra.parserUrl.",
         );
         return;
       }
@@ -515,11 +526,15 @@ export default function ProfilePage() {
         return;
       }
 
+      const { data: { session: reparseSession } } = await supabase.auth.getSession();
       const resp = await fetch(`${PARSER_URL.replace(/\/$/, "")}/parse/url`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          ...(reparseSession?.access_token
+            ? { Authorization: `Bearer ${reparseSession.access_token}` }
+            : {}),
         },
         body: JSON.stringify({ url }),
       });

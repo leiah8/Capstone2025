@@ -1,6 +1,8 @@
 from __future__ import annotations
+import os
 from typing import Any, Dict, List, Optional
 
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -26,6 +28,17 @@ class MatchRequest(BaseModel):
 
 class MatchResponse(BaseModel):
     ranked_projects: List[Dict[str, Any]]
+    count: int
+
+
+class CandidateMatchRequest(BaseModel):
+    project: Dict[str, Any]
+    candidates: List[Dict[str, Any]]
+    weights: Optional[Dict[str, float]] = None
+
+
+class CandidateMatchResponse(BaseModel):
+    ranked_candidates: List[Dict[str, Any]]
     count: int
 
 
@@ -56,6 +69,46 @@ async def score_matches(request: MatchRequest):
         )
 
 
+@app.post("/match/candidates", response_model=CandidateMatchResponse)
+async def score_candidates(request: CandidateMatchRequest):
+    """Rank candidates for a project by treating each candidate as a user profile."""
+    try:
+        weights = None
+        if request.weights:
+            weights = MatchWeights(**request.weights)
+
+        engine = get_matching_engine(weights=weights)
+
+        # Build a single-project list from the project dict so we can reuse rank_projects
+        project_as_target = {
+            "id": str(request.project.get("id", "project")),
+            "description": request.project.get("description", ""),
+            "skills_needed": request.project.get("skills") or [],
+            "nice_to_have_skills": [],
+            "tags": request.project.get("tags") or [],
+        }
+
+        ranked = []
+        for candidate in request.candidates:
+            user_profile = {
+                "skills": candidate.get("skills") or [],
+                "interests": candidate.get("interests") or [],
+                "bio": candidate.get("bio") or "",
+            }
+            score = engine.calculate_match_score(user_profile, project_as_target)
+            result = score.to_dict()
+            result["candidate_id"] = candidate.get("id", "")
+            result["candidate_name"] = candidate.get("name", "")
+            ranked.append(result)
+
+        ranked.sort(key=lambda x: x["total_score"], reverse=True)
+
+        return CandidateMatchResponse(ranked_candidates=ranked, count=len(ranked))
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Candidate matching failed: {str(e)}")
+
+
 @app.get("/match/health")
 async def match_health_check():
     try:
@@ -72,3 +125,9 @@ async def match_health_check():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Health check failed: {e}")
+
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8000"))
+    reload = os.getenv("ENV") == "development"
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload)

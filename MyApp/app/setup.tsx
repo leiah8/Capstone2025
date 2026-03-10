@@ -198,11 +198,16 @@ export default function SetupScreen() {
         console.log("[Setup] Starting resume parsing...");
         try {
           const PARSER_URL =
+            process.env.EXPO_PUBLIC_PARSER_EDGE_URL ||
+            (process.env.EXPO_PUBLIC_SUPABASE_URL
+              ? `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/resume-parser`
+              : "") ||
             (Constants.expoConfig?.extra as any)?.parserUrl ||
             process.env.EXPO_PUBLIC_PARSER_URL ||
             "";
 
           if (PARSER_URL) {
+            const { data: { session: parserSession } } = await supabase.auth.getSession();
             const resp = await fetch(
               `${String(PARSER_URL).replace(/\/$/, "")}/parse/url`,
               {
@@ -210,6 +215,9 @@ export default function SetupScreen() {
                 headers: {
                   "Content-Type": "application/json",
                   Accept: "application/json",
+                  ...(parserSession?.access_token
+                    ? { Authorization: `Bearer ${parserSession.access_token}` }
+                    : {}),
                 },
                 body: JSON.stringify({ url: resumeUrl }),
               },
