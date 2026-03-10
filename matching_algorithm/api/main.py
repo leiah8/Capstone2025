@@ -83,7 +83,7 @@ async def score_candidates(request: CandidateMatchRequest):
         project_as_target = {
             "id": str(request.project.get("id", "project")),
             "description": request.project.get("description", ""),
-            "must_have_skills": request.project.get("skills") or [],
+            "skills_needed": request.project.get("skills") or [],
             "nice_to_have_skills": [],
             "tags": request.project.get("tags") or [],
         }
@@ -129,4 +129,5 @@ async def match_health_check():
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    reload = os.getenv("ENV") == "development"
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload)

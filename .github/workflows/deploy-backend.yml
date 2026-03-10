@@ -13,11 +13,27 @@ on:
       - main
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matching: ${{ steps.filter.outputs.matching }}
+      resume: ${{ steps.filter.outputs.resume }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            matching:
+              - 'matching_algorithm/**'
+            resume:
+              - 'resume_parser/**'
+
   deploy-matching-algo:
-    # Only runs if matching_algorithm files changed
+    needs: changes
     if: |
-      contains(join(github.event.commits.*.modified, ','), 'matching_algorithm/') ||
-      contains(join(github.event.commits.*.added, ','), 'matching_algorithm/')
+      needs.changes.outputs.matching == 'true' &&
+      (github.event_name == 'push' || github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -34,10 +50,10 @@ jobs:
         run: railway up --service $RAILWAY_SERVICE_ID
 
   deploy-resume-parser:
-    # Only runs if resume_parser files changed
+    needs: changes
     if: |
-      contains(join(github.event.commits.*.modified, ','), 'resume_parser/') ||
-      contains(join(github.event.commits.*.added, ','), 'resume_parser/')
+      needs.changes.outputs.resume == 'true' &&
+      (github.event_name == 'push' || github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

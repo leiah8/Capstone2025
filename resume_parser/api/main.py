@@ -79,4 +79,5 @@ async def parse_upload(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8001"))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    reload = os.getenv("ENV") == "development"
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload)

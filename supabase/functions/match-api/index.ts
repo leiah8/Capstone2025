@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 declare const Deno: {
   env: {
@@ -54,6 +55,27 @@ Deno.serve(async (req: Request) => {
       { error: "Unsupported route. Use /match/score, /match/candidates, or /match/health." },
       404,
     );
+  }
+
+  // Require a valid Supabase JWT for all routes except health
+  if (routePath !== "/match/health") {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return jsonResponse({ error: "Missing or invalid Authorization header." }, 401);
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return jsonResponse({ error: "Server misconfigured: Supabase credentials not set." }, 500);
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const token = authHeader.slice("Bearer ".length);
+    const { error: authError } = await supabase.auth.getUser(token);
+    if (authError) {
+      return jsonResponse({ error: "Unauthorized." }, 401);
+    }
   }
 
   try {
