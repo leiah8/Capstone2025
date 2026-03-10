@@ -31,6 +31,17 @@ class MatchResponse(BaseModel):
     count: int
 
 
+class CandidateMatchRequest(BaseModel):
+    project: Dict[str, Any]
+    candidates: List[Dict[str, Any]]
+    weights: Optional[Dict[str, float]] = None
+
+
+class CandidateMatchResponse(BaseModel):
+    ranked_candidates: List[Dict[str, Any]]
+    count: int
+
+
 @app.post("/match/score", response_model=MatchResponse)
 async def score_matches(request: MatchRequest):
     try:
@@ -56,6 +67,46 @@ async def score_matches(request: MatchRequest):
             status_code=500, 
             detail=f"Matching failed: {str(e)}"
         )
+
+
+@app.post("/match/candidates", response_model=CandidateMatchResponse)
+async def score_candidates(request: CandidateMatchRequest):
+    """Rank candidates for a project by treating each candidate as a user profile."""
+    try:
+        weights = None
+        if request.weights:
+            weights = MatchWeights(**request.weights)
+
+        engine = get_matching_engine(weights=weights)
+
+        # Build a single-project list from the project dict so we can reuse rank_projects
+        project_as_target = {
+            "id": str(request.project.get("id", "project")),
+            "description": request.project.get("description", ""),
+            "must_have_skills": request.project.get("skills") or [],
+            "nice_to_have_skills": [],
+            "tags": request.project.get("tags") or [],
+        }
+
+        ranked = []
+        for candidate in request.candidates:
+            user_profile = {
+                "skills": candidate.get("skills") or [],
+                "interests": candidate.get("interests") or [],
+                "bio": candidate.get("bio") or "",
+            }
+            score = engine.calculate_match_score(user_profile, project_as_target)
+            result = score.to_dict()
+            result["candidate_id"] = candidate.get("id", "")
+            result["candidate_name"] = candidate.get("name", "")
+            ranked.append(result)
+
+        ranked.sort(key=lambda x: x["total_score"], reverse=True)
+
+        return CandidateMatchResponse(ranked_candidates=ranked, count=len(ranked))
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Candidate matching failed: {str(e)}")
 
 
 @app.get("/match/health")

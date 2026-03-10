@@ -11,6 +11,7 @@ const MATCHING_API_URL =
   "http://localhost:8000";
 
 import { ed, job, profile_project } from 'lib/candidates';
+import { supabase } from './supabase';
 
 export interface MatchRequestProject {
   user_profile: {
@@ -125,10 +126,12 @@ export async function getMatchedProjects(
       projects: apiProjects,
     };
 
+    const { data: { session } } = await supabase.auth.getSession();
     const response = await fetch(`${MATCHING_API_URL}/match/score`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
       },
       body: JSON.stringify(requestBody),
     });
@@ -139,7 +142,19 @@ export async function getMatchedProjects(
     }
 
     const data: MatchResponseProject = await response.json();
-    return data.ranked_projects;
+    return data.ranked_projects.map((r: any) => ({
+      project_id: r.project_id,
+      project_name: r.project_name ?? "",
+      overall_score: r.overall_score ?? r.total_score ?? 0,
+      semantic_similarity: r.semantic_similarity ?? r.breakdown?.semantic_similarity ?? 0,
+      must_have_match: r.must_have_match ?? r.breakdown?.must_have_skills ?? 0,
+      nice_to_have_match: r.nice_to_have_match ?? r.breakdown?.nice_to_have_skills ?? 0,
+      interest_match: r.interest_match ?? r.breakdown?.interest_alignment ?? 0,
+      matched_must_have: r.matched_must_have ?? r.explanation?.matched_must_have_skills ?? [],
+      matched_nice_to_have: r.matched_nice_to_have ?? r.explanation?.matched_nice_to_have_skills ?? [],
+      matched_interests: r.matched_interests ?? r.explanation?.matched_interests ?? [],
+      missing_must_have: r.missing_must_have ?? r.explanation?.missing_must_have_skills ?? [],
+    }));
   } catch (error) {
     console.error('Error calling matching algorithm:', error);
     throw error;
@@ -199,10 +214,12 @@ export async function getMatchedCandidates(
       candidates : apiCandidates,
     };
 
-    const response = await fetch(`${MATCHING_API_URL}/match/score`, {
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await fetch(`${MATCHING_API_URL}/match/candidates`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
       },
       body: JSON.stringify(requestBody),
     });
@@ -213,7 +230,21 @@ export async function getMatchedCandidates(
     }
 
     const data : MatchResponseCandidate = await response.json();
-    return data.ranked_candidates;
+    return data.ranked_candidates.map((r: any) => ({
+      project_id: r.project_id ?? "",
+      project_name: r.project_name ?? "",
+      candidate_id: r.candidate_id ?? "",
+      candidate_name: r.candidate_name ?? "",
+      overall_score: r.overall_score ?? r.total_score ?? 0,
+      semantic_similarity: r.semantic_similarity ?? r.breakdown?.semantic_similarity ?? 0,
+      must_have_match: r.must_have_match ?? r.breakdown?.must_have_skills ?? 0,
+      nice_to_have_match: r.nice_to_have_match ?? r.breakdown?.nice_to_have_skills ?? 0,
+      interest_match: r.interest_match ?? r.breakdown?.interest_alignment ?? 0,
+      matched_must_have: r.matched_must_have ?? r.explanation?.matched_must_have_skills ?? [],
+      matched_nice_to_have: r.matched_nice_to_have ?? r.explanation?.matched_nice_to_have_skills ?? [],
+      matched_interests: r.matched_interests ?? r.explanation?.matched_interests ?? [],
+      missing_must_have: r.missing_must_have ?? r.explanation?.missing_must_have_skills ?? [],
+    }));
   } catch (error) {
     console.error('Error calling matching algorithm:', error);
     throw error;
@@ -225,7 +256,10 @@ export async function getMatchedCandidates(
  */
 export async function checkMatchingAPIHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${MATCHING_API_URL}/match/health`);
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await fetch(`${MATCHING_API_URL}/match/health`, {
+      headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+    });
     return response.ok;
   } catch (error) {
     console.warn('Matching API not available:', error);
