@@ -148,6 +148,27 @@ export default function ProfilePage() {
     setDatePickerVisible(true);
   };
 
+  const updateLocation = async (txt: string) => {
+  console.log("SETTING LOCATION");
+  try {
+    const { data, error } = await supabase.functions.invoke("geocode", {
+      body: { city: txt },
+    });
+
+    if (error) throw error;
+
+    setLocation(txt);
+    console.log(data.lat, data.lng);
+
+  } catch (e) {
+    console.log("ERROR getting location", e);
+    setLocation("City, Country");
+  }
+
+  saveProfile();
+};
+
+
   /* Resume state (derived name only) */
   const [resumeUrl, setResumeUrl] = useState<string | null>(null); // or swap to resume_path if you prefer
   const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
@@ -186,7 +207,8 @@ export default function ProfilePage() {
         } else if (data) {
           setName(data.name || "");
           setBio(data.bio || "");
-          setLocation(data.location || "");
+          // setLocation(data.location || "");
+          updateLocation(data.location || "");
           setProfileImage(data.profile_image || null);
           setSkills(data.skills || []);
           setInterests(data.interests || []);
@@ -910,7 +932,9 @@ export default function ProfilePage() {
               style={styles.input}
               value={location}
               onChangeText={setLocation}
-              onBlur={saveProfile}
+              // onEndEditing={(e) => updateLocation(e.nativeEvent.text)}
+              // onBlur={saveProfile}
+              onBlur={(e) => { updateLocation(location); }}
               placeholder="City, Country"
               placeholderTextColor="#999"
             />
