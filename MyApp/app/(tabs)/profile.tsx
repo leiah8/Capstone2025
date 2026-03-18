@@ -838,7 +838,7 @@ export default function ProfilePage() {
           { alignItems: "center", justifyContent: "center" },
         ]}
       >
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#79BE58" />
       </View>
     );
   }
@@ -855,7 +855,14 @@ export default function ProfilePage() {
         >
           {/* Header */}
           <View style={styles.headerContainer}>
-            <Text style={styles.headerTitle}>My Profile</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Image
+                source={require('../../assets/images/peeriologo.png')}
+                style={{ width: 36, height: 36 }}
+                resizeMode="contain"
+              />
+              <Text style={styles.headerTitle}>My Profile</Text>
+            </View>
             <TouchableOpacity
               style={styles.signOutButton}
               onPress={handleSignOut}
@@ -884,7 +891,7 @@ export default function ProfilePage() {
               )}
               {uploadingImage && (
                 <View style={styles.uploadingOverlay}>
-                  <ActivityIndicator size="large" color="#007AFF" />
+                  <ActivityIndicator size="large" color="#79BE58" />
                 </View>
               )}
             </TouchableOpacity>
@@ -893,7 +900,7 @@ export default function ProfilePage() {
               onPress={pickImage}
               disabled={uploadingImage}
             >
-              <Ionicons name="camera" size={16} color="#007AFF" />
+              <Ionicons name="camera" size={16} color="#79BE58" />
               <Text style={styles.changePhotoText}>
                 {uploadingImage ? "Uploading..." : "Change Photo"}
               </Text>
@@ -965,7 +972,7 @@ export default function ProfilePage() {
                   <Ionicons
                     name="document-text-outline"
                     size={20}
-                    color="#2563eb"
+                    color="#79BE58"
                   />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -1016,7 +1023,7 @@ export default function ProfilePage() {
                 activeOpacity={0.9}
               >
                 {parsingResume ? (
-                  <ActivityIndicator size="large" color="#007AFF" />
+                  <ActivityIndicator size="large" color="#79BE58" />
                 ) : (
                   <Text style={styles.secondaryBtnText}>Re-parse Resume</Text>
                 )}
@@ -1028,7 +1035,7 @@ export default function ProfilePage() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionHeaderLeft}>
-                <Ionicons name="construct-outline" size={20} color="#2563eb" />
+                <Ionicons name="construct-outline" size={20} color="#79BE58" />
                 <Text style={styles.sectionTitle}>Skills</Text>
               </View>
               {skills.length > 0 && !selectingSkills && (
@@ -1115,7 +1122,7 @@ export default function ProfilePage() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionHeaderLeft}>
-                <Ionicons name="heart-outline" size={20} color="#2563eb" />
+                <Ionicons name="heart-outline" size={20} color="#79BE58" />
                 <Text style={styles.sectionTitle}>Interests</Text>
               </View>
             </View>
@@ -1156,7 +1163,7 @@ export default function ProfilePage() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionHeaderLeft}>
-                <Ionicons name="school-outline" size={20} color="#2563eb" />
+                <Ionicons name="school-outline" size={20} color="#79BE58" />
                 <Text style={styles.sectionTitle}>Education</Text>
               </View>
               <TouchableOpacity
@@ -1169,7 +1176,7 @@ export default function ProfilePage() {
                 <Ionicons
                   name={showEduDraft ? "close-circle" : "add-circle"}
                   size={28}
-                  color="#2563eb"
+                  color="#79BE58"
                 />
               </TouchableOpacity>
             </View>
@@ -1322,7 +1329,7 @@ export default function ProfilePage() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionHeaderLeft}>
-                <Ionicons name="briefcase-outline" size={20} color="#2563eb" />
+                <Ionicons name="briefcase-outline" size={20} color="#79BE58" />
                 <Text style={styles.sectionTitle}>Experience</Text>
               </View>
               <TouchableOpacity
@@ -1335,7 +1342,7 @@ export default function ProfilePage() {
                 <Ionicons
                   name={showExpDraft ? "close-circle" : "add-circle"}
                   size={28}
-                  color="#2563eb"
+                  color="#79BE58"
                 />
               </TouchableOpacity>
             </View>
@@ -1521,7 +1528,7 @@ export default function ProfilePage() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionHeaderLeft}>
-                <Ionicons name="code-slash-outline" size={20} color="#2563eb" />
+                <Ionicons name="code-slash-outline" size={20} color="#79BE58" />
                 <Text style={styles.sectionTitle}>Projects</Text>
               </View>
               <TouchableOpacity
@@ -1534,7 +1541,7 @@ export default function ProfilePage() {
                 <Ionicons
                   name={showProjDraft ? "close-circle" : "add-circle"}
                   size={28}
-                  color="#2563eb"
+                  color="#79BE58"
                 />
               </TouchableOpacity>
             </View>
@@ -1747,7 +1754,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 6,
   },
-  changePhotoText: { color: "#007AFF", fontSize: 16, fontWeight: "600" },
+  changePhotoText: { color: "#79BE58", fontSize: 16, fontWeight: "600" },
 
   section: { marginBottom: 25 },
   label: { fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 },
@@ -1806,7 +1813,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   addButton: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "#79BE58",
     borderRadius: 10,
     width: 50,
     justifyContent: "center",
@@ -1844,7 +1851,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   tagText: { fontSize: 14, color: "#333" },
-  tagSelected: { backgroundColor: "#2563eb1A", borderColor: "#2563eb" },
+  tagSelected: { backgroundColor: "#79BE581A", borderColor: "#79BE58" },
 
   card: {
     backgroundColor: "#fff",
@@ -1923,11 +1930,11 @@ const styles = StyleSheet.create({
     borderColor: "#e5e7eb",
     backgroundColor: "#f9fafb",
   },
-  smallLinkText: { color: "#2563eb", fontWeight: "600" },
+  smallLinkText: { color: "#79BE58", fontWeight: "600" },
 
   primaryBtn: {
     width: "100%",
-    backgroundColor: "#2563eb",
+    backgroundColor: "#79BE58",
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
@@ -1941,11 +1948,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#2563eb",
+    borderColor: "#79BE58",
     marginTop: 8,
   },
   secondaryBtnDisabled: { opacity: 0.5 },
-  secondaryBtnText: { color: "#2563eb", fontSize: 15, fontWeight: "600" },
+  secondaryBtnText: { color: "#79BE58", fontSize: 15, fontWeight: "600" },
   fieldLabel: {
     fontSize: 13,
     fontWeight: "500",
@@ -1954,7 +1961,7 @@ const styles = StyleSheet.create({
   },
   fieldLabelError: { color: "#e53935" },
   draftCard: {
-    borderColor: "#2563eb",
+    borderColor: "#79BE58",
     borderWidth: 1,
     borderStyle: "dashed",
     backgroundColor: "#f0f6ff",
@@ -1962,11 +1969,11 @@ const styles = StyleSheet.create({
   draftTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#2563eb",
+    color: "#79BE58",
     marginBottom: 10,
   },
   draftAddBtn: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "#79BE58",
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",

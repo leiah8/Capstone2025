@@ -11,6 +11,17 @@ on:
     types: [closed]
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Which service to deploy'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - matching
+          - resume
 
 jobs:
   changes:
@@ -32,8 +43,9 @@ jobs:
   deploy-matching-algo:
     needs: changes
     if: |
-      needs.changes.outputs.matching == 'true' &&
-      (github.event_name == 'push' || github.event.pull_request.merged == true)
+      (needs.changes.outputs.matching == 'true' &&
+      (github.event_name == 'push' || github.event.pull_request.merged == true)) ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.service == 'matching' || github.event.inputs.service == 'both'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -47,13 +59,14 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          railway up --service ${{ secrets.RAILWAY_MATCHING_SERVICE_ID }} --project ${{ secrets.RAILWAY_MATCHING_PROJECT_ID }}
+          railway up --service ${{ secrets.RAILWAY_MATCHING_SERVICE_ID }} --project ${{ secrets.RAILWAY_MATCHING_PROJECT_ID }} --environment production
 
   deploy-resume-parser:
     needs: changes
     if: |
-      needs.changes.outputs.resume == 'true' &&
-      (github.event_name == 'push' || github.event.pull_request.merged == true)
+      (needs.changes.outputs.resume == 'true' &&
+      (github.event_name == 'push' || github.event.pull_request.merged == true)) ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.service == 'resume' || github.event.inputs.service == 'both'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -67,4 +80,4 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          railway up --service ${{ secrets.RAILWAY_RESUME_SERVICE_ID }} --project ${{ secrets.RAILWAY_PROJECT_ID }}
+          railway up --service ${{ secrets.RAILWAY_RESUME_SERVICE_ID }} --project ${{ secrets.RAILWAY_PROJECT_ID }} --environment production

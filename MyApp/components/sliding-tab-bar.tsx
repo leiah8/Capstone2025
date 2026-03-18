@@ -38,16 +38,16 @@ type RouteOptions = {
 const TRACK_PADDING = 6;
 
 const LIGHT_PALETTE = {
-  shadow: '#9EADD6',
+  shadow: '#7BAF6A',
   trackBackground: '#FFFFFF',
-  trackBorder: '#DCE5F6',
-  indicatorBackground: '#E6EEFF',
-  activeText: '#2B4CD8',
+  trackBorder: '#C8E4BC',
+  indicatorBackground: '#E8F5E2',
+  activeText: '#5EA03E',
   inactiveText: '#172033',
-  activeBadgeBackground: '#3755E8',
+  activeBadgeBackground: '#5EA03E',
   activeBadgeText: '#FFFFFF',
-  inactiveBadgeBackground: '#EDF2FF',
-  inactiveBadgeText: '#3755E8',
+  inactiveBadgeBackground: '#E8F5E2',
+  inactiveBadgeText: '#5EA03E',
 };
 
 const DARK_PALETTE = {

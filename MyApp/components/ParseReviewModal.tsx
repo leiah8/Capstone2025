@@ -154,7 +154,7 @@ export default function ParseReviewModal({
     <Ionicons
       name={on ? "checkbox" : "square-outline"}
       size={22}
-      color={on ? "#2563eb" : "#9ca3af"}
+      color={on ? "#79BE58" : "#9ca3af"}
     />
   );
 
@@ -431,7 +431,7 @@ const s = StyleSheet.create({
   },
   cancelText: { fontSize: 16, color: "#6b7280" },
   topTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
-  doneText: { fontSize: 16, fontWeight: "700", color: "#2563eb" },
+  doneText: { fontSize: 16, fontWeight: "700", color: "#79BE58" },
 
   scroll: { flex: 1 },
   scrollContent: { padding: 16 },
@@ -463,11 +463,11 @@ const s = StyleSheet.create({
     backgroundColor: "#f9fafb",
   },
   tagOn: {
-    backgroundColor: "#eff6ff",
-    borderColor: "#2563eb",
+    backgroundColor: "#E8F5E2",
+    borderColor: "#79BE58",
   },
   tagText: { fontSize: 14, color: "#374151" },
-  tagTextOn: { color: "#2563eb", fontWeight: "600" },
+  tagTextOn: { color: "#79BE58", fontWeight: "600" },
 
   cardRow: {
     flexDirection: "row",
@@ -485,7 +485,7 @@ const s = StyleSheet.create({
   cardSecondary: { fontSize: 14, color: "#374151" },
   cardMeta: { fontSize: 13, color: "#6b7280" },
   cardDesc: { fontSize: 13, color: "#4b5563", marginTop: 4 },
-  cardLink: { fontSize: 12, color: "#2563eb", marginTop: 2 },
+  cardLink: { fontSize: 12, color: "#79BE58", marginTop: 2 },
 
   emptyWrap: {
     alignItems: "center",

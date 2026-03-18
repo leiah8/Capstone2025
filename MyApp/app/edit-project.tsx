@@ -208,7 +208,7 @@ export default function EditProjectScreen() {
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#79BE58" />
       </View>
     );
   }
@@ -334,7 +334,7 @@ export default function EditProjectScreen() {
                   onPress={() => selectTag(tag)}
                 >
                   <Text style={styles.suggestionText}>{tag}</Text>
-                  <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
+                  <Ionicons name="add-circle-outline" size={20} color="#79BE58" />
                 </TouchableOpacity>
               ))
             ) : (
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#007AFF",
+    backgroundColor: "#79BE58",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -497,7 +497,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   submitButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#79BE58",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",

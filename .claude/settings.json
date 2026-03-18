@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r MATCHING_API /Users/tonylin/Developer/Capstone2025 --include=*.yml --include=*.yaml --include=*.toml --include=*.md)",
+      "Bash(git -C /Users/tonylin/Developer/Capstone2025 log --oneline --all)",
+      "Bash(find /Users/tonylin/Developer/Capstone2025 -name *.sql -o -name *migration* -o -name *schema*)",
+      "Bash(grep -r \"PREDEFINED\\\\|PRESET\\\\|DEFAULT_SKILLS\\\\|DEFAULT_TAGS\" /Users/tonylin/Developer/Capstone2025/MyApp --include=*.ts --include=*.tsx)",
+      "Bash(grep -r \"projects\\\\|profiles\" /Users/tonylin/Developer/Capstone2025/MyApp/supabase*)",
+      "Bash(grep -r \"tags\\\\|skills_needed\" /Users/tonylin/Developer/Capstone2025/MyApp/app --include=*.tsx --include=*.ts)",
+      "Bash(git reset:*)",
+      "Bash(python3 -c \"from PIL import Image; print\\(''pillow available''\\)\")",
+      "Bash(python3:*)",
+      "Bash(find /Users/tonylin/Developer/Capstone2025 -type f -name *.swift -o -name *.xcassets -o -name *.json -o -name *.plist)",
+      "Bash(ls -la /Users/tonylin/Developer/Capstone2025/MyApp/app/\\\\\\(tabs\\\\\\)/)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(find /Users/tonylin/Developer/Capstone2025/MyApp -name *Color* -o -name *color* -o -name *Theme* -o -name *theme*)",
+      "Bash(find /Users/tonylin/Developer/Capstone2025/MyApp -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.js -o -name *.jsx \\\\\\) ! -path */node_modules/* ! -path */.git/*)",
+      "Bash(xargs ls:*)",
+      "Bash(grep -n \"fetchMatches\\\\|fetchAllMatches\\\\|fetchCandidate\" /Users/tonylin/Developer/Capstone2025/MyApp/lib/*.ts)"
+    ]
+  }
+}

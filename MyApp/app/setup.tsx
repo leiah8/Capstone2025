@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
@@ -114,7 +115,7 @@ export default function SetupScreen() {
           .single();
 
         if (profileErr) return; // don't hard-fail the screen
-        if (profile?.onboarded) router.replace("/(tabs)/profile");
+        if (profile?.onboarded) router.replace("/(tabs)/projects");
       } catch (e) {
         console.warn("checkOnboardingStatus error", e);
       }
@@ -275,7 +276,7 @@ export default function SetupScreen() {
       }
 
       setSuccess(true);
-      setTimeout(() => router.replace("/(tabs)/profile"), 1200);
+      setTimeout(() => router.replace("/(tabs)/projects"), 1200);
     } catch (e: any) {
       console.error("onboarding error", e);
       setError(e?.message ?? "Failed to save information. Please try again.");
@@ -312,14 +313,14 @@ export default function SetupScreen() {
       }
     }
     setSuccess(true);
-    setTimeout(() => router.replace("/(tabs)/profile"), 1200);
+    setTimeout(() => router.replace("/(tabs)/projects"), 1200);
   };
 
   const handleReviewCancel = () => {
     setReviewVisible(false);
     // User skipped import — still complete onboarding
     setSuccess(true);
-    setTimeout(() => router.replace("/(tabs)/profile"), 1200);
+    setTimeout(() => router.replace("/(tabs)/projects"), 1200);
   };
 
   if (success) {
@@ -346,7 +347,15 @@ export default function SetupScreen() {
       <ScrollView style={{ flex: 1 }}>
         <View style={styles.wrapper}>
           <View style={styles.headerBlock}>
-            <Text style={styles.headerTitle}>Welcome to Peer.io</Text>
+            <Text style={styles.headerTitle}>Welcome to</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Image
+                source={require('../assets/images/peeriologo.png')}
+                style={{ width: 34, height: 34 }}
+                resizeMode="contain"
+              />
+              <Text style={[styles.headerTitle, { color: '#79BE58', marginBottom: 0 }]}>Peer.io</Text>
+            </View>
             <Text style={styles.headerSubtitle}>Let&apos;s get you set up</Text>
           </View>
 
@@ -491,7 +500,7 @@ const styles = StyleSheet.create({
   ctaGap: { gap: 12, paddingTop: 16 },
   primaryBtn: {
     width: "100%",
-    backgroundColor: "#2563eb",
+    backgroundColor: "#79BE58",
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
@@ -511,13 +520,13 @@ const styles = StyleSheet.create({
   successIconWrap: {
     width: 80,
     height: 80,
-    backgroundColor: "#d1fae5",
+    backgroundColor: "#E8F5E2",
     borderRadius: 40,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 24,
   },
-  successIcon: { fontSize: 40, color: "#10b981" },
+  successIcon: { fontSize: 40, color: "#79BE58" },
   successTitle: {
     fontSize: 24,
     fontWeight: "600",
