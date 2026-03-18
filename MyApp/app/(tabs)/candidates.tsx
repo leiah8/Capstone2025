@@ -660,7 +660,7 @@ export default function CandidateFeed() {
     <ScrollView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* <View> */}
        <View style={{ marginBottom : 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20 }}>
-                <Text style={styles.candidateName}>Filter Candidates</Text>
+                <Text style={styles.pageHeader}>Filter Candidates</Text>
         <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setDropdownOpen(false); filterFetchedCandidates() }}>
           <Ionicons name="close" size={35} color="000" />
         </TouchableOpacity>
@@ -1016,6 +1016,14 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   avatar: { width: "100%", height: "100%" },
+
+  pageHeader: {fontSize: 24,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginTop: 0,
+    marginBottom: 4,
+  },
+
   candidateName: {
     fontSize: 26,
     fontWeight: "700",

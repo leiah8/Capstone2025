@@ -402,9 +402,11 @@ const styles = StyleSheet.create({
   list: { marginTop: 10, gap: 10 },
 
   container: { flex: 1, backgroundColor: "#ffffff" },
-  scrollView: { flex: 1, padding: 20 },
+  scrollView: { flex: 1, padding: 20, paddingTop : 22 },
 
-  headerTitle: { fontSize: 28, fontWeight: "700", color: "#333" },
+  headerTitle: { fontSize: 28, fontWeight: "700", color: "#333", marginTop : 0, marginBottom: 4 },
+  
+  
   headerTabsTrack: {
     alignItems: "center",
     backgroundColor: "#FFFFFF",

@@ -1667,7 +1667,7 @@ export default function ProfilePage() {
    ========================= */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f5f5" },
-  scrollView: { flex: 1, padding: 20 },
+  scrollView: { flex: 1, padding: 20, paddingTop : 10 },
 
   headerContainer: {
     flexDirection: "row",

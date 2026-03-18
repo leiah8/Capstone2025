@@ -573,7 +573,7 @@ export default function ProjectFeed() {
     <ScrollView style={styles.container}>
       {/* <View> */}
       <View style={{ marginBottom : 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20 }}>
-         <Text style={[styles.projectName]}>Filter Projects</Text>
+         <Text style={[styles.pageHeader]}>Filter Projects</Text>
         <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setFilterDropDownOpen(false); filterFetchedProjects()}}>
           <Ionicons name="close" size={35} color="000" />
         </TouchableOpacity>
@@ -1151,6 +1151,14 @@ const styles = StyleSheet.create({
 
   content: { flex: 1 },
   contentContainer: { padding: 20, paddingTop: 30, paddingBottom: 24 },
+
+  pageHeader: {fontSize: 24,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginTop: 0,
+    marginBottom: 4,
+  },
+
   projectName: {
     fontSize: 24,
     fontWeight: "bold",
