@@ -693,109 +693,111 @@ export default function ProjectFeed() {
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
           >
-            {[...myProjects].sort((a, b) => Number(b.is_active) - Number(a.is_active)).map((p) => (
-              <View key={p.id} style={styles.myProjectCard}>
-                {p.image && (
-                  <Image
-                    source={{ uri: p.image }}
-                    style={styles.myProjectImage}
-                  />
-                )}
-                <View style={styles.myProjectInfo}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <Text style={styles.myProjectTitle} numberOfLines={1}>
-                      {p.title}
-                    </Text>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        !p.is_active && styles.statusBadgeInactive,
-                      ]}
-                    >
-                      <Text style={styles.statusBadgeText}>
-                        {p.is_active ? "Active" : "Paused"}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.myProjectDesc} numberOfLines={2}>
-                    {p.description}
-                  </Text>
-                  {p.skills_needed && p.skills_needed.length > 0 && (
-                    <View
-                      style={[
-                        styles.chipsWrap,
-                        { justifyContent: "flex-start", marginTop: 8 },
-                      ]}
-                    >
-                      {p.skills_needed.slice(0, 3).map((s, i) => (
-                        <View key={`${s}-${i}`} style={styles.chip}>
-                          <Text style={styles.chipText}>{s}</Text>
-                        </View>
-                      ))}
-                      {p.skills_needed.length > 3 && (
-                        <Text style={{ fontSize: 12, color: "#999" }}>
-                          +{p.skills_needed.length - 3}
-                        </Text>
-                      )}
-                    </View>
+            {[...myProjects]
+              .sort((a, b) => Number(b.is_active) - Number(a.is_active))
+              .map((p) => (
+                <View key={p.id} style={styles.myProjectCard}>
+                  {p.image && (
+                    <Image
+                      source={{ uri: p.image }}
+                      style={styles.myProjectImage}
+                    />
                   )}
-                  <View style={styles.myProjectActions}>
-                    <TouchableOpacity
-                      onPress={() =>
-                        router.push({
-                          pathname: "/edit-project",
-                          params: { id: String(p.id) },
-                        })
-                      }
-                      style={styles.actionButton}
+                  <View style={styles.myProjectInfo}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
                     >
-                      <Ionicons
-                        name="create-outline"
-                        size={22}
-                        color="#007AFF"
-                      />
-                      <Text style={styles.actionText}>Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => toggleActive(p)}
-                      style={styles.actionButton}
-                    >
-                      <Ionicons
-                        name={
-                          p.is_active
-                            ? "pause-circle-outline"
-                            : "play-circle-outline"
+                      <Text style={styles.myProjectTitle} numberOfLines={1}>
+                        {p.title}
+                      </Text>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          !p.is_active && styles.statusBadgeInactive,
+                        ]}
+                      >
+                        <Text style={styles.statusBadgeText}>
+                          {p.is_active ? "Active" : "Paused"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.myProjectDesc} numberOfLines={2}>
+                      {p.description}
+                    </Text>
+                    {p.skills_needed && p.skills_needed.length > 0 && (
+                      <View
+                        style={[
+                          styles.chipsWrap,
+                          { justifyContent: "flex-start", marginTop: 8 },
+                        ]}
+                      >
+                        {p.skills_needed.slice(0, 3).map((s, i) => (
+                          <View key={`${s}-${i}`} style={styles.chip}>
+                            <Text style={styles.chipText}>{s}</Text>
+                          </View>
+                        ))}
+                        {p.skills_needed.length > 3 && (
+                          <Text style={{ fontSize: 12, color: "#999" }}>
+                            +{p.skills_needed.length - 3}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                    <View style={styles.myProjectActions}>
+                      <TouchableOpacity
+                        onPress={() =>
+                          router.push({
+                            pathname: "/edit-project",
+                            params: { id: String(p.id) },
+                          })
                         }
-                        size={22}
-                        color="#007AFF"
-                      />
-                      <Text style={styles.actionText}>
-                        {p.is_active ? "Pause" : "Activate"}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => deleteProject(p)}
-                      style={styles.actionButton}
-                    >
-                      <Ionicons
-                        name="trash-outline"
-                        size={22}
-                        color="#F44336"
-                      />
-                      <Text style={[styles.actionText, { color: "#F44336" }]}>
-                        Delete
-                      </Text>
-                    </TouchableOpacity>
+                        style={styles.actionButton}
+                      >
+                        <Ionicons
+                          name="create-outline"
+                          size={22}
+                          color="#007AFF"
+                        />
+                        <Text style={styles.actionText}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => toggleActive(p)}
+                        style={styles.actionButton}
+                      >
+                        <Ionicons
+                          name={
+                            p.is_active
+                              ? "pause-circle-outline"
+                              : "play-circle-outline"
+                          }
+                          size={22}
+                          color="#007AFF"
+                        />
+                        <Text style={styles.actionText}>
+                          {p.is_active ? "Pause" : "Activate"}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => deleteProject(p)}
+                        style={styles.actionButton}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={22}
+                          color="#F44336"
+                        />
+                        <Text style={[styles.actionText, { color: "#F44336" }]}>
+                          Delete
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-              </View>
-            ))}
+              ))}
           </ScrollView>
         ))}
 
@@ -884,7 +886,12 @@ export default function ProjectFeed() {
    Styles
    ========================= */
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  center: {
+    flex: 1,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   container: { flex: 1, backgroundColor: "#fff" },
   header: {
     flexDirection: "row",

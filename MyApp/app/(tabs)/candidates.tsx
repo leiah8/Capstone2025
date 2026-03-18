@@ -838,7 +838,12 @@ export default function CandidateFeed() {
    Styles
    ========================= */
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  center: {
+    flex: 1,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   container: { flex: 1, backgroundColor: "#fff" },
   browseLayout: {
     flex: 1,
