@@ -41,7 +41,7 @@ const DECK_CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.68, 620);
 const SWIPE_HINT_HEIGHT = 138;
 const SWIPE_HINT_GAP = 16;
 const HEADER_TABS = [
-  { key: "browse", label: "Browse Projects", icon: "compass-outline" },
+  { key: "browse", label: "Browse", icon: "compass-outline" },
   { key: "mine", label: "My Projects", icon: "folder-outline" },
 ] as const;
 const deckCardShell = {
@@ -66,9 +66,9 @@ type Project = ProjectUI & {
 };
 
 type FilterSkill = {
-  name : string;
-  included : boolean;
-}
+  name: string;
+  included: boolean;
+};
 
 /* =========================
    Swipeable Card
@@ -80,13 +80,11 @@ const ProjectCard = ({
   isTop,
   onSwipe,
   onTap,
-  openFilterFunc,
 }: {
   project: Project;
   isTop: boolean;
   onSwipe: (d: "left" | "right") => void;
   onTap: () => void;
-  openFilterFunc : (b : boolean) => void;
 }) => {
   const position = useRef(new Animated.ValueXY()).current;
 
@@ -182,23 +180,14 @@ const ProjectCard = ({
             </Animated.View>
           </>
         )}
-
-      {/* Content */}
-      <View>
-        <TouchableOpacity style={styles.filterButton} onPress={() => { openFilterFunc(true)}}>
-          <Ionicons name="filter" size={35} color="000" />
-        </TouchableOpacity>
-      </View> 
-
-      
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-        nestedScrollEnabled
-      >
-        <Text style={styles.projectName}>{project.name}</Text>
-        <Text style={styles.location}>{project.location}</Text>
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
+        >
+          <Text style={styles.projectName}>{project.name}</Text>
+          <Text style={styles.location}>{project.location}</Text>
 
           <View style={styles.imageContainer}>
             <Image
@@ -254,7 +243,7 @@ export default function ProjectFeed() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [overallProjects, setAllProjects] = useState<Project[]>([]);
   const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
-  const [showAllSkills, setShowAllSkills] = useState<Boolean>(true);
+  const [showAllSkills, setShowAllSkills] = useState<boolean>(true);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -280,26 +269,25 @@ export default function ProjectFeed() {
           0,
         )
       : 0;
-  
+
   const filterFetchedProjects = () => {
     if (showAllSkills) {
       setProjects(overallProjects);
       return;
     }
 
-    let filteredProjects : Project[] = [];
-    const skills = filterSkills.filter(s => s.included).map(s => s.name);
-    
-    
-    overallProjects.forEach(p => {
-        const intersection = p.skillsNeeded.filter(x => skills.includes(x)); 
-        if (intersection.length > 0) {
-          filteredProjects.push(p)
-        }
-    })
-    
-    setProjects(filteredProjects)
-  }
+    let filteredProjects: Project[] = [];
+    const skills = filterSkills.filter((s) => s.included).map((s) => s.name);
+
+    overallProjects.forEach((p) => {
+      const intersection = p.skillsNeeded.filter((x) => skills.includes(x));
+      if (intersection.length > 0) {
+        filteredProjects.push(p);
+      }
+    });
+
+    setProjects(filteredProjects);
+  };
 
   const loadBrowseProjects = useCallback(async () => {
     let alive = true;
@@ -314,15 +302,15 @@ export default function ProjectFeed() {
       const matchingAvailable = await checkMatchingAPIHealth();
 
       const userProfile = await getUserProfile();
-      setFilterSkills(userProfile.skills.map(s => ({ name: s, included: true })));
+      setFilterSkills(
+        userProfile.skills.map((s) => ({ name: s, included: true })),
+      );
 
       if (matchingAvailable) {
         console.log(
           "Matching API available - ranking projects by match score...",
         );
         try {
-
-
           const matchScores = await getMatchedProjects(
             userProfile,
             allProjects,
@@ -356,7 +344,6 @@ export default function ProjectFeed() {
         );
         setAllProjects(allProjects as Project[]);
         setProjects(allProjects as Project[]);
-
       }
 
       setCurrentIndex(0);
@@ -568,55 +555,99 @@ export default function ProjectFeed() {
       </View>
     );
 
-  return (filterDropDownOpen ? 
-    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor : "#FFF"}}>
-    <ScrollView style={styles.container}>
-      {/* <View> */}
-      <View style={{ marginBottom : 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20 }}>
-         <Text style={[styles.pageHeader]}>Filter Projects</Text>
-        <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setFilterDropDownOpen(false); filterFetchedProjects()}}>
-          <Ionicons name="close" size={35} color="000" />
-        </TouchableOpacity>
-      </View> 
+  return filterDropDownOpen ? (
+    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: "#FFF" }}>
+      <ScrollView style={styles.container}>
+        {/* <View> */}
+        <View
+          style={{
+            marginBottom: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingLeft: 20,
+          }}
+        >
+          <Text style={[styles.pageHeader]}>Filter Projects</Text>
+          <TouchableOpacity
+            style={styles.closeDropDownButton}
+            onPress={() => {
+              setFilterDropDownOpen(false);
+              filterFetchedProjects();
+            }}
+          >
+            <Ionicons name="close" size={35} color="000" />
+          </TouchableOpacity>
+        </View>
 
-      {/* skills to browse on */}
+        {/* skills to browse on */}
         {filterSkills.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Skills</Text>
             <TouchableOpacity
-                style={styles.filterRow}
-                onPress={() => {
-                  
-                  setShowAllSkills(!showAllSkills); 
+              style={styles.filterRow}
+              onPress={() => {
+                setShowAllSkills(!showAllSkills);
+              }}
+            >
+              <Ionicons
+                name={showAllSkills ? "checkmark-circle" : "ellipse-outline"}
+                size={20}
+                color="#333"
+              />
+              <Text style={styles.filterLabel}>Show All Skills</Text>
+            </TouchableOpacity>
 
-                }}
-              >
-                <Ionicons name={showAllSkills ? "checkmark-circle" : "ellipse-outline"} size={20} color="#333" />
-                <Text style={styles.filterLabel}>Show All Skills</Text>
-              </TouchableOpacity>
-
-            {[...filterSkills].map((s, i) =>
-
+            {[...filterSkills].map((s, i) => (
               <TouchableOpacity
                 key={i}
-                style={[styles.filterRow, {paddingHorizontal : 40}]}
+                style={[styles.filterRow, { paddingHorizontal: 40 }]}
                 onPress={() => {
-                  if (!showAllSkills) setFilterSkills(prev => prev.map((skill, j) => j === i ? { ...skill, included: !skill.included } : skill));
+                  if (!showAllSkills)
+                    setFilterSkills((prev) =>
+                      prev.map((skill, j) =>
+                        j === i
+                          ? { ...skill, included: !skill.included }
+                          : skill,
+                      ),
+                    );
                 }}
               >
-                <Ionicons name={s.included ? "checkmark-circle" : "ellipse-outline"} size={20} color={showAllSkills? "#ddd": "#333"} />
-                <Text style={[styles.filterLabel, {color: showAllSkills ? "#ddd" : "#333" }]}>{s.name}</Text>
+                <Ionicons
+                  name={s.included ? "checkmark-circle" : "ellipse-outline"}
+                  size={20}
+                  color={showAllSkills ? "#ddd" : "#333"}
+                />
+                <Text
+                  style={[
+                    styles.filterLabel,
+                    { color: showAllSkills ? "#ddd" : "#333" },
+                  ]}
+                >
+                  {s.name}
+                </Text>
               </TouchableOpacity>
-
-            )}
+            ))}
           </View>
         )}
-    </ScrollView>
-    </SafeAreaView> : 
-
+      </ScrollView>
+    </SafeAreaView>
+  ) : (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header with segmented slider + create button */}
       <View style={styles.header}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          disabled={tab !== "browse"}
+          onPress={() => setFilterDropDownOpen(true)}
+          style={[
+            styles.headerIconButton,
+            tab !== "browse" && styles.headerIconButtonHidden,
+          ]}
+        >
+          <Ionicons name="filter" size={22} color="#172033" />
+        </TouchableOpacity>
+
         <View style={styles.headerTabsWrapper}>
           <View
             onLayout={handleHeaderTrackLayout}
@@ -696,7 +727,6 @@ export default function ProjectFeed() {
                     isTop={i === arr.length - 1}
                     onSwipe={handleSwipe}
                     onTap={() => setDetailProject(p)}
-                    openFilterFunc={(b) => {setFilterDropDownOpen(b)}}
                   />
                 ))}
 
@@ -996,6 +1026,35 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 12,
   },
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#DCE5F6",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#9EADD6",
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
+      },
+      default: {
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+      },
+    }),
+  },
+  headerIconButtonHidden: {
+    opacity: 0,
+  },
   headerTabsWrapper: { flex: 1 },
   headerTabsTrack: {
     alignItems: "center",
@@ -1092,15 +1151,14 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
 
-  // 
-  
+  //
 
   card: {
     position: "absolute",
     width: SCREEN_WIDTH * 0.9,
     maxWidth: 430,
     height: SCREEN_HEIGHT * 0.65,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -1152,7 +1210,8 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   contentContainer: { padding: 20, paddingTop: 30, paddingBottom: 24 },
 
-  pageHeader: {fontSize: 24,
+  pageHeader: {
+    fontSize: 24,
     fontWeight: "bold",
     textAlign: "center",
     marginTop: 0,
@@ -1427,10 +1486,24 @@ const styles = StyleSheet.create({
   actionText: { fontSize: 13, color: "#007AFF", fontWeight: "500" },
 
   //filter dropdown menu
-  closeDropDownButton: { alignSelf: 'flex-end', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 70, borderRadius: 25 },
-  filterButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 60, borderRadius: 25 },
-   section: { marginBottom: 12 },
-   filterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 20 },
-  filterLabel: { fontSize: 14, color: '#333' },
-  
+  closeDropDownButton: {
+    alignSelf: "flex-end",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    width: 100,
+    height: 70,
+    borderRadius: 25,
+  },
+  section: { marginBottom: 12 },
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  filterLabel: { fontSize: 14, color: "#333" },
 });
