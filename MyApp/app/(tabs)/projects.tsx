@@ -92,6 +92,13 @@ const ProjectCard = ({
   onOpenHelp: () => void;
 }) => {
   const position = useRef(new Animated.ValueXY()).current;
+  const onSwipeRef = useRef(onSwipe);
+  const onTapRef = useRef(onTap);
+
+  useEffect(() => {
+    onSwipeRef.current = onSwipe;
+    onTapRef.current = onTap;
+  }, [onSwipe, onTap]);
 
   const rotate = position.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
@@ -123,7 +130,7 @@ const ProjectCard = ({
           Math.abs(g.dy) < TAP_THRESHOLD
         ) {
           resetPosition();
-          onTap();
+          onTapRef.current();
         } else resetPosition();
       },
     }),
@@ -135,7 +142,7 @@ const ProjectCard = ({
       duration: 250,
       useNativeDriver: false,
     }).start(() => {
-      onSwipe("right");
+      onSwipeRef.current("right");
       position.setValue({ x: 0, y: 0 });
     });
   };
@@ -145,7 +152,7 @@ const ProjectCard = ({
       duration: 250,
       useNativeDriver: false,
     }).start(() => {
-      onSwipe("left");
+      onSwipeRef.current("left");
       position.setValue({ x: 0, y: 0 });
     });
   };

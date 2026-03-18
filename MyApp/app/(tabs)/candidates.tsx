@@ -170,6 +170,11 @@ const CandidateCard = ({
   onSwipe: (d: "left" | "right") => void;
 }) => {
   const position = useRef(new Animated.ValueXY()).current;
+  const onSwipeRef = useRef(onSwipe);
+
+  useEffect(() => {
+    onSwipeRef.current = onSwipe;
+  }, [onSwipe]);
 
   const rotate = position.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
@@ -222,7 +227,7 @@ const CandidateCard = ({
       duration: 250,
       useNativeDriver: false,
     }).start(() => {
-      onSwipe("right");
+      onSwipeRef.current("right");
       position.setValue({ x: 0, y: 0 });
     });
   };
@@ -232,7 +237,7 @@ const CandidateCard = ({
       duration: 250,
       useNativeDriver: false,
     }).start(() => {
-      onSwipe("left");
+      onSwipeRef.current("left");
       position.setValue({ x: 0, y: 0 });
     });
   };
