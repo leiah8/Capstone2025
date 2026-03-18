@@ -71,6 +71,8 @@ export default function MatchesPage() {
   useEffect(() => {
     (async () => {
       if (!session?.user?.id) {
+        setProjectMatchesUI([]);
+        setCandidateMatchesUI([]);
         setLoading(false);
         return;
       }

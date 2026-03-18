@@ -104,9 +104,9 @@ export interface BatchMatchRequest {
     id: string;
     name: string;
     description: string;
-    must_have_skills?: string[];
+    skills_needed?: string[];
     nice_to_have_skills?: string[];
-    interests?: string[];
+    tags?: string[];
   }>;
   weights?: {
     semantic?: number;
@@ -334,9 +334,9 @@ export async function getBatchMatchedProjects(
       id: p.id,
       name: p.name,
       description: p.description,
-      must_have_skills: p.skillsNeeded || [],
+      skills_needed: p.skillsNeeded || [],
       nice_to_have_skills: [],
-      interests: p.interests || [],
+      tags: p.interests || [],
     }));
 
     const requestBody: BatchMatchRequest = {

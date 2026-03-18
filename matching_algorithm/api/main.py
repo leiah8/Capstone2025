@@ -1,5 +1,7 @@
 from __future__ import annotations
+import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import uvicorn
@@ -10,6 +12,8 @@ from pydantic import BaseModel
 from matching import get_matching_engine, MatchWeights
 from cache import get_embedding_cache
 from middleware import TimeoutMiddleware, RequestLoggingMiddleware
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Matching Algorithm API", version="1.0.0")
 
@@ -107,8 +111,7 @@ async def batch_score_matches(request: BatchMatchRequest):
 
     Example use case: Matching all candidates to a set of projects.
     """
-    import time
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     try:
         weights = None
@@ -134,8 +137,7 @@ async def batch_score_matches(request: BatchMatchRequest):
 
             except Exception as e:
                 # Log error but continue processing other profiles
-                import logging
-                logging.error(f"Error processing user {user_profile.get('id', 'unknown')}: {e}")
+                logger.error(f"Error processing user {user_profile.get('id', 'unknown')}: {e}")
                 results.append({
                     "user_id": user_profile.get("id", "unknown"),
                     "error": str(e),
@@ -143,7 +145,7 @@ async def batch_score_matches(request: BatchMatchRequest):
                     "count": 0
                 })
 
-        processing_time = time.time() - start_time
+        processing_time = time.perf_counter() - start_time
 
         return BatchMatchResponse(
             results=results,

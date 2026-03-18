@@ -270,8 +270,14 @@ def get_matching_engine(
     model_name: str = "all-MiniLM-L6-v2",
     weights: Optional[MatchWeights] = None
 ) -> MatchingEngine:
-    """Get or create a singleton matching engine instance."""
+    """Get or create a singleton matching engine instance.
+
+    If weights are provided and the instance already exists, the instance's
+    weights are updated so per-request weight overrides are always respected.
+    """
     global _engine_instance
     if _engine_instance is None:
         _engine_instance = MatchingEngine(model_name=model_name, weights=weights)
+    elif weights is not None:
+        _engine_instance.weights = weights
     return _engine_instance

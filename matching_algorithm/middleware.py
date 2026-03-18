@@ -24,7 +24,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
         logger.info(f"Timeout middleware enabled: {timeout_seconds}s")
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         try:
             # Create a task for the request handling
@@ -34,7 +34,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
             )
 
             # Log slow requests (those taking >50% of timeout)
-            duration = time.time() - start_time
+            duration = time.perf_counter() - start_time
             if duration > (self.timeout_seconds * 0.5):
                 logger.warning(
                     f"Slow request: {request.method} {request.url.path} "
@@ -46,7 +46,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
             return response
 
         except asyncio.TimeoutError:
-            duration = time.time() - start_time
+            duration = time.perf_counter() - start_time
             logger.error(
                 f"Request timeout: {request.method} {request.url.path} "
                 f"exceeded {self.timeout_seconds}s"
@@ -63,7 +63,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
             )
 
         except Exception as e:
-            duration = time.time() - start_time
+            duration = time.perf_counter() - start_time
             logger.error(
                 f"Request error: {request.method} {request.url.path} "
                 f"failed after {duration:.2f}s: {e}"
@@ -75,16 +75,16 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Middleware to log all requests with timing information."""
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         # Log incoming request
-        logger.info(f"Request started: {request.method} {request.url.path}")
+        logger.debug(f"Request started: {request.method} {request.url.path}")
 
         response = await call_next(request)
 
         # Log response with timing
-        duration = time.time() - start_time
-        logger.info(
+        duration = time.perf_counter() - start_time
+        logger.debug(
             f"Request completed: {request.method} {request.url.path} "
             f"status={response.status_code} duration={duration:.3f}s"
         )

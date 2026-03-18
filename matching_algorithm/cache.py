@@ -171,7 +171,6 @@ class EmbeddingCache:
 
         try:
             pipeline = self.client.pipeline()
-            success_count = 0
 
             for text, embedding in zip(texts, embeddings):
                 key = self._generate_cache_key(text)
@@ -182,10 +181,9 @@ class EmbeddingCache:
                     self.ttl_seconds,
                     serialized.encode('utf-8')
                 )
-                success_count += 1
 
             pipeline.execute()
-            return success_count
+            return len(texts)
 
         except Exception as e:
             logger.warning(f"Batch cache write error: {e}")
@@ -241,8 +239,21 @@ _cache_instance: Optional[EmbeddingCache] = None
 
 
 def get_embedding_cache() -> EmbeddingCache:
-    """Get or create singleton cache instance."""
+    """Get or create singleton cache instance.
+
+    Only enables caching when REDIS_HOST is explicitly set in the environment.
+    Also reads REDIS_DB and CACHE_TTL_SECONDS from env.
+    """
     global _cache_instance
     if _cache_instance is None:
-        _cache_instance = EmbeddingCache()
+        redis_host = os.getenv("REDIS_HOST", "").strip()
+        enabled = bool(redis_host)
+        redis_db = int(os.getenv("REDIS_DB", "0"))
+        ttl_seconds = int(os.getenv("CACHE_TTL_SECONDS", "86400"))
+        _cache_instance = EmbeddingCache(
+            redis_host=redis_host if redis_host else None,
+            redis_db=redis_db,
+            ttl_seconds=ttl_seconds,
+            enabled=enabled,
+        )
     return _cache_instance
