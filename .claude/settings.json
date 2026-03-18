@@ -16,7 +16,13 @@
       "Bash(find /Users/tonylin/Developer/Capstone2025/MyApp -name *Color* -o -name *color* -o -name *Theme* -o -name *theme*)",
       "Bash(find /Users/tonylin/Developer/Capstone2025/MyApp -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.js -o -name *.jsx \\\\\\) ! -path */node_modules/* ! -path */.git/*)",
       "Bash(xargs ls:*)",
-      "Bash(grep -n \"fetchMatches\\\\|fetchAllMatches\\\\|fetchCandidate\" /Users/tonylin/Developer/Capstone2025/MyApp/lib/*.ts)"
+      "Bash(grep -n \"fetchMatches\\\\|fetchAllMatches\\\\|fetchCandidate\" /Users/tonylin/Developer/Capstone2025/MyApp/lib/*.ts)",
+      "Bash(find /Users/tonylin/Developer/Capstone2025/MyApp/app -type f -name *.tsx -o -name *.ts -o -name _layout.tsx)",
+      "Bash(grep -r \"hasLoadedRef\\\\|hasProjects\\\\|setHasProjects\" /Users/tonylin/Developer/Capstone2025/MyApp/app --include=*.tsx -A 2 -B 2)",
+      "Bash(grep -r \"router.replace\\\\|router.push\\\\|navigation.reset\\\\|useNavigation\" /Users/tonylin/Developer/Capstone2025/MyApp/app --include=*.tsx)",
+      "Bash(git stash:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

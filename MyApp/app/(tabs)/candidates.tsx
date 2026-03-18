@@ -612,6 +612,53 @@ export default function CandidateFeed() {
     }, [session?.user?.id]),
   );
 
+  // When the logged-in user changes, reset feed state so a fresh load runs.
+  useEffect(() => {
+    hasLoadedRef.current = false;
+    isFetchingMoreRef.current = false;
+    setCandidates([]);
+    setAllCandidates([]);
+    setCurrentIndex(0);
+    setAllFetched(false);
+    setErr(null);
+  }, [session?.user?.id]);
+
+  // Re-allow loading when user has no projects yet, so returning
+  // from project creation triggers a fresh check.
+  useEffect(() => {
+    if (!hasProjects) {
+      hasLoadedRef.current = false;
+    }
+  }, [hasProjects]);
+
+  const fetchMore = async () => {
+    if (isFetchingMoreRef.current || allFetched || !session?.user?.id || !hasProjects) return;
+    isFetchingMoreRef.current = true;
+    setIsFetchingMore(true);
+    try {
+      const excludeList = overallCandidates.map((c) => c.id);
+      const newBatch = await fetchCandidates(BATCH_SIZE, session.user.id, excludeList);
+      if (newBatch.length === 0) {
+        setAllFetched(true);
+        return;
+      }
+      if (newBatch.length < BATCH_SIZE) setAllFetched(true);
+
+      const matchingAvailable = await checkMatchingAPIHealth();
+      const includedProjects = myProjects.filter((p) => p.included);
+      const ranked = await rankCandidatesBatch(newBatch, includedProjects, matchingAvailable);
+
+      setAllCandidates((prev) => [...prev, ...ranked]);
+      setCandidates((prev) => [...prev, ...ranked]);
+    } catch (e: any) {
+      console.warn("Failed to fetch more candidates:", e.message ?? e);
+    } finally {
+      isFetchingMoreRef.current = false;
+      setIsFetchingMore(false);
+    }
+  };
+
+>>>>>>> Stashed changes
   const advance = () => {
     if (currentIndex < candidates.length) setCurrentIndex((i) => i + 1);
   };
