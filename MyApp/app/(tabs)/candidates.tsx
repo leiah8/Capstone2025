@@ -53,8 +53,9 @@ const deckCardShell = {
   elevation: 7,
 } as const;
 
-const PREFETCH_THRESHOLD = 3; // fetch more when this many cards remain
-const BATCH_SIZE = 20;        // candidates per incremental fetch
+const PREFETCH_THRESHOLD = 3;    // fetch more when this many cards remain
+const BATCH_SIZE = 20;            // candidates per incremental fetch
+const INITIAL_BATCH_SIZE = 50;   // candidates fetched on first load
 
 /* =========================
    Types (make skills optional & flexible)
@@ -448,7 +449,7 @@ async function rankCandidatesBatch(
         const match = bestMatchMap.get(c.id);
         const pid = match?.project_id ?? "";
         const project = activeProjects.find((p) => String(p.id) === pid);
-        return { ...c, project_id: pid, project_name: project?.title ?? null };
+        return { ...c, project_id: pid, project_name: project?.title ?? "" };
       }) as Candidate[];
   } catch (matchError) {
     console.warn("Failed to rank candidates, using default order:", matchError);
@@ -539,7 +540,7 @@ export default function CandidateFeed() {
             });
             setFilterSkills([...allSkills].map((s) => ({ name: s, included: true })));
 
-            const allCandidates = await fetchCandidates(50, session?.user?.id);
+            const allCandidates = await fetchCandidates(INITIAL_BATCH_SIZE, session?.user?.id);
             if (!alive) return;
 
             const matchingAvailable = await checkMatchingAPIHealth();
@@ -556,12 +557,13 @@ export default function CandidateFeed() {
             setCandidates(ranked);
             setCurrentIndex(0);
 
-            if (allCandidates.length < 50) {
+            if (allCandidates.length < INITIAL_BATCH_SIZE) {
               setAllFetched(true);
             }
           }
         } catch (e: any) {
           if (!alive) return;
+          hasLoadedRef.current = false;
           setErr(e.message ?? String(e));
         } finally {
           if (alive) setLoading(false);
@@ -599,7 +601,8 @@ export default function CandidateFeed() {
       if (newBatch.length < BATCH_SIZE) setAllFetched(true);
 
       const matchingAvailable = await checkMatchingAPIHealth();
-      const ranked = await rankCandidatesBatch(newBatch, myProjects, matchingAvailable);
+      const includedProjects = myProjects.filter((p) => p.included);
+      const ranked = await rankCandidatesBatch(newBatch, includedProjects, matchingAvailable);
 
       setAllCandidates((prev) => [...prev, ...ranked]);
       setCandidates((prev) => [...prev, ...ranked]);
