@@ -14,6 +14,7 @@ import {
   LayoutChangeEvent,
   Linking,
   PanResponder,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -484,39 +485,34 @@ export default function CandidateFeed() {
   const hasLoadedRef = useRef(false);
 
   const filterFetchedCandidates = () => {
-
-    let filteredCandidates : Candidate[] = [];
-    const pids = myProjects.filter(p => p.included).map(p => p.id);
+    let filteredCandidates: Candidate[] = [];
+    const pids = myProjects.filter((p) => p.included).map((p) => p.id);
 
     if (showAllSkills) {
-      overallCandidates.forEach(c => {
+      overallCandidates.forEach((c) => {
         if (pids.includes(Number(c.project_id))) {
-            filteredCandidates.push(c)
+          filteredCandidates.push(c);
         }
-      })
-    }
-    else {
-      const skills = filterSkills.filter(s => s.included).map(s => s.name);
-    
-      overallCandidates.forEach(c => {
+      });
+    } else {
+      const skills = filterSkills.filter((s) => s.included).map((s) => s.name);
+
+      overallCandidates.forEach((c) => {
         if (pids.includes(Number(c.project_id))) {
           if (!showAllSkills) {
-            const intersection = c.skills.filter(x => skills.includes(x)); 
+            const intersection = c.skills.filter((x) => skills.includes(x));
             if (intersection.length > 0) {
-              filteredCandidates.push(c)
+              filteredCandidates.push(c);
             }
-          }
-          else {
-            filteredCandidates.push(c)
+          } else {
+            filteredCandidates.push(c);
           }
         }
-      })
-
+      });
     }
 
-    setCandidates(filteredCandidates)
-  }
-
+    setCandidates(filteredCandidates);
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -666,15 +662,35 @@ export default function CandidateFeed() {
       </View>
     );
 
-  return (hasProjects ? (dropdownOpen ? (
-    <ScrollView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* <View> */}
-       <View style={{ marginBottom : 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20 }}>
-                <Text style={styles.pageHeader}>Filter Candidates</Text>
-        <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setDropdownOpen(false); filterFetchedCandidates() }}>
-          <Ionicons name="close" size={35} color="000" />
-        </TouchableOpacity>
-      </View>
+  return hasProjects ? (
+    dropdownOpen ? (
+      <ScrollView
+        style={[
+          styles.container,
+          { paddingTop: insets.top, paddingBottom: insets.bottom },
+        ]}
+      >
+        {/* <View> */}
+        <View
+          style={{
+            marginBottom: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingLeft: 20,
+          }}
+        >
+          <Text style={styles.pageHeader}>Filter Candidates</Text>
+          <TouchableOpacity
+            style={styles.closeDropDownButton}
+            onPress={() => {
+              setDropdownOpen(false);
+              filterFetchedCandidates();
+            }}
+          >
+            <Ionicons name="close" size={35} color="000" />
+          </TouchableOpacity>
+        </View>
 
         <View>
           {/* {myProjects.length > 0 && (
@@ -750,34 +766,58 @@ export default function CandidateFeed() {
                 <Text style={styles.filterLabel}>Show All Skills</Text>
               </TouchableOpacity>
 
-            {[...filterSkills].map((s, i) =>
-
-              <TouchableOpacity
-                key={i}
-                style={[styles.filterRow, {paddingHorizontal : 40}]}
-                onPress={() => {
-                  if (!showAllSkills) setFilterSkills(prev => prev.map((skill, j) => j === i ? { ...skill, included: !skill.included } : skill));
-                }}
-              >
-                <Ionicons name={s.included ? "checkmark-circle" : "ellipse-outline"} size={20} color={showAllSkills? "#ddd": "#333"} />
-                <Text style={[styles.filterLabel, {color: showAllSkills ? "#ddd" : "#333" }]}>{s.name}</Text>
-              </TouchableOpacity>
-
-            )}
-          </View>
-        )}
-
-      </View>
-    </ScrollView>
-
-  ) : (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* FILTER */}
-      <View>
-        <TouchableOpacity style={styles.filterButton} onPress={() => { setDropdownOpen(true) }}>
-          <Ionicons name="filter" size={30} color="000" />
-        </TouchableOpacity>
-      </View>
+              {[...filterSkills].map((s, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.filterRow, { paddingHorizontal: 40 }]}
+                  onPress={() => {
+                    if (!showAllSkills)
+                      setFilterSkills((prev) =>
+                        prev.map((skill, j) =>
+                          j === i
+                            ? { ...skill, included: !skill.included }
+                            : skill,
+                        ),
+                      );
+                  }}
+                >
+                  <Ionicons
+                    name={s.included ? "checkmark-circle" : "ellipse-outline"}
+                    size={20}
+                    color={showAllSkills ? "#ddd" : "#333"}
+                  />
+                  <Text
+                    style={[
+                      styles.filterLabel,
+                      { color: showAllSkills ? "#ddd" : "#333" },
+                    ]}
+                  >
+                    {s.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    ) : (
+      <View
+        style={[
+          styles.container,
+          { paddingTop: insets.top, paddingBottom: insets.bottom },
+        ]}
+      >
+        {/* FILTER */}
+        <View>
+          <TouchableOpacity
+            style={styles.headerIconButton}
+            onPress={() => {
+              setDropdownOpen(true);
+            }}
+          >
+            <Ionicons name="filter" size={30} color="000" />
+          </TouchableOpacity>
+        </View>
 
         <View
           style={[
@@ -849,7 +889,7 @@ export default function CandidateFeed() {
         <Text style={styles.resetButtonText}>Create Your First Project</Text>
       </TouchableOpacity>
     </View>
-  ))
+  );
 }
 
 /* =========================
@@ -1036,7 +1076,8 @@ const styles = StyleSheet.create({
   },
   avatar: { width: "100%", height: "100%" },
 
-  pageHeader: {fontSize: 24,
+  pageHeader: {
+    fontSize: 24,
     fontWeight: "bold",
     textAlign: "center",
     marginTop: 0,
@@ -1133,15 +1174,32 @@ const styles = StyleSheet.create({
   },
 
   //filtering drop down
-  filterButton: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#DCE5F6",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    width: 100,
-    height: 60,
-    borderRadius: 25,
+    justifyContent: "center",
+    shadowColor: "#9EADD6",
+    marginLeft: 15,
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
+      },
+      default: {
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+      },
+    }),
   },
   closeDropDownButton: {
     alignSelf: "flex-end",
