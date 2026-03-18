@@ -48,7 +48,7 @@
     },
     "extra": {
       "apiUrl": "http://localhost:8000",
-      "parserUrl": "http://localhost:8010"
+      "parserUrl": "https://resume-parser-production-000c.up.railway.app"
     }
   }
 }

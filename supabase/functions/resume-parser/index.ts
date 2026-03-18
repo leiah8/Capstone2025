@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 declare const Deno: {
   env: {
@@ -13,6 +14,9 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
 };
 
+const DEFAULT_RESUME_PARSER_API_BASE_URL =
+  "https://resume-parser-production-000c.up.railway.app";
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -23,7 +27,10 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-const upstreamBaseUrl = (Deno.env.get("RESUME_PARSER_API_BASE_URL") ?? "").replace(/\/$/, "");
+const upstreamBaseUrl = (
+  Deno.env.get("RESUME_PARSER_API_BASE_URL") ??
+  DEFAULT_RESUME_PARSER_API_BASE_URL
+).replace(/\/$/, "");
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -54,6 +61,29 @@ Deno.serve(async (req: Request) => {
       { error: "Unsupported route. Use /parse/upload or /parse/url." },
       404,
     );
+  }
+
+  if (routePath !== "/health") {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return jsonResponse({ error: "Missing or invalid Authorization header." }, 401);
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return jsonResponse(
+        { error: "Server misconfigured: Supabase credentials not set." },
+        500,
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const token = authHeader.slice("Bearer ".length);
+    const { error: authError } = await supabase.auth.getUser(token);
+    if (authError) {
+      return jsonResponse({ error: "Unauthorized." }, 401);
+    }
   }
 
   try {

@@ -37,7 +37,9 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 120;
 const HEADER_TRACK_PADDING = 6;
 const DECK_CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 430);
-const DECK_CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.58, 520);
+const DECK_CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.68, 620);
+const SWIPE_HINT_HEIGHT = 138;
+const SWIPE_HINT_GAP = 16;
 const HEADER_TABS = [
   { key: "browse", label: "Browse Projects", icon: "compass-outline" },
   { key: "mine", label: "My Projects", icon: "folder-outline" },
@@ -45,11 +47,13 @@ const HEADER_TABS = [
 const deckCardShell = {
   backgroundColor: "#fff",
   borderRadius: 20,
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.1,
-  shadowRadius: 8,
-  elevation: 5,
+  borderWidth: 1,
+  borderColor: "#E1E8F5",
+  shadowColor: "#9EADD6",
+  shadowOffset: { width: 0, height: 10 },
+  shadowOpacity: 0.18,
+  shadowRadius: 18,
+  elevation: 7,
 } as const;
 
 /* =========================
@@ -156,49 +160,59 @@ const ProjectCard = ({
       ]}
       {...(isTop ? panResponder.panHandlers : {})}
     >
-      {isTop && (
-        <>
-          <Animated.View style={[styles.likeOverlay, { opacity: likeOpacity }]}>
-            <Text style={styles.overlayText}>INTERESTED</Text>
-          </Animated.View>
-          <Animated.View style={[styles.nopeOverlay, { opacity: nopeOpacity }]}>
-            <Text style={styles.nopeOverlayText}>PASS</Text>
-          </Animated.View>
-        </>
-      )}
-
-      {/* Content */}
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        nestedScrollEnabled
-      >
-        <Text style={styles.projectName}>{project.name}</Text>
-        <Text style={styles.location}>{project.location}</Text>
-
-        <View style={styles.imageContainer}>
-          <Image source={{ uri: project.image }} style={styles.projectImage} />
-        </View>
-
-        <View style={styles.descriptionSection}>
-          <Text style={styles.sectionTitle}>Project Description</Text>
-          <Text style={styles.description}>{project.description}</Text>
-        </View>
-
-        {/* Skills chips (if available) */}
-        {skills.length > 0 && (
-          <View style={{ marginTop: 6, marginBottom: 20 }}>
-            <Text style={styles.sectionTitle}>Skills Needed</Text>
-            <View style={styles.chipsWrap}>
-              {skills.map((s, i) => (
-                <View key={`${s}-${i}`} style={styles.chip}>
-                  <Text style={styles.chipText}>{s}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
+      <View style={styles.cardSurface}>
+        {isTop && (
+          <>
+            <Animated.View
+              style={[styles.likeOverlay, { opacity: likeOpacity }]}
+            >
+              <Text style={styles.overlayText}>INTERESTED</Text>
+            </Animated.View>
+            <Animated.View
+              style={[styles.nopeOverlay, { opacity: nopeOpacity }]}
+            >
+              <Text style={styles.nopeOverlayText}>PASS</Text>
+            </Animated.View>
+          </>
         )}
-      </ScrollView>
+
+        {/* Content */}
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
+        >
+          <Text style={styles.projectName}>{project.name}</Text>
+          <Text style={styles.location}>{project.location}</Text>
+
+          <View style={styles.imageContainer}>
+            <Image
+              source={{ uri: project.image }}
+              style={styles.projectImage}
+            />
+          </View>
+
+          <View style={styles.descriptionSection}>
+            <Text style={styles.sectionTitle}>Project Description</Text>
+            <Text style={styles.description}>{project.description}</Text>
+          </View>
+
+          {/* Skills chips (if available) */}
+          {skills.length > 0 && (
+            <View style={{ marginTop: 6, marginBottom: 20 }}>
+              <Text style={styles.sectionTitle}>Skills Needed</Text>
+              <View style={styles.chipsWrap}>
+                {skills.map((s, i) => (
+                  <View key={`${s}-${i}`} style={styles.chip}>
+                    <Text style={styles.chipText}>{s}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </ScrollView>
+      </View>
     </Animated.View>
   );
 };
@@ -220,6 +234,7 @@ type MyProject = {
 export default function ProjectFeed() {
   const { session } = useAuth();
   const tabBarHeight = useBottomTabBarHeight();
+  const swipeHintBottomOffset = Math.max(tabBarHeight, 88) + 12;
   const [tab, setTab] = useState<"browse" | "mine">("browse");
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -229,7 +244,13 @@ export default function ProjectFeed() {
   const [myProjects, setMyProjects] = useState<MyProject[]>([]);
   const [myLoading, setMyLoading] = useState(false);
   const [headerTrackWidth, setHeaderTrackWidth] = useState(0);
+  const [deckHeight, setDeckHeight] = useState(DECK_CARD_HEIGHT);
+  const [swipeHintVisible, setSwipeHintVisible] = useState(false);
   const headerIndicatorX = useRef(new Animated.Value(0)).current;
+  const swipeHintOpacity = useRef(new Animated.Value(0)).current;
+  const swipeHintTranslateY = useRef(new Animated.Value(12)).current;
+  const swipeHintHasShown = useRef(false);
+  const swipeHintAnimation = useRef<Animated.CompositeAnimation | null>(null);
   const activeHeaderIndex = tab === "browse" ? 0 : 1;
   const headerSegmentWidth =
     headerTrackWidth > 0
@@ -350,6 +371,69 @@ export default function ProjectFeed() {
   }, [tab, fetchMyProjects]);
 
   useEffect(() => {
+    if (
+      loading ||
+      tab !== "browse" ||
+      projects.length === 0 ||
+      swipeHintHasShown.current
+    ) {
+      return;
+    }
+
+    swipeHintHasShown.current = true;
+    setSwipeHintVisible(true);
+    swipeHintOpacity.setValue(0);
+    swipeHintTranslateY.setValue(12);
+
+    const animation = Animated.sequence([
+      Animated.parallel([
+        Animated.timing(swipeHintOpacity, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+        Animated.spring(swipeHintTranslateY, {
+          toValue: 0,
+          speed: 18,
+          bounciness: 5,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]);
+
+    swipeHintAnimation.current = animation;
+    animation.start(() => {
+      swipeHintAnimation.current = null;
+    });
+
+    return () => {
+      swipeHintAnimation.current?.stop();
+      swipeHintAnimation.current = null;
+    };
+  }, [loading, projects.length, swipeHintOpacity, swipeHintTranslateY, tab]);
+
+  const dismissSwipeHint = () => {
+    swipeHintAnimation.current?.stop();
+    swipeHintAnimation.current = Animated.parallel([
+      Animated.timing(swipeHintOpacity, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(swipeHintTranslateY, {
+        toValue: 10,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+    ]);
+
+    swipeHintAnimation.current.start(() => {
+      swipeHintAnimation.current = null;
+      setSwipeHintVisible(false);
+    });
+  };
+
+  useEffect(() => {
     const nextPosition = headerSegmentWidth * activeHeaderIndex;
     if (headerSegmentWidth === 0) {
       headerIndicatorX.setValue(nextPosition);
@@ -365,6 +449,16 @@ export default function ProjectFeed() {
 
   const handleHeaderTrackLayout = (event: LayoutChangeEvent) => {
     setHeaderTrackWidth(event.nativeEvent.layout.width);
+  };
+
+  const handleDeckLayout = (event: LayoutChangeEvent) => {
+    const nextHeight = Math.max(
+      event.nativeEvent.layout.height,
+      DECK_CARD_HEIGHT,
+    );
+    setDeckHeight((currentHeight) =>
+      Math.abs(currentHeight - nextHeight) > 1 ? nextHeight : currentHeight,
+    );
   };
 
   const toggleActive = async (project: MyProject) => {
@@ -414,8 +508,8 @@ export default function ProjectFeed() {
   if (loading && tab === "browse")
     return (
       <View style={styles.center}>
-         <ActivityIndicator size="large" color="#007AFF"/>
-        <Text style={{margin : 15, color :"#999"}}>Loading projects...</Text>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={{ margin: 15, color: "#999" }}>Loading projects...</Text>
       </View>
     );
   if (err && tab === "browse")
@@ -490,11 +584,14 @@ export default function ProjectFeed() {
         <View
           style={[
             styles.browseLayout,
-            { paddingBottom: Math.max(tabBarHeight, 88) + 12 },
+            {
+              paddingBottom:
+                swipeHintBottomOffset + SWIPE_HINT_HEIGHT + SWIPE_HINT_GAP,
+            },
           ]}
         >
-          <View style={styles.cardContainer}>
-            <View style={styles.deckSlot}>
+          <View style={styles.cardContainer} onLayout={handleDeckLayout}>
+            <View style={[styles.deckSlot, { height: deckHeight }]}>
               {projects
                 .slice(currentIndex, currentIndex + 2)
                 .reverse()
@@ -522,21 +619,51 @@ export default function ProjectFeed() {
             </View>
           </View>
 
-          {currentIndex < projects.length && (
-            <View style={styles.buttonsContainer}>
-              <TouchableOpacity
-                style={styles.passButton}
-                onPress={() => handleSwipe("left")}
-              >
-                <Ionicons name="close" size={28} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.likeButton}
-                onPress={() => handleSwipe("right")}
-              >
-                <Ionicons name="checkmark" size={28} color="#fff" />
-              </TouchableOpacity>
-            </View>
+          {swipeHintVisible && currentIndex < projects.length && (
+            <Animated.View
+              style={[
+                styles.swipeHintContainer,
+                {
+                  bottom: swipeHintBottomOffset,
+                  opacity: swipeHintOpacity,
+                  transform: [{ translateY: swipeHintTranslateY }],
+                },
+              ]}
+            >
+              <View style={styles.swipeHint}>
+                <View style={styles.swipeHintHeader}>
+                  <Text style={styles.swipeHintTitle}>How matching works</Text>
+                  <TouchableOpacity
+                    style={styles.swipeHintClose}
+                    onPress={dismissSwipeHint}
+                  >
+                    <Ionicons name="close" size={18} color="#C7D1E8" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.swipeHintBody}>
+                  Swipe the card left to pass or right if you&apos;re
+                  interested.
+                </Text>
+                <View style={styles.swipeHintRow}>
+                  <View style={styles.swipeHintPill}>
+                    <Ionicons name="arrow-back" size={14} color="red" />
+                    <Text style={styles.swipeHintPillTextMuted}>Pass</Text>
+                  </View>
+                  <View style={styles.swipeHintPill}>
+                    <Text style={styles.swipeHintPillTextMuted}>
+                      Interested
+                    </Text>
+                    <Ionicons name="arrow-forward" size={14} color="green" />
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.swipeHintDismissButton}
+                  onPress={dismissSwipeHint}
+                >
+                  <Text style={styles.swipeHintDismissText}>Got it</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
           )}
         </View>
       )}
@@ -566,109 +693,111 @@ export default function ProjectFeed() {
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
           >
-            {myProjects.map((p) => (
-              <View key={p.id} style={styles.myProjectCard}>
-                {p.image && (
-                  <Image
-                    source={{ uri: p.image }}
-                    style={styles.myProjectImage}
-                  />
-                )}
-                <View style={styles.myProjectInfo}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <Text style={styles.myProjectTitle} numberOfLines={1}>
-                      {p.title}
-                    </Text>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        !p.is_active && styles.statusBadgeInactive,
-                      ]}
-                    >
-                      <Text style={styles.statusBadgeText}>
-                        {p.is_active ? "Active" : "Paused"}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.myProjectDesc} numberOfLines={2}>
-                    {p.description}
-                  </Text>
-                  {p.skills_needed && p.skills_needed.length > 0 && (
-                    <View
-                      style={[
-                        styles.chipsWrap,
-                        { justifyContent: "flex-start", marginTop: 8 },
-                      ]}
-                    >
-                      {p.skills_needed.slice(0, 3).map((s, i) => (
-                        <View key={`${s}-${i}`} style={styles.chip}>
-                          <Text style={styles.chipText}>{s}</Text>
-                        </View>
-                      ))}
-                      {p.skills_needed.length > 3 && (
-                        <Text style={{ fontSize: 12, color: "#999" }}>
-                          +{p.skills_needed.length - 3}
-                        </Text>
-                      )}
-                    </View>
+            {[...myProjects]
+              .sort((a, b) => Number(b.is_active) - Number(a.is_active))
+              .map((p) => (
+                <View key={p.id} style={styles.myProjectCard}>
+                  {p.image && (
+                    <Image
+                      source={{ uri: p.image }}
+                      style={styles.myProjectImage}
+                    />
                   )}
-                  <View style={styles.myProjectActions}>
-                    <TouchableOpacity
-                      onPress={() =>
-                        router.push({
-                          pathname: "/edit-project",
-                          params: { id: String(p.id) },
-                        })
-                      }
-                      style={styles.actionButton}
+                  <View style={styles.myProjectInfo}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
                     >
-                      <Ionicons
-                        name="create-outline"
-                        size={22}
-                        color="#007AFF"
-                      />
-                      <Text style={styles.actionText}>Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => toggleActive(p)}
-                      style={styles.actionButton}
-                    >
-                      <Ionicons
-                        name={
-                          p.is_active
-                            ? "pause-circle-outline"
-                            : "play-circle-outline"
+                      <Text style={styles.myProjectTitle} numberOfLines={1}>
+                        {p.title}
+                      </Text>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          !p.is_active && styles.statusBadgeInactive,
+                        ]}
+                      >
+                        <Text style={styles.statusBadgeText}>
+                          {p.is_active ? "Active" : "Paused"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.myProjectDesc} numberOfLines={2}>
+                      {p.description}
+                    </Text>
+                    {p.skills_needed && p.skills_needed.length > 0 && (
+                      <View
+                        style={[
+                          styles.chipsWrap,
+                          { justifyContent: "flex-start", marginTop: 8 },
+                        ]}
+                      >
+                        {p.skills_needed.slice(0, 3).map((s, i) => (
+                          <View key={`${s}-${i}`} style={styles.chip}>
+                            <Text style={styles.chipText}>{s}</Text>
+                          </View>
+                        ))}
+                        {p.skills_needed.length > 3 && (
+                          <Text style={{ fontSize: 12, color: "#999" }}>
+                            +{p.skills_needed.length - 3}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                    <View style={styles.myProjectActions}>
+                      <TouchableOpacity
+                        onPress={() =>
+                          router.push({
+                            pathname: "/edit-project",
+                            params: { id: String(p.id) },
+                          })
                         }
-                        size={22}
-                        color="#007AFF"
-                      />
-                      <Text style={styles.actionText}>
-                        {p.is_active ? "Pause" : "Activate"}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => deleteProject(p)}
-                      style={styles.actionButton}
-                    >
-                      <Ionicons
-                        name="trash-outline"
-                        size={22}
-                        color="#F44336"
-                      />
-                      <Text style={[styles.actionText, { color: "#F44336" }]}>
-                        Delete
-                      </Text>
-                    </TouchableOpacity>
+                        style={styles.actionButton}
+                      >
+                        <Ionicons
+                          name="create-outline"
+                          size={22}
+                          color="#007AFF"
+                        />
+                        <Text style={styles.actionText}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => toggleActive(p)}
+                        style={styles.actionButton}
+                      >
+                        <Ionicons
+                          name={
+                            p.is_active
+                              ? "pause-circle-outline"
+                              : "play-circle-outline"
+                          }
+                          size={22}
+                          color="#007AFF"
+                        />
+                        <Text style={styles.actionText}>
+                          {p.is_active ? "Pause" : "Activate"}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => deleteProject(p)}
+                        style={styles.actionButton}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={22}
+                          color="#F44336"
+                        />
+                        <Text style={[styles.actionText, { color: "#F44336" }]}>
+                          Delete
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-              </View>
-            ))}
+              ))}
           </ScrollView>
         ))}
 
@@ -757,7 +886,12 @@ export default function ProjectFeed() {
    Styles
    ========================= */
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  center: {
+    flex: 1,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   container: { flex: 1, backgroundColor: "#fff" },
   header: {
     flexDirection: "row",
@@ -851,14 +985,13 @@ const styles = StyleSheet.create({
   },
   cardContainer: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
     paddingHorizontal: 16,
   },
   deckSlot: {
     width: DECK_CARD_WIDTH,
     maxWidth: 430,
-    height: DECK_CARD_HEIGHT,
     position: "relative",
     alignSelf: "center",
   },
@@ -866,6 +999,11 @@ const styles = StyleSheet.create({
   card: {
     ...StyleSheet.absoluteFillObject,
     ...deckCardShell,
+  },
+  cardSurface: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 20,
     overflow: "hidden",
   },
   cardBehind: { transform: [{ scale: 0.95 }], opacity: 0.8 },
@@ -903,7 +1041,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#333",
   },
 
-  content: { flex: 1, padding: 20, paddingTop: 30 },
+  content: { flex: 1 },
+  contentContainer: { padding: 20, paddingTop: 30, paddingBottom: 24 },
   projectName: {
     fontSize: 24,
     fontWeight: "bold",
@@ -968,42 +1107,96 @@ const styles = StyleSheet.create({
   overlayText: { fontSize: 32, fontWeight: "bold", color: "#4CAF50" },
 
   nopeOverlayText: { fontSize: 32, fontWeight: "bold", color: "#F44336" },
-
-  buttonsContainer: {
+  swipeHintContainer: {
+    left: 16,
+    right: 16,
+    position: "absolute",
+    alignItems: "center",
+  },
+  swipeHint: {
     width: DECK_CARD_WIDTH,
     maxWidth: 430,
-    alignSelf: "center",
+    minHeight: SWIPE_HINT_HEIGHT,
+    borderRadius: 28,
+    backgroundColor: "rgba(23, 32, 51, 0.94)",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  swipeHintHeader: {
     flexDirection: "row",
-    justifyContent: "space-evenly",
     alignItems: "center",
-    marginTop: 20,
-    paddingHorizontal: 16,
-  },
-  passButton: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: "#111",
     justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 5,
+    marginBottom: 8,
+    position: "relative",
   },
-  likeButton: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: "#111",
-    justifyContent: "center",
+  swipeHintTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  swipeHintClose: {
+    position: "absolute",
+    right: 0,
+    top: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 5,
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  swipeHintBody: {
+    color: "#E8EEFF",
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  swipeHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    marginBottom: 14,
+  },
+  swipeHintPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  swipeHintPillTextMuted: {
+    color: "#C7D1E8",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  swipeHintPillTextActive: {
+    color: "#90A7FF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  swipeHintDismissButton: {
+    alignSelf: "center",
+    minWidth: 112,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#E6EEFF",
+  },
+  swipeHintDismissText: {
+    color: "#2B4CD8",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
   },
 
   endCard: {

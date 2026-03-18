@@ -115,7 +115,14 @@ export function SlidingTabBar({
   }
 
   return (
-    <View style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+    <View
+      style={[
+        styles.outer,
+        {
+          paddingBottom: Math.max(insets.bottom, 12),
+          backgroundColor: palette.trackBackground,
+        },
+      ]}>
       <View
         onLayout={handleTrackLayout}
         style={[
