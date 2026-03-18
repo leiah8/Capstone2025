@@ -44,6 +44,9 @@ export type CandidateUI = {
   education : ed[];
   personal_projects : profile_project[];
   experience : job[];
+
+  lat : number | null;
+  lng : number | null;
 };
 
 type DbCandidate = {
@@ -58,6 +61,9 @@ type DbCandidate = {
   education : JSON[] | null;
   personal_projects : JSON[] | null;
   experience : JSON[] | null;
+
+  lat : number | null;
+  lng : number | null;
 };
 
 export type MyProject = {
@@ -92,8 +98,43 @@ export async function likeCandidate(
   }
 }
 
+export async function fetchCoords(city_name : string | null) : Promise<{lat : number | null, lng : number | null}> {
+  if (city_name == null) {
+    return {lat : null, lng : null} 
+  }
+
+  const { data : data2, error : error2 } = await supabase
+    .from('city_locations')
+    .select('*')
+    .eq('name', city_name)
+    .maybeSingle();
+  if (error2) throw error2;
+
+  return data2 ? {lat : data2.lat, lng : data2.lng} :{lat : null, lng : null}
+};
 
 
+export async function fetchMyCoords(userId : string | undefined) : Promise<{lat : number | null, lng : number | null}> {
+  try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('location')
+        .eq('id', userId)
+        .maybeSingle();
+      if (error) throw error;
+
+
+      const city_name = data ? data.location : ""; 
+
+      return fetchCoords(city_name)
+
+
+      
+    } catch (e: any) {
+      return {lat : null, lng : null}
+    }
+
+}
 
 export async function fetchCandidates(limit = 50, userId : string | undefined): Promise<CandidateUI[]> {
   let query = supabase
@@ -127,7 +168,23 @@ export async function fetchCandidates(limit = 50, userId : string | undefined): 
   const { data, error } = await query
   if (error) throw error;
 
-  const rows = (data ?? []) as unknown as DbCandidate[];
+  // const rows = (data ?? []) as unknown as DbCandidate[];
+  const rows2 = (data ?? [])
+
+  // const rows : DbCandidate[] = [];
+  // rows2.forEach(async c => {
+  //   //get location
+  //   let coord = await fetchCoords(c.location)
+  //   rows2.push({ ...c, lat: coord.lat, lng: coord.lng } as unknown as DbCandidate);
+  // })
+
+  const rows: DbCandidate[] = await Promise.all(
+    (data ?? []).map(async (c) => {
+      const coord = await fetchCoords(c.location);
+      return { ...c, lat: coord.lat, lng: coord.lng } as unknown as DbCandidate;
+    })
+  );
+
 
 
   return rows.map((row) => {
@@ -149,6 +206,8 @@ export async function fetchCandidates(limit = 50, userId : string | undefined): 
       personal_projects : projects_parsed,
 
       experience : experience_parsed,
+      lat : row.lat,
+      lng : row.lng,
 
     };
   });

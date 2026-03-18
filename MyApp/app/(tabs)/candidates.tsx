@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   CandidateUI,
   fetchCandidates,
+  fetchMyCoords,
   fetchMyProjects,
   likeCandidate,
   MyProject,
@@ -58,6 +59,8 @@ const deckCardShell = {
 type Candidate = CandidateUI & {
   project_id: string;
   project_name: string;
+  lat : number | null;
+  lng : number | null;
 };
 
 type FilterProject = MyProject & {
@@ -68,6 +71,11 @@ type FilterSkill = {
   name: string;
   included: boolean;
 };
+
+type Coord = {
+  lat : number | null, 
+  lng : number | null
+}
 
 /* =========================
    Link Row
@@ -417,11 +425,27 @@ export default function CandidateFeed() {
 
   const [hasProjects, setHasProjects] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [maxFilterDist, setMaxFilterDist] = useState<number>(Infinity);
+  const [myCoords, setMyCoords] = useState<Coord>({lat : null, lng : null});
 
   const [myProjects, setMyProjects] = useState<FilterProject[]>([]);
   const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
   const [showAllSkills, setShowAllSkills] = useState<boolean>(true);
   const { session } = useAuth();
+
+  const calcDist = (lat1: number | null, lng1: number | null, lat2: number | null, lng2: number | null): number => {
+    if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return Infinity;
+
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLng = (lat2 - lng1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
   const filterFetchedCandidates = () => {
 
@@ -431,7 +455,9 @@ export default function CandidateFeed() {
     if (showAllSkills) {
       overallCandidates.forEach(c => {
         if (pids.includes(Number(c.project_id))) {
-            filteredCandidates.push(c)
+          if (calcDist(myCoords.lat, myCoords?.lng, c.lat, c.lng) <= maxFilterDist) {
+            filteredCandidates.push(c);
+          }
         }
       })
     }
@@ -477,6 +503,11 @@ export default function CandidateFeed() {
           //     break;
           //   }
           // }
+
+          const coords = await fetchMyCoords(session?.user?.id);
+          setMyCoords(coords);
+
+          
 
           let one_active = userProjects.length > 0;
           setHasProjects(one_active);
@@ -667,34 +698,7 @@ export default function CandidateFeed() {
       </View>
 
         <View>
-          {/* {myProjects.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Personal Projects</Text>
-            {myProjects.map((p, i) =>
-
-              <TouchableOpacity key={i} style={styles.filterRow} onPress={() => {p.included = !p.included}}>
-                <Ionicons name={p.included ? "checkmark-circle-outline" : "mic-circle-outline"} size={20} color="#333" />
-                <Text style={styles.filterLabel}>{p.title}</Text>
-              </TouchableOpacity>
-
-            )}
-          </View>
-        )}
-
-
-        {filterSkills.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Skills</Text>
-            {[...filterSkills].map((s, i) =>
-
-              <TouchableOpacity key={i} style={styles.filterRow} onPress={() => s.included = !s.included}>
-                <Ionicons name="checkmark-circle-outline" size={20} color="#333" />
-                <Text style={styles.filterLabel}>{s.name}</Text>
-              </TouchableOpacity>
-
-            )}
-          </View>
-        )} */}
+          
 
           {myProjects.length > 0 && (
             <View style={styles.section}>
