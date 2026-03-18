@@ -5,7 +5,7 @@
    ========================= */
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -51,6 +51,9 @@ const deckCardShell = {
   shadowRadius: 18,
   elevation: 7,
 } as const;
+
+const PREFETCH_THRESHOLD = 3; // fetch more when this many cards remain
+const BATCH_SIZE = 20;        // candidates per incremental fetch
 
 /* =========================
    Types (make skills optional & flexible)
@@ -402,6 +405,58 @@ const CandidateCard = ({
 };
 
 /* =========================
+   Matching helper
+   ========================= */
+async function rankCandidatesBatch(
+  batch: CandidateUI[],
+  userProjects: MyProject[],
+  matchingAvailable: boolean,
+): Promise<Candidate[]> {
+  const activeProjects = userProjects.filter((p) => p.is_active);
+  const fallback = (pid: string, pName: string) =>
+    batch.map((c) => ({ ...c, project_id: pid, project_name: pName })) as Candidate[];
+
+  if (!matchingAvailable || activeProjects.length === 0) {
+    const p = activeProjects[0] ?? userProjects[0];
+    return fallback(String(p?.id ?? ""), String(p?.title ?? ""));
+  }
+
+  try {
+    const results = await Promise.all(
+      activeProjects.map(async (p) => {
+        const matches = await getMatchedCandidates(p, batch);
+        return matches.map((m) => ({ ...m, project_id: String(p.id) }));
+      }),
+    );
+
+    const bestMatchMap = new Map<string, (typeof results)[number][number]>();
+    for (const match of results.flat()) {
+      const existing = bestMatchMap.get(match.candidate_id);
+      if (!existing || match.overall_score > existing.overall_score) {
+        bestMatchMap.set(match.candidate_id, match);
+      }
+    }
+
+    const scoreMap = new Map(
+      Array.from(bestMatchMap.values()).map((m) => [m.candidate_id, m.overall_score]),
+    );
+
+    return [...batch]
+      .sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0))
+      .map((c) => {
+        const match = bestMatchMap.get(c.id);
+        const pid = match?.project_id ?? "";
+        const project = activeProjects.find((p) => String(p.id) === pid);
+        return { ...c, project_id: pid, project_name: project?.title ?? null };
+      }) as Candidate[];
+  } catch (matchError) {
+    console.warn("Failed to rank candidates, using default order:", matchError);
+    const p = activeProjects[0] ?? userProjects[0];
+    return fallback(String(p?.id ?? ""), String(p?.title ?? ""));
+  }
+}
+
+/* =========================
    Screen: fetch & swipe stack
    ========================= */
 export default function CandidateFeed() {
@@ -422,6 +477,11 @@ export default function CandidateFeed() {
   const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
   const [showAllSkills, setShowAllSkills] = useState<boolean>(true);
   const { session } = useAuth();
+
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [allFetched, setAllFetched] = useState(false);
+  const isFetchingMoreRef = useRef(false);
+  const hasLoadedRef = useRef(false);
 
   const filterFetchedCandidates = () => {
 
@@ -458,144 +518,51 @@ export default function CandidateFeed() {
   }
 
 
-  //useEffect(() => {
   useFocusEffect(
     useCallback(() => {
+      // Only run the initial load once per session — re-focusing the tab
+      // should not reset the feed or show the same candidates again.
+      if (hasLoadedRef.current) return;
+      hasLoadedRef.current = true;
+
       let alive = true;
       (async () => {
         try {
           setLoading(true);
 
-          // Get current authenticated user's projects
           const userProjects = await fetchMyProjects(session?.user?.id);
           setMyProjects(userProjects.map((p) => ({ ...p, included: true })));
-          // let one_active = false;
-          // for(let i = 0; i < userProjects.length; i++) {
-          //   let p = userProjects[i];
-          //   if (p.is_active) {
-          //     one_active = true;
-          //     break;
-          //   }
-          // }
 
-          let one_active = userProjects.length > 0;
+          const one_active = userProjects.length > 0;
           setHasProjects(one_active);
-
-          // setHasProjects(userProjects.length > 0);
 
           if (one_active) {
             let allSkills = new Set<string>();
             userProjects.forEach((p) => {
               (p.skills_needed ?? []).forEach((s) => allSkills.add(s));
             });
+            setFilterSkills([...allSkills].map((s) => ({ name: s, included: true })));
 
-            // setFilterSkills([...allSkills].map(s => ({name : s, included : true})))
-            setFilterSkills(
-              [...allSkills].map((s) => ({ name: s, included: true })),
-            );
-
-            // Fetch all candidates
             const allCandidates = await fetchCandidates(50, session?.user?.id);
             if (!alive) return;
 
-            // Check if matching API is available
             const matchingAvailable = await checkMatchingAPIHealth();
+            console.log(
+              matchingAvailable
+                ? "Matching API available - ranking candidates by match score..."
+                : "Matching API not available - showing candidates in default order",
+            );
 
-            if (matchingAvailable) {
-              console.log(
-                "Matching API available - ranking candidates by match score...",
-              );
-              try {
-                const results = await Promise.all(
-                  userProjects
-                    .filter((p) => p.is_active)
-                    .map(async (p) => {
-                      const matches = await getMatchedCandidates(
-                        p,
-                        allCandidates,
-                      );
-                      return matches.map((m) => ({
-                        ...m,
-                        project_id: String(p.id),
-                      }));
-                    }),
-                );
-                const firstMatchScores = results.flat();
+            const ranked = await rankCandidatesBatch(allCandidates, userProjects, matchingAvailable);
+            if (!alive) return;
 
-
-                // from matchScores remove duplicates (keep highest match score)
-                const bestMatchMap = new Map<
-                  string,
-                  (typeof firstMatchScores)[number]
-                >();
-
-                for (const match of firstMatchScores) {
-                  const existing = bestMatchMap.get(match.candidate_id);
-                  if (
-                    !existing ||
-                    match.overall_score > existing.overall_score
-                  ) {
-                    bestMatchMap.set(match.candidate_id, match);
-                  }
-                }
-
-                const matchScores = Array.from(bestMatchMap.values());
-
-                // Create a map of candidate IDs to match scores
-                const scoreMap = new Map(
-                  matchScores.map((m) => [m.candidate_id, m.overall_score]),
-                );
-
-                // Sort candidates by match score
-                // const rankedCandidates = [...allCandidates].sort((a, b) => {
-                //   const scoreA = scoreMap.get(a.id) || 0;
-                //   const scoreB = scoreMap.get(b.id) || 0;
-                //   return scoreB - scoreA; // Higher scores first
-                // });
-
-                const rankedCandidates = [...allCandidates]
-                .sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0))
-                .map(c => {
-                  const match = bestMatchMap.get(c.id);
-                  const pid = match?.project_id ?? '';
-                  const project = userProjects.find(p => String(p.id) === pid);
-                  return { ...c, project_id: pid, project_name: project?.title ?? null };
-                });
-
-                
-                
-                setAllCandidates(rankedCandidates as Candidate[]);
-                setCandidates(rankedCandidates as Candidate[]);
-
-                console.log(
-                  `Candidates ranked by match score (top: ${(scoreMap.get(rankedCandidates[0].id) || 0) * 100}%)`,
-                );
-              } catch (matchError) {
-                console.warn(
-                  "Failed to rank candidates, using default order:",
-                  matchError,
-                );
-                setAllCandidates(allCandidates as Candidate[]);
-                setCandidates(allCandidates as Candidate[]);
-              }
-            } else {
-              console.log(
-                "Matching API not available - showing candidates in default order",
-              );
-              const pid = String(userProjects.find((p) => p.is_active)?.id);
-              const p_name = String(
-                userProjects.find((p) => p.is_active)?.title,
-              );
-              const temp = allCandidates.map((c) => ({
-                ...c,
-                project_id: pid,
-                project_name: p_name,
-              })) as Candidate[];
-              setAllCandidates(temp);
-              setCandidates(temp);
-
-            }
+            setAllCandidates(ranked);
+            setCandidates(ranked);
             setCurrentIndex(0);
+
+            if (allCandidates.length < 50) {
+              setAllFetched(true);
+            }
           }
         } catch (e: any) {
           if (!alive) return;
@@ -611,14 +578,57 @@ export default function CandidateFeed() {
     }, [session?.user?.id]),
   );
 
+  // When the logged-in user changes, reset feed state so a fresh load runs.
+  useEffect(() => {
+    hasLoadedRef.current = false;
+    isFetchingMoreRef.current = false;
+    setCandidates([]);
+    setAllCandidates([]);
+    setCurrentIndex(0);
+    setAllFetched(false);
+    setErr(null);
+  }, [session?.user?.id]);
+
+  const fetchMore = async () => {
+    if (isFetchingMoreRef.current || allFetched || !session?.user?.id || !hasProjects) return;
+    isFetchingMoreRef.current = true;
+    setIsFetchingMore(true);
+    try {
+      const excludeList = overallCandidates.map((c) => c.id);
+      const newBatch = await fetchCandidates(BATCH_SIZE, session.user.id, excludeList);
+      if (newBatch.length === 0) {
+        setAllFetched(true);
+        return;
+      }
+      if (newBatch.length < BATCH_SIZE) setAllFetched(true);
+
+      const matchingAvailable = await checkMatchingAPIHealth();
+      const ranked = await rankCandidatesBatch(newBatch, myProjects, matchingAvailable);
+
+      setAllCandidates((prev) => [...prev, ...ranked]);
+      setCandidates((prev) => [...prev, ...ranked]);
+    } catch (e: any) {
+      console.warn("Failed to fetch more candidates:", e.message ?? e);
+    } finally {
+      isFetchingMoreRef.current = false;
+      setIsFetchingMore(false);
+    }
+  };
+
   const advance = () => {
     if (currentIndex < candidates.length) setCurrentIndex((i) => i + 1);
   };
 
   const handleSwipe = async (direction: "left" | "right") => {
     const candidate = candidates[currentIndex];
+    const nextIndex = currentIndex + 1;
     advance();
-    //if (direction !== 'right' || !session?.user?.id || !candidate) return;
+
+    // Proactively fetch the next batch when the queue is running low.
+    if (candidates.length - nextIndex <= PREFETCH_THRESHOLD) {
+      fetchMore();
+    }
+
     if (!session?.user?.id || !candidate) return;
     try {
       await likeCandidate(
@@ -792,18 +802,27 @@ export default function CandidateFeed() {
                 ))}
 
               {currentIndex >= candidates.length && (
-                <View style={styles.endCard}>
-                  <Text style={styles.endText}>No more candidates!</Text>
-                  <TouchableOpacity
-                    style={styles.resetButton}
-                    onPress={() => setCurrentIndex(0)}
-                  >
-                    <Text style={styles.resetButtonText}>Start Over</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.endSubtext}>
-                    Or edit your filter settings
-                  </Text>
-                </View>
+                isFetchingMore ? (
+                  <View style={styles.endCard}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                    <Text style={{ marginTop: 16, color: "#999" }}>
+                      Finding more candidates...
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.endCard}>
+                    <Text style={styles.endText}>{"You've seen everyone!"}</Text>
+                    <TouchableOpacity
+                      style={styles.resetButton}
+                      onPress={() => setCurrentIndex(0)}
+                    >
+                      <Text style={styles.resetButtonText}>Start Over</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.endSubtext}>
+                      Or edit your filter settings
+                    </Text>
+                  </View>
+                )
               )}
             </View>
           </View>

@@ -95,32 +95,36 @@ export async function likeCandidate(
 
 
 
-export async function fetchCandidates(limit = 50, userId : string | undefined): Promise<CandidateUI[]> {
+export async function fetchCandidates(limit = 50, userId : string | undefined, excludeIds: string[] = []): Promise<CandidateUI[]> {
   let query = supabase
     .from('profiles')
-    .select( 
+    .select(
       `
         id,
-        name, 
-        bio, 
-        location, 
-        skills, 
-        interests, 
-        links, 
-        education, 
-        personal_projects, 
-        experience, 
+        name,
+        bio,
+        location,
+        skills,
+        interests,
+        links,
+        education,
+        personal_projects,
+        experience,
         profile_image
-        
+
       `
     )
     .eq('visible', true)
     .order('resume_updated_at', { ascending: false })
     .limit(limit);
-  
+
 
   if (userId) {
     query = query.neq('id', userId);
+  }
+
+  if (excludeIds.length > 0) {
+    query = query.not('id', 'in', `(${excludeIds.join(',')})`);
   }
   
 
