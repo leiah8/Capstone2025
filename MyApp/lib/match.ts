@@ -23,6 +23,12 @@ export type DbMatch = {
     created_at : string;
 };
 
+export type MatchCheckResult = {
+    match: boolean;
+    message?: string;
+    data?: DbMatch | Record<string, unknown>;
+};
+
 
 export type Message = {
     id : string;

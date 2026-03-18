@@ -1,4 +1,5 @@
 // lib/projects.ts
+import { MatchCheckResult } from './match';
 import { resolveProfileImageUrl } from './profile';
 import { supabase } from './supabase';
 
@@ -41,7 +42,7 @@ export async function likeProject(
   ownerId : string,
   projectId: string,
   reaction: 'like' | 'pass' = 'like'
-): Promise<void> {
+): Promise<MatchCheckResult | null> {
   const { error } = await supabase
     .from('project_likes')
     .upsert(
@@ -49,12 +50,20 @@ export async function likeProject(
       { onConflict: 'user_id,project_id' }
     );
   if (error) throw error;
-  else {
-    const { data } = await supabase.functions.invoke('check-for-match', {
+  if (reaction !== 'like') return null;
+
+  const { data, error: matchError } = await supabase.functions.invoke(
+    'check-for-match',
+    {
       body: { candidate_id : userId, project_id : projectId, owner_id : ownerId }
-    })
-    console.log(data.message);
-  }
+    }
+  );
+
+  if (matchError) throw matchError;
+
+  const matchResult = (data ?? null) as MatchCheckResult | null;
+  if (matchResult?.message) console.log(matchResult.message);
+  return matchResult;
 }
 
 export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promise<ProjectUI[]> {

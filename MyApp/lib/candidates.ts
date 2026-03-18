@@ -1,4 +1,5 @@
 // lib/candidates.ts
+import { MatchCheckResult } from './match';
 import { supabase } from './supabase';
 
 export type links = {
@@ -76,7 +77,7 @@ export async function likeCandidate(
   projectId: string,
   candidateId : string,
   reaction: 'like' | 'pass' = 'like'
-): Promise<void> {
+): Promise<MatchCheckResult | null> {
   const { error } = await supabase
     .from('candidate_likes')
     .upsert(
@@ -84,12 +85,20 @@ export async function likeCandidate(
       { onConflict: 'owner_id,project_id,candidate_id' }
     );
   if (error) throw error;
-  else if (reaction === 'like') {
-    const { data } = await supabase.functions.invoke('check-for-match', {
+  if (reaction !== 'like') return null;
+
+  const { data, error: matchError } = await supabase.functions.invoke(
+    'check-for-match',
+    {
       body: { candidate_id : candidateId, project_id : projectId, owner_id : userId }
-    })
-    console.log(data.message);
-  }
+    }
+  );
+
+  if (matchError) throw matchError;
+
+  const matchResult = (data ?? null) as MatchCheckResult | null;
+  if (matchResult?.message) console.log(matchResult.message);
+  return matchResult;
 }
 
 
@@ -170,7 +179,7 @@ export async function fetchMyProjects(ownerId : string | undefined) : Promise<My
         .order('created_at', { ascending: false });
       if (error) throw error;
       return ((data ?? []) as MyProject[]);
-    } catch (e: any) {
+    } catch {
       return []
     } finally {
     }
