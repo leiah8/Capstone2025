@@ -369,8 +369,8 @@ export default function ProjectFeed() {
   if (loading && tab === "browse")
     return (
       <View style={styles.center}>
-         <ActivityIndicator size={80} color="#007AFF"/>
-        <Text style={{margin : 20, color :"#999"}}>Loading projects...</Text>
+         <ActivityIndicator size="large" color="#007AFF"/>
+        <Text style={{margin : 15, color :"#999"}}>Loading projects...</Text>
       </View>
     );
   if (err && tab === "browse")

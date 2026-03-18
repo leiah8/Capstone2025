@@ -824,7 +824,7 @@ export default function ProfilePage() {
           { alignItems: "center", justifyContent: "center" },
         ]}
       >
-        <ActivityIndicator size={80} color="#007AFF" />
+        <ActivityIndicator size="large" color="#007AFF" />
       </View>
     );
   }
@@ -870,7 +870,7 @@ export default function ProfilePage() {
               )}
               {uploadingImage && (
                 <View style={styles.uploadingOverlay}>
-                  <ActivityIndicator size={80} color="#007AFF" />
+                  <ActivityIndicator size="large" color="#007AFF" />
                 </View>
               )}
             </TouchableOpacity>
@@ -1000,7 +1000,7 @@ export default function ProfilePage() {
                 activeOpacity={0.9}
               >
                 {parsingResume ? (
-                  <ActivityIndicator size={80} color="#007AFF" />
+                  <ActivityIndicator size="large" color="#007AFF" />
                 ) : (
                   <Text style={styles.secondaryBtnText}>Re-parse Resume</Text>
                 )}

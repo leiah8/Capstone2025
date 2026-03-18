@@ -263,7 +263,7 @@ export default function MatchesPage() {
       if (loading)
         return (
         <View style={styles.center}>
-            <ActivityIndicator size={80} color="#007AFF"/>
+            <ActivityIndicator size="large" color="#007AFF"/>
             <Text style={{margin : 20, color :"#999"}}>Loading matches...</Text>
         </View>
         );
