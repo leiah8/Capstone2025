@@ -37,7 +37,9 @@ import {
 import { router, useFocusEffect } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext";
 
+
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const MAX_DISTANCE = 10000;
 const SWIPE_THRESHOLD = 120;
 const DECK_CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 430);
 const DECK_CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.68, 620);
@@ -76,6 +78,100 @@ type Coord = {
   lat : number | null, 
   lng : number | null
 }
+
+
+/* =========================
+   Custom Slider 
+   ========================= */
+const LocationSlider = ({
+  min = 0,
+  max = 100,
+  value,
+  onValueChange,
+}: {
+  min?: number;
+  max?: number;
+  value: number;
+  onValueChange: (v: number) => void;
+}) => {
+  const trackWidth = useRef(0);
+  const clamp = (v: number) => Math.min(max, Math.max(min, v));
+
+  const sliderPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        const x = e.nativeEvent.locationX;
+        const ratio = x / trackWidth.current;
+        onValueChange(clamp(Math.round(min + ratio * (max - min))));
+      },
+      onPanResponderMove: (e) => {
+        const x = e.nativeEvent.locationX;
+        const ratio = x / trackWidth.current;
+        onValueChange(clamp(Math.round(min + ratio * (max - min))));
+      },
+    }),
+  ).current;
+
+  const fillRatio = (value - min) / (max - min);
+
+  return (
+    <View style={sliderStyles.wrapper}>
+      <View
+        style={sliderStyles.track}
+        onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
+        {...sliderPanResponder.panHandlers}
+      >
+        <View style={[sliderStyles.fill, { flex: fillRatio }]} />
+        <View style={{ flex: 1 - fillRatio }} />
+        <View
+          style={[
+            sliderStyles.thumb,
+            { left: `${fillRatio * 100}%` as any },
+          ]}
+          pointerEvents="none"
+        />
+      </View>
+    </View>
+  );
+};
+
+const sliderStyles = StyleSheet.create({
+  wrapper: {
+    width: "80%",
+    alignSelf: "center",
+    paddingVertical: 12,
+  },
+  track: {
+    height: 4,
+    backgroundColor: "#E1E8F5",
+    borderRadius: 2,
+    flexDirection: "row",
+    position: "relative",
+  },
+  fill: {
+    height: 4,
+    backgroundColor: "#007AFF",
+    borderRadius: 2,
+  },
+  thumb: {
+    position: "absolute",
+    top: -9,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#fff",
+    borderWidth: 2,
+    borderColor: "#007AFF",
+    marginLeft: -11,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+});
 
 /* =========================
    Link Row
@@ -425,7 +521,7 @@ export default function CandidateFeed() {
 
   const [hasProjects, setHasProjects] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [maxFilterDist, setMaxFilterDist] = useState<number>(Infinity);
+  const [maxFilterDist, setMaxFilterDist] = useState<number>(MAX_DISTANCE);
   const [myCoords, setMyCoords] = useState<Coord>({lat : null, lng : null});
 
   const [myProjects, setMyProjects] = useState<FilterProject[]>([]);
@@ -452,10 +548,12 @@ export default function CandidateFeed() {
     let filteredCandidates : Candidate[] = [];
     const pids = myProjects.filter(p => p.included).map(p => p.id);
 
+    let maxDist = maxFilterDist < MAX_DISTANCE ? maxFilterDist : Infinity;
+
     if (showAllSkills) {
       overallCandidates.forEach(c => {
         if (pids.includes(Number(c.project_id))) {
-          if (calcDist(myCoords.lat, myCoords?.lng, c.lat, c.lng) <= maxFilterDist) {
+          if (calcDist(myCoords.lat, myCoords?.lng, c.lat, c.lng) <= maxDist) {
             filteredCandidates.push(c);
           }
         }
@@ -466,15 +564,18 @@ export default function CandidateFeed() {
     
       overallCandidates.forEach(c => {
         if (pids.includes(Number(c.project_id))) {
-          if (!showAllSkills) {
+          // if (!showAllSkills) {
             const intersection = c.skills.filter(x => skills.includes(x)); 
             if (intersection.length > 0) {
-              filteredCandidates.push(c)
+              if (calcDist(myCoords.lat, myCoords?.lng, c.lat, c.lng) <= maxDist) {
+                filteredCandidates.push(c);
+              }
+              // filteredCandidates.push(c)
             }
-          }
-          else {
-            filteredCandidates.push(c)
-          }
+          // }
+          // else {
+          //   filteredCandidates.push(c)
+          // }
         }
       })
 
@@ -698,8 +799,27 @@ export default function CandidateFeed() {
       </View>
 
         <View>
-          
 
+          {/* Location */}
+          {myCoords.lat && (
+            <View>
+              <Text style={styles.sectionTitle}>Location</Text>
+              {/* <SliderFilter/> */}
+              <LocationSlider
+                min={0}
+                max={MAX_DISTANCE}
+                value={maxFilterDist}
+                onValueChange={setMaxFilterDist}
+              />
+              <Text style={{ textAlign: "center", color: "#888", fontSize: 13 }}>
+                {maxFilterDist >= MAX_DISTANCE ? MAX_DISTANCE + "km+" : maxFilterDist + "km"}
+              </Text>
+            </View>
+          )
+          
+          }
+          
+          {/* Projects */}
           {myProjects.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Personal Projects</Text>
