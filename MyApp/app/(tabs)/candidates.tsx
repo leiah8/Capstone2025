@@ -412,21 +412,33 @@ export default function CandidateFeed() {
 
     let filteredCandidates : Candidate[] = [];
     const pids = myProjects.filter(p => p.included).map(p => p.id);
-    const skills = filterSkills.filter(s => s.included).map(s => s.name);
+
+    if (showAllSkills) {
+      overallCandidates.forEach(c => {
+        console.log(c)
+        if (pids.includes(Number(c.project_id))) {
+            filteredCandidates.push(c)
+        }
+      })
+    }
+    else {
+      const skills = filterSkills.filter(s => s.included).map(s => s.name);
     
-    overallCandidates.forEach(c => {
-      if (pids.includes(Number(c.project_id))) {
-        if (!showAllSkills) {
-          const intersection = c.skills.filter(x => skills.includes(x)); 
-          if (intersection.length > 0) {
+      overallCandidates.forEach(c => {
+        if (pids.includes(Number(c.project_id))) {
+          if (!showAllSkills) {
+            const intersection = c.skills.filter(x => skills.includes(x)); 
+            if (intersection.length > 0) {
+              filteredCandidates.push(c)
+            }
+          }
+          else {
             filteredCandidates.push(c)
           }
         }
-        else {
-          filteredCandidates.push(c)
-        }
-      }
-    })
+      })
+
+    }
 
     setCandidates(filteredCandidates)
   }
@@ -488,6 +500,8 @@ export default function CandidateFeed() {
                     })
                 );
                 const firstMatchScores = results.flat();
+
+
                 // from matchScores remove duplicates (keep highest match score)
                 const bestMatchMap = new Map<string, (typeof firstMatchScores)[number]>();
 
@@ -504,12 +518,21 @@ export default function CandidateFeed() {
                 const scoreMap = new Map(matchScores.map(m => [m.candidate_id, m.overall_score]));
 
                 // Sort candidates by match score
-                const rankedCandidates = [...allCandidates].sort((a, b) => {
-                  const scoreA = scoreMap.get(a.id) || 0;
-                  const scoreB = scoreMap.get(b.id) || 0;
-                  return scoreB - scoreA; // Higher scores first
+                // const rankedCandidates = [...allCandidates].sort((a, b) => {
+                //   const scoreA = scoreMap.get(a.id) || 0;
+                //   const scoreB = scoreMap.get(b.id) || 0;
+                //   return scoreB - scoreA; // Higher scores first
+                // });
+
+                const rankedCandidates = [...allCandidates]
+                .sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0))
+                .map(c => {
+                  const match = bestMatchMap.get(c.id);
+                  return { ...c, project_id: match?.project_id ?? '' }; 
                 });
 
+                
+                
                 setAllCandidates(rankedCandidates as Candidate[]);
                 setCandidates(rankedCandidates as Candidate[]);
 

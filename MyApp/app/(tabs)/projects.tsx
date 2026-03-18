@@ -61,6 +61,11 @@ type Project = ProjectUI & {
   skills?: { name: string; level?: number }[];
 };
 
+type FilterSkill = {
+  name : string;
+  included : boolean;
+}
+
 /* =========================
    Swipeable Card
    ========================= */
@@ -231,7 +236,12 @@ export default function ProjectFeed() {
   const { session } = useAuth();
   const tabBarHeight = useBottomTabBarHeight();
   const [tab, setTab] = useState<"browse" | "mine">("browse");
+
   const [projects, setProjects] = useState<Project[]>([]);
+  const [overallProjects, setAllProjects] = useState<Project[]>([]);
+  const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
+  const [showAllSkills, setShowAllSkills] = useState<Boolean>(true);
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -250,6 +260,28 @@ export default function ProjectFeed() {
           0,
         )
       : 0;
+  
+  const filterFetchedProjects = () => {
+    if (showAllSkills) {
+      setProjects(overallProjects);
+      return;
+    }
+
+    let filteredProjects : Project[] = [];
+    const skills = filterSkills.filter(s => s.included).map(s => s.name);
+    
+    console.log("SHOWING ALL SKILLS ", showAllSkills)
+    
+    overallProjects.forEach(p => {
+        const intersection = p.skillsNeeded.filter(x => skills.includes(x)); 
+        if (intersection.length > 0) {
+          filteredProjects.push(p)
+        }
+    })
+    
+    console.log(filteredProjects)
+    setProjects(filteredProjects)
+  }
 
   const loadBrowseProjects = useCallback(async () => {
     let alive = true;
@@ -263,12 +295,16 @@ export default function ProjectFeed() {
       // Check if matching API is available
       const matchingAvailable = await checkMatchingAPIHealth();
 
+      const userProfile = await getUserProfile();
+      setFilterSkills(userProfile.skills.map(s => ({ name: s, included: true })));
+
       if (matchingAvailable) {
         console.log(
           "Matching API available - ranking projects by match score...",
         );
         try {
-          const userProfile = await getUserProfile();
+
+
           const matchScores = await getMatchedProjects(
             userProfile,
             allProjects,
@@ -283,6 +319,7 @@ export default function ProjectFeed() {
             return scoreB - scoreA;
           });
 
+          setAllProjects(rankedProjects as Project[]);
           setProjects(rankedProjects as Project[]);
           console.log(
             `Projects ranked by match score (top: ${(scoreMap.get(rankedProjects[0].id) || 0) * 100}%)`,
@@ -292,13 +329,16 @@ export default function ProjectFeed() {
             "Failed to rank projects, using default order:",
             matchError,
           );
+          setAllProjects(allProjects as Project[]);
           setProjects(allProjects as Project[]);
         }
       } else {
         console.log(
           "Matching API not available - showing projects in default order",
         );
+        setAllProjects(allProjects as Project[]);
         setProjects(allProjects as Project[]);
+
       }
 
       setCurrentIndex(0);
@@ -440,7 +480,7 @@ export default function ProjectFeed() {
   return (filterDropDownOpen ? 
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View>
-        <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setFilterDropDownOpen(false); }}>
+        <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setFilterDropDownOpen(false); filterFetchedProjects()}}>
         {/* <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setFilterDropDownOpen(false); filterFetchedCandidates() }}> */}
 
           <Ionicons name="close" size={35} color="000" />

@@ -66,7 +66,7 @@ export interface MatchScoreProject {
 
 
 export interface MatchScoreCandidate { //might need to be fixed
-  project_id: string;
+  project_id: number;
   project_name: string;
   candidate_id : string; 
   candidate_name : string;
@@ -231,7 +231,7 @@ export async function getMatchedCandidates(
 
     const data : MatchResponseCandidate = await response.json();
     return data.ranked_candidates.map((r: any) => ({
-      project_id: r.project_id ?? "",
+      project_id: user_project.id, 
       project_name: r.project_name ?? "",
       candidate_id: r.candidate_id ?? "",
       candidate_name: r.candidate_name ?? "",
