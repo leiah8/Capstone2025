@@ -424,25 +424,39 @@ export default function CandidateFeed() {
   const { session } = useAuth();
 
   const filterFetchedCandidates = () => {
-    let filteredCandidates: Candidate[] = [];
-    const pids = myProjects.filter((p) => p.included).map((p) => p.id);
-    const skills = filterSkills.filter((s) => s.included).map((s) => s.name);
 
-    overallCandidates.forEach((c) => {
-      if (pids.includes(Number(c.project_id))) {
-        if (!showAllSkills) {
-          const intersection = c.skills.filter((x) => skills.includes(x));
-          if (intersection.length > 0) {
-            filteredCandidates.push(c);
-          }
-        } else {
-          filteredCandidates.push(c);
+    let filteredCandidates : Candidate[] = [];
+    const pids = myProjects.filter(p => p.included).map(p => p.id);
+
+    if (showAllSkills) {
+      overallCandidates.forEach(c => {
+        if (pids.includes(Number(c.project_id))) {
+            filteredCandidates.push(c)
         }
-      }
-    });
+      })
+    }
+    else {
+      const skills = filterSkills.filter(s => s.included).map(s => s.name);
+    
+      overallCandidates.forEach(c => {
+        if (pids.includes(Number(c.project_id))) {
+          if (!showAllSkills) {
+            const intersection = c.skills.filter(x => skills.includes(x)); 
+            if (intersection.length > 0) {
+              filteredCandidates.push(c)
+            }
+          }
+          else {
+            filteredCandidates.push(c)
+          }
+        }
+      })
 
-    setCandidates(filteredCandidates);
-  };
+    }
+
+    setCandidates(filteredCandidates)
+  }
+
 
   //useEffect(() => {
   useFocusEffect(
@@ -507,6 +521,8 @@ export default function CandidateFeed() {
                     }),
                 );
                 const firstMatchScores = results.flat();
+
+
                 // from matchScores remove duplicates (keep highest match score)
                 const bestMatchMap = new Map<
                   string,
@@ -531,12 +547,21 @@ export default function CandidateFeed() {
                 );
 
                 // Sort candidates by match score
-                const rankedCandidates = [...allCandidates].sort((a, b) => {
-                  const scoreA = scoreMap.get(a.id) || 0;
-                  const scoreB = scoreMap.get(b.id) || 0;
-                  return scoreB - scoreA; // Higher scores first
+                // const rankedCandidates = [...allCandidates].sort((a, b) => {
+                //   const scoreA = scoreMap.get(a.id) || 0;
+                //   const scoreB = scoreMap.get(b.id) || 0;
+                //   return scoreB - scoreA; // Higher scores first
+                // });
+
+                const rankedCandidates = [...allCandidates]
+                .sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0))
+                .map(c => {
+                  const match = bestMatchMap.get(c.id);
+                  return { ...c, project_id: match?.project_id ?? '' }; 
                 });
 
+                
+                
                 setAllCandidates(rankedCandidates as Candidate[]);
                 setCandidates(rankedCandidates as Candidate[]);
 
@@ -628,25 +653,15 @@ export default function CandidateFeed() {
       </View>
     );
 
-  return hasProjects ? (
-    dropdownOpen ? (
-      <View
-        style={[
-          styles.container,
-          { paddingTop: insets.top, paddingBottom: insets.bottom },
-        ]}
-      >
-        <View>
-          <TouchableOpacity
-            style={styles.closeDropDownButton}
-            onPress={() => {
-              setDropdownOpen(false);
-              filterFetchedCandidates();
-            }}
-          >
-            <Ionicons name="close" size={35} color="000" />
-          </TouchableOpacity>
-        </View>
+  return (hasProjects ? (dropdownOpen ? (
+    <ScrollView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {/* <View> */}
+       <View style={{ marginBottom : 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20 }}>
+                <Text style={styles.candidateName}>Filter Candidates</Text>
+        <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setDropdownOpen(false); filterFetchedCandidates() }}>
+          <Ionicons name="close" size={35} color="000" />
+        </TouchableOpacity>
+      </View>
 
         <View>
           {/* {myProjects.length > 0 && (
@@ -722,53 +737,34 @@ export default function CandidateFeed() {
                 <Text style={styles.filterLabel}>Show All Skills</Text>
               </TouchableOpacity>
 
-              {[...filterSkills].map((s, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.filterRow, { paddingHorizontal: 40 }]}
-                  onPress={() => {
-                    if (!showAllSkills)
-                      setFilterSkills((prev) =>
-                        prev.map((skill, j) =>
-                          j === i
-                            ? { ...skill, included: !skill.included }
-                            : skill,
-                        ),
-                      );
-                  }}
-                >
-                  <Ionicons
-                    name={s.included ? "checkmark-circle" : "ellipse-outline"}
-                    size={20}
-                    color={showAllSkills ? "#ddd" : "#333"}
-                  />
-                  <Text
-                    style={[
-                      styles.filterLabel,
-                      { color: showAllSkills ? "#ddd" : "#333" },
-                    ]}
-                  >
-                    {s.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
+            {[...filterSkills].map((s, i) =>
+
+              <TouchableOpacity
+                key={i}
+                style={[styles.filterRow, {paddingHorizontal : 40}]}
+                onPress={() => {
+                  if (!showAllSkills) setFilterSkills(prev => prev.map((skill, j) => j === i ? { ...skill, included: !skill.included } : skill));
+                }}
+              >
+                <Ionicons name={s.included ? "checkmark-circle" : "ellipse-outline"} size={20} color={showAllSkills? "#ddd": "#333"} />
+                <Text style={[styles.filterLabel, {color: showAllSkills ? "#ddd" : "#333" }]}>{s.name}</Text>
+              </TouchableOpacity>
+
+            )}
+          </View>
+        )}
+
       </View>
-    ) : (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        {/* FILTER */}
-        <View>
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => {
-              setDropdownOpen(true);
-            }}
-          >
-            <Ionicons name="filter" size={30} color="000" />
-          </TouchableOpacity>
-        </View>
+    </ScrollView>
+
+  ) : (
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {/* FILTER */}
+      <View>
+        <TouchableOpacity style={styles.filterButton} onPress={() => { setDropdownOpen(true) }}>
+          <Ionicons name="filter" size={30} color="000" />
+        </TouchableOpacity>
+      </View>
 
         <View
           style={[
@@ -831,7 +827,7 @@ export default function CandidateFeed() {
         <Text style={styles.resetButtonText}>Create Your First Project</Text>
       </TouchableOpacity>
     </View>
-  );
+  ))
 }
 
 /* =========================
