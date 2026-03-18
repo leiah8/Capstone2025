@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { PROJECT_TAGS } from "../constants/tags";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
@@ -20,6 +21,7 @@ import { useAuth } from "../contexts/AuthContext";
 
 export default function CreateProjectScreen() {
   const { session } = useAuth();
+  const scrollRef = useRef<ScrollView>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -74,20 +76,29 @@ export default function CreateProjectScreen() {
     setSkillsNeeded(skillsNeeded.filter((s) => s !== skill));
   };
 
-  const addTag = () => {
-    const trimmed = tagInput.trim();
-    if (!trimmed) return;
-    if (tags.some((t) => t.toLowerCase() === trimmed.toLowerCase())) {
-      Alert.alert("Already added", `"${trimmed}" is already in the list.`);
-      return;
-    }
-    setTags([...tags, trimmed]);
+  const selectTag = (tag: string) => {
+    setTags([...tags, tag]);
     setTagInput("");
   };
 
   const removeTag = (tag: string) => {
     setTags(tags.filter((t) => t !== tag));
   };
+
+  const filteredTags =
+    tagInput.trim().length > 0
+      ? PROJECT_TAGS.filter(
+          (t) =>
+            t.toLowerCase().includes(tagInput.trim().toLowerCase()) &&
+            !tags.some((sel) => sel.toLowerCase() === t.toLowerCase()),
+        ).slice(0, 6)
+      : [];
+
+  useEffect(() => {
+    if (tagInput.trim().length > 0) {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }
+  }, [tagInput]);
 
   /* =========================
      Upload image to Supabase Storage
@@ -178,6 +189,7 @@ export default function CreateProjectScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
+        ref={scrollRef}
         style={styles.container}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -230,14 +242,26 @@ export default function CreateProjectScreen() {
         />
 
         {/* Skills Needed */}
-        <Text
-          style={[
-            styles.label,
-            tried && skillsNeeded.length === 0 && styles.errorLabel,
-          ]}
-        >
-          Skills Needed*
-        </Text>
+        <View style={styles.labelRow}>
+          <Text
+            style={[
+              styles.label,
+              tried && skillsNeeded.length === 0 && styles.errorLabel,
+            ]}
+          >
+            Skills Needed*
+          </Text>
+          <TouchableOpacity
+            onPress={() =>
+              Alert.alert(
+                "Skills Needed",
+                "Specific technical skills like programming languages, frameworks, and tools (e.g., React, Python, Figma).",
+              )
+            }
+          >
+            <Ionicons name="help-circle-outline" size={18} color="#999" />
+          </TouchableOpacity>
+        </View>
         <View style={styles.chipInputRow}>
           <TextInput
             style={styles.chipInput}
@@ -273,35 +297,51 @@ export default function CreateProjectScreen() {
         )}
 
         {/* Tags */}
-        <Text
-          style={[
-            styles.label,
-            tried && tags.length === 0 && styles.errorLabel,
-          ]}
-        >
-          Tags*
-        </Text>
-        <View style={styles.chipInputRow}>
-          <TextInput
-            style={styles.chipInput}
-            value={tagInput}
-            onChangeText={setTagInput}
-            placeholder="e.g. full-stack, mobile, AI"
-            placeholderTextColor="#999"
-            onSubmitEditing={addTag}
-            returnKeyType="done"
-          />
-          <TouchableOpacity
+        <View style={styles.labelRow}>
+          <Text
             style={[
-              styles.addButton,
-              !tagInput.trim() && styles.addButtonDisabled,
+              styles.label,
+              tried && tags.length === 0 && styles.errorLabel,
             ]}
-            onPress={addTag}
-            disabled={!tagInput.trim()}
           >
-            <Ionicons name="add" size={22} color="#fff" />
+            Tags*
+          </Text>
+          <TouchableOpacity
+            onPress={() =>
+              Alert.alert(
+                "Tags",
+                "General categories that describe your project's domain, platform, or area (e.g., Mobile App Development, AI / Machine Learning, iOS).",
+              )
+            }
+          >
+            <Ionicons name="help-circle-outline" size={18} color="#999" />
           </TouchableOpacity>
         </View>
+        <TextInput
+          style={styles.chipInput}
+          value={tagInput}
+          onChangeText={setTagInput}
+          placeholder="Search tags..."
+          placeholderTextColor="#999"
+        />
+        {tagInput.trim().length > 0 && (
+          <View style={styles.suggestionsContainer}>
+            {filteredTags.length > 0 ? (
+              filteredTags.map((tag) => (
+                <TouchableOpacity
+                  key={tag}
+                  style={styles.suggestionItem}
+                  onPress={() => selectTag(tag)}
+                >
+                  <Text style={styles.suggestionText}>{tag}</Text>
+                  <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text style={styles.noMatchText}>No matching tags</Text>
+            )}
+          </View>
+        )}
         {tags.length > 0 && (
           <View style={styles.chipsContainer}>
             {tags.map((tag) => (
@@ -422,6 +462,42 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 14, color: "#333" },
 
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  suggestionsContainer: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 10,
+    marginTop: 4,
+    marginBottom: 8,
+    maxHeight: 210,
+    overflow: "hidden",
+  },
+  suggestionItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#eee",
+  },
+  suggestionText: {
+    fontSize: 14,
+    color: "#333",
+  },
+  noMatchText: {
+    fontSize: 14,
+    color: "#999",
+    textAlign: "center",
+    paddingVertical: 12,
+  },
   submitButton: {
     backgroundColor: "#007AFF",
     borderRadius: 12,

@@ -532,7 +532,7 @@ export default function ProjectFeed() {
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
           >
-            {myProjects.map((p) => (
+            {[...myProjects].sort((a, b) => Number(b.is_active) - Number(a.is_active)).map((p) => (
               <View key={p.id} style={styles.myProjectCard}>
                 {p.image && (
                   <Image
