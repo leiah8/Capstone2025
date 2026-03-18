@@ -152,12 +152,30 @@ def run(force: bool = False) -> list[dict]:
         print("ERROR: profiles.json or projects.json not found. Run generate.py first.", file=sys.stderr)
         sys.exit(1)
 
+    with open(PROFILES_FILE) as f:
+        profiles: list[dict] = json.load(f)
+    with open(PROJECTS_FILE) as f:
+        projects: list[dict] = json.load(f)
+
+    expected = len(profiles) * len(projects)
+
+    # Load any existing checkpoint once — used for both the completeness check and resumption.
+    # A single file read avoids loading the file twice in the partial-completion path.
+    existing_labels: dict[str, dict] = {}
     if not force and LABELS_FILE.exists():
-        print("  labels.json already exists. Use --force to re-label.")
         with open(LABELS_FILE) as f:
-            labels = json.load(f)
-        print(f"  Loaded {len(labels)} existing labels from disk.")
-        return labels
+            for item in json.load(f):
+                key = f"{item['project_id']}|{item['candidate_id']}"
+                existing_labels[key] = item
+
+    # Short-circuit only when the full dataset is complete
+    if not force and len(existing_labels) >= expected:
+        all_labels = list(existing_labels.values())
+        print(f"  labels.json is complete ({len(all_labels)} labels). Use --force to re-label.")
+        return all_labels
+
+    if existing_labels:
+        print(f"  Resuming from checkpoint — {len(existing_labels)}/{expected} pairs already labeled")
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -166,24 +184,10 @@ def run(force: bool = False) -> list[dict]:
 
     client = anthropic.Anthropic(api_key=api_key)
 
-    with open(PROFILES_FILE) as f:
-        profiles: list[dict] = json.load(f)
-    with open(PROJECTS_FILE) as f:
-        projects: list[dict] = json.load(f)
-
-    # Build all pairs and load any existing checkpoint
+    # Build all pairs
     all_pairs = list(product(projects, profiles))  # (project, profile) order
     total = len(all_pairs)
     print(f"  Labeling {total} pairs ({len(projects)} projects × {len(profiles)} profiles)")
-
-    # Checkpoint: load partial results to allow resumption
-    existing_labels: dict[str, dict] = {}
-    if LABELS_FILE.exists():
-        with open(LABELS_FILE) as f:
-            for item in json.load(f):
-                key = f"{item['project_id']}|{item['candidate_id']}"
-                existing_labels[key] = item
-        print(f"  Resuming from checkpoint — {len(existing_labels)} pairs already labeled")
 
     all_labels: list[dict] = list(existing_labels.values())
 

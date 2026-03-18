@@ -175,9 +175,10 @@ def run(force: bool = False) -> list[dict]:
     if not force and SCORES_FILE.exists():
         print("  scores.json already exists. Use --force to re-score.")
         with open(SCORES_FILE) as f:
-            scores = json.load(f)
-        print(f"  Loaded {len(scores)} scores from disk.")
-        return scores
+            data = json.load(f)
+        pairs = data["pairs"] if isinstance(data, dict) else data
+        print(f"  Loaded {len(pairs)} scores from disk.")
+        return pairs
 
     with open(PROFILES_FILE) as f:
         profiles: list[dict] = json.load(f)
@@ -187,7 +188,19 @@ def run(force: bool = False) -> list[dict]:
     cache = _prewarm_cache(profiles, projects)
     scores = _score_all_pairs(profiles, projects, cache)
 
-    SCORES_FILE.write_text(json.dumps(scores, indent=2))
+    # Record the actual weights used so downstream consumers (metrics, plots)
+    # can display them correctly rather than duplicating or hard-coding them.
+    weights = MatchWeights()
+    output = {
+        "full_model_weights": {
+            "semantic": weights.semantic,
+            "must_have_skills": weights.must_have_skills,
+            "nice_to_have_skills": weights.nice_to_have_skills,
+            "interests": weights.interests,
+        },
+        "pairs": scores,
+    }
+    SCORES_FILE.write_text(json.dumps(output, indent=2))
     print(f"  Saved {len(scores)} scores → {SCORES_FILE}")
     return scores
 

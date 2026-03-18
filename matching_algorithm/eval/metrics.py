@@ -157,7 +157,15 @@ def run(force: bool = False) -> dict:
     with open(LABELS_FILE) as f:
         labels_raw: list[dict] = json.load(f)
     with open(SCORES_FILE) as f:
-        scores_raw: list[dict] = json.load(f)
+        scores_data = json.load(f)
+
+    # scores.json may be a plain list (old format) or {"full_model_weights": ..., "pairs": [...]}
+    if isinstance(scores_data, dict):
+        full_model_weights: dict = scores_data.get("full_model_weights", {})
+        scores_raw: list[dict] = scores_data["pairs"]
+    else:
+        full_model_weights = {}
+        scores_raw = scores_data
 
     labels_df = pd.DataFrame(labels_raw)[["project_id", "candidate_id", "label"]]
     scores_df = pd.DataFrame(
@@ -252,6 +260,7 @@ def run(force: bool = False) -> dict:
         "n_total": int(len(df)),
         "n_positive": int(df["label"].sum()),
         "positive_rate": round(float(df["label"].mean()), 4),
+        "full_model_weights": full_model_weights,
         "auc": {
             "full_model": round(full_auc, 4),
             "skills_only": round(skills_auc, 4),

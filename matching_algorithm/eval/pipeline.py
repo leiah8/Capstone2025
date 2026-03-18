@@ -1,6 +1,9 @@
 """
 pipeline.py — End-to-end evaluation pipeline orchestrator.
 
+Prerequisites:
+  pip install -r requirements-eval.txt   # eval-only deps (not in production requirements.txt)
+
 Runs all 5 steps in sequence, with optional skip flags for each stage
 so you can re-run individual steps without redoing expensive API calls.
 
