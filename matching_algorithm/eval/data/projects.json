@@ -1,0 +1,281 @@
+[
+  {
+    "id": "p_01",
+    "name": "StudyBuddy - Peer Tutoring Marketplace",
+    "description": "A web platform connecting students with peer tutors across different subjects. Features include real-time scheduling, video call integration, payment processing, and tutor rating/review system. Built with React frontend and Node.js/Express backend with PostgreSQL database.",
+    "skills_needed": [
+      "React",
+      "Node.js",
+      "PostgreSQL",
+      "REST API Design"
+    ],
+    "nice_to_have_skills": [
+      "Stripe Integration",
+      "WebRTC"
+    ],
+    "tags": [
+      "web development",
+      "education tech"
+    ]
+  },
+  {
+    "id": "p_02",
+    "name": "Smart Resume Analyzer",
+    "description": "ML-powered tool that analyzes resumes and provides real-time feedback on formatting, keyword optimization, and ATS compatibility. Uses NLP to extract key information and compares against job descriptions to suggest improvements.",
+    "skills_needed": [
+      "Python",
+      "NLP",
+      "Machine Learning",
+      "Scikit-learn"
+    ],
+    "nice_to_have_skills": [
+      "BERT",
+      "spaCy"
+    ],
+    "tags": [
+      "machine learning",
+      "career development"
+    ]
+  },
+  {
+    "id": "p_03",
+    "name": "Campus Event Discovery App",
+    "description": "Cross-platform mobile app (React Native) for discovering, filtering, and registering for campus events. Features include personalized event recommendations, calendar sync, and push notifications for events matching user interests.",
+    "skills_needed": [
+      "React Native",
+      "JavaScript",
+      "Firebase",
+      "Mobile UI Design"
+    ],
+    "nice_to_have_skills": [
+      "Redux",
+      "Expo"
+    ],
+    "tags": [
+      "mobile development",
+      "community"
+    ]
+  },
+  {
+    "id": "p_04",
+    "name": "Code Complexity Metrics Dashboard",
+    "description": "Full-stack application that analyzes GitHub repositories and provides visual dashboards showing code quality metrics, test coverage, and technical debt trends over time. Includes automated alerts for quality degradation and team collaboration features.",
+    "skills_needed": [
+      "React",
+      "Python",
+      "GitHub API",
+      "Data Visualization"
+    ],
+    "nice_to_have_skills": [
+      "D3.js",
+      "PostgreSQL"
+    ],
+    "tags": [
+      "web development",
+      "developer tools"
+    ]
+  },
+  {
+    "id": "p_05",
+    "name": "Real Estate Price Prediction Engine",
+    "description": "Machine learning project predicting property values using historical data, location features, and market trends. Model includes data pipeline for web scraping, feature engineering, and API deployment for real-time predictions.",
+    "skills_needed": [
+      "Python",
+      "Pandas",
+      "Machine Learning",
+      "Scikit-learn"
+    ],
+    "nice_to_have_skills": [
+      "XGBoost",
+      "Time Series Analysis"
+    ],
+    "tags": [
+      "machine learning",
+      "data science"
+    ]
+  },
+  {
+    "id": "p_06",
+    "name": "Kubernetes Cluster Deployment Toolkit",
+    "description": "DevOps project creating automation tools for deploying and managing containerized applications on Kubernetes. Includes Terraform scripts, CI/CD pipeline configuration, monitoring setup with Prometheus, and documentation.",
+    "skills_needed": [
+      "Kubernetes",
+      "Docker",
+      "Terraform",
+      "Linux"
+    ],
+    "nice_to_have_skills": [
+      "Helm",
+      "GitOps"
+    ],
+    "tags": [
+      "devops",
+      "cloud infrastructure"
+    ]
+  },
+  {
+    "id": "p_07",
+    "name": "Video Content Recommendation System",
+    "description": "Recommendation engine for an educational video platform using collaborative filtering and content-based filtering. Processes user viewing history and engagement metrics to suggest relevant educational content with A/B testing framework.",
+    "skills_needed": [
+      "Python",
+      "Recommendation Systems",
+      "TensorFlow",
+      "Data Analysis"
+    ],
+    "nice_to_have_skills": [
+      "Spark",
+      "Apache Kafka"
+    ],
+    "tags": [
+      "machine learning",
+      "recommendation systems"
+    ]
+  },
+  {
+    "id": "p_08",
+    "name": "Sustainable Lifestyle Tracker",
+    "description": "Mobile app (iOS/Swift or Android/Kotlin) that gamifies sustainable living by tracking carbon footprint, recycling habits, and eco-friendly purchases. Includes social features for community challenges and leaderboards.",
+    "skills_needed": [
+      "Swift",
+      "iOS Development",
+      "SQLite",
+      "Mobile UX"
+    ],
+    "nice_to_have_skills": [
+      "HealthKit Integration"
+    ],
+    "tags": [
+      "mobile development",
+      "sustainability"
+    ]
+  },
+  {
+    "id": "p_09",
+    "name": "Document Processing Pipeline",
+    "description": "ETL pipeline that extracts structured data from unstructured documents (PDFs, images) using OCR and ML classification. Processes data through quality checks, transformation, and loads into data warehouse for analytics.",
+    "skills_needed": [
+      "Python",
+      "Apache Airflow",
+      "SQL",
+      "Data Engineering"
+    ],
+    "nice_to_have_skills": [
+      "Tesseract OCR",
+      "AWS S3"
+    ],
+    "tags": [
+      "data pipeline",
+      "data engineering"
+    ]
+  },
+  {
+    "id": "p_10",
+    "name": "DeFi Portfolio Manager",
+    "description": "Web3 application built on Ethereum that allows users to manage cryptocurrency portfolios, track DeFi yields, and execute swaps across multiple protocols. Features include real-time price tracking, transaction history, and portfolio analytics.",
+    "skills_needed": [
+      "Solidity",
+      "Web3.js",
+      "React",
+      "Ethereum"
+    ],
+    "nice_to_have_skills": [
+      "TypeScript",
+      "MetaMask Integration"
+    ],
+    "tags": [
+      "blockchain",
+      "web3"
+    ]
+  },
+  {
+    "id": "p_11",
+    "name": "Customer Churn Prediction Dashboard",
+    "description": "Data analytics project building predictive models to identify at-risk customers and visualizing insights for business teams. Includes data warehouse queries, feature engineering, and interactive Tableau/Grafana dashboards.",
+    "skills_needed": [
+      "SQL",
+      "Python",
+      "Statistics",
+      "Data Visualization"
+    ],
+    "nice_to_have_skills": [
+      "Tableau",
+      "Looker"
+    ],
+    "tags": [
+      "data pipeline",
+      "analytics"
+    ]
+  },
+  {
+    "id": "p_12",
+    "name": "Object Detection for Agricultural Monitoring",
+    "description": "Computer vision project using YOLO/Faster R-CNN to detect crop diseases and pest damage in drone/satellite imagery. Includes model training pipeline, mobile app for farmers, and real-time alert system.",
+    "skills_needed": [
+      "Python",
+      "Computer Vision",
+      "TensorFlow",
+      "OpenCV"
+    ],
+    "nice_to_have_skills": [
+      "YOLO",
+      "Edge Deployment"
+    ],
+    "tags": [
+      "machine learning",
+      "computer vision"
+    ]
+  },
+  {
+    "id": "p_13",
+    "name": "Collaborative Whiteboard Tool",
+    "description": "Real-time web application enabling teams to collaborate on digital whiteboards with live cursors, voice chat integration, and drawing tools. Built with Vue.js frontend, WebSocket backend, and canvas rendering optimization for smooth performance.",
+    "skills_needed": [
+      "Vue.js",
+      "WebSocket",
+      "JavaScript",
+      "Canvas API"
+    ],
+    "nice_to_have_skills": [
+      "WebRTC",
+      "Redis"
+    ],
+    "tags": [
+      "web development",
+      "collaboration tools"
+    ]
+  },
+  {
+    "id": "p_14",
+    "name": "Open-Ended Social Good Hackathon Project",
+    "description": "This is an exploratory project focused on solving a community problem of your choice using technology. You have freedom to define scope, tech stack, and deliverables based on the problem you want to solve.",
+    "skills_needed": [
+      "Problem Solving",
+      "Communication"
+    ],
+    "nice_to_have_skills": [],
+    "tags": [
+      "social impact",
+      "exploratory"
+    ]
+  },
+  {
+    "id": "p_15",
+    "name": "AI-Powered Nutrition Advisor",
+    "description": "Full-stack application combining NLP and recommendation systems to provide personalized nutrition advice based on user health data, dietary preferences, and fitness goals. Includes meal planning, recipe suggestions, and integration with fitness trackers.",
+    "skills_needed": [
+      "React",
+      "Python",
+      "Machine Learning",
+      "API Integration"
+    ],
+    "nice_to_have_skills": [
+      "NLP",
+      "PostgreSQL"
+    ],
+    "tags": [
+      "machine learning",
+      "health tech"
+    ]
+  }
+]
