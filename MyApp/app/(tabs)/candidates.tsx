@@ -4,12 +4,14 @@
    Imports & setup
    ========================= */
 import { Ionicons } from "@expo/vector-icons";
-import { useRef, useState } from "react";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   Dimensions,
   Image,
+  LayoutChangeEvent,
   Linking,
   PanResponder,
   ScrollView,
@@ -23,7 +25,8 @@ import {
   CandidateUI,
   fetchCandidates,
   fetchMyProjects,
-  likeCandidate, MyProject,
+  likeCandidate,
+  MyProject,
 } from "../../lib/candidates";
 import {
   checkMatchingAPIHealth,
@@ -31,11 +34,23 @@ import {
 } from "../../lib/matching-api";
 
 import { router, useFocusEffect } from "expo-router";
-import { useCallback } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 120;
+const DECK_CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 430);
+const DECK_CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.68, 620);
+const deckCardShell = {
+  backgroundColor: "#fff",
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: "#E1E8F5",
+  shadowColor: "#9EADD6",
+  shadowOffset: { width: 0, height: 10 },
+  shadowOpacity: 0.18,
+  shadowRadius: 18,
+  elevation: 7,
+} as const;
 
 /* =========================
    Types (make skills optional & flexible)
@@ -46,14 +61,13 @@ type Candidate = CandidateUI & {
 };
 
 type FilterProject = MyProject & {
-  included : boolean;
-}
+  included: boolean;
+};
 
 type FilterSkill = {
-  name : string;
-  included : boolean;
-}
-
+  name: string;
+  included: boolean;
+};
 
 /* =========================
    Link Row
@@ -180,21 +194,21 @@ const CandidateCard = ({
   // ).current;
 
   const panResponder = useRef(
-  PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_, g) => {
-      const { dx, dy } = g;
-      // Only hijack the gesture if horizontal movement is dominant
-      return Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8;
-    },
-    onPanResponderMove: (_, g) => position.setValue({ x: g.dx, y: g.dy }),
-    onPanResponderRelease: (_, g) => {
-      if (g.dx > SWIPE_THRESHOLD) swipeRight();
-      else if (g.dx < -SWIPE_THRESHOLD) swipeLeft();
-      else resetPosition();
-    },
-  }),
-).current;
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) => {
+        const { dx, dy } = g;
+        // Only hijack the gesture if horizontal movement is dominant
+        return Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8;
+      },
+      onPanResponderMove: (_, g) => position.setValue({ x: g.dx, y: 0 }),
+      onPanResponderRelease: (_, g) => {
+        if (g.dx > SWIPE_THRESHOLD) swipeRight();
+        else if (g.dx < -SWIPE_THRESHOLD) swipeLeft();
+        else resetPosition();
+      },
+    }),
+  ).current;
 
   const swipeRight = () => {
     Animated.timing(position, {
@@ -235,155 +249,154 @@ const CandidateCard = ({
       style={[
         styles.card,
         {
-          transform: [
-            { translateX: position.x },
-            { translateY: position.y },
-            { rotate },
-          ],
+          transform: [{ translateX: position.x }, { rotate }],
         },
         !isTop && styles.cardBehind,
       ]}
       {...(isTop ? panResponder.panHandlers : {})}
     >
-      {isTop && (
-        <>
-          <Animated.View style={[styles.likeOverlay, { opacity: likeOpacity }]}>
-            <Text style={styles.overlayText}>INTERESTED</Text>
-          </Animated.View>
-          <Animated.View style={[styles.nopeOverlay, { opacity: nopeOpacity }]}>
-            <Text style={styles.nopeOverlayText}>PASS</Text>
-          </Animated.View>
-        </>
-      )}
+      <View style={styles.cardSurface}>
+        {isTop && (
+          <>
+            <Animated.View
+              style={[styles.likeOverlay, { opacity: likeOpacity }]}
+            >
+              <Text style={styles.overlayText}>INTERESTED</Text>
+            </Animated.View>
+            <Animated.View
+              style={[styles.nopeOverlay, { opacity: nopeOpacity }]}
+            >
+              <Text style={styles.nopeOverlayText}>PASS</Text>
+            </Animated.View>
+          </>
+        )}
 
-      {/* Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* TAGS SECTION */}
-        {candidate.project_name && (
-          <View style={styles.projectTagRow}>
-            <View style={styles.projectTag}>
-              <Ionicons
-                name="briefcase-outline"
-                size={11}
-                color="#000"
-                style={{ marginRight: 5 }}
+        {/* Content */}
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* TAGS SECTION */}
+          {candidate.project_name && (
+            <View style={styles.projectTagRow}>
+              <View style={styles.projectTag}>
+                <Ionicons
+                  name="briefcase-outline"
+                  size={11}
+                  color="#000"
+                  style={{ marginRight: 5 }}
+                />
+                <Text>{candidate.project_name}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* ── Hero Header ── */}
+          <View style={styles.avatarSection}>
+            <View style={styles.avatarWrapper}>
+              <Image
+                source={{ uri: candidate.profile_image }}
+                style={styles.avatar}
               />
-              <Text>{candidate.project_name}</Text>
             </View>
+            <Text style={styles.candidateName}>{candidate.name}</Text>
+            {candidate.location ? (
+              <View style={styles.locationRow}>
+                <Ionicons name="location-outline" size={13} color="#888" />
+                <Text style={styles.locationText}>{candidate.location}</Text>
+              </View>
+            ) : null}
           </View>
-        )}
 
-        {/* ── Hero Header ── */}
-        <View style={styles.avatarSection}>
-          <View style={styles.avatarWrapper}>
-            <Image
-              source={{ uri: candidate.profile_image }}
-              style={styles.avatar}
-            />
+          <View style={styles.descriptionSection}>
+            <Text style={styles.description}>{candidate.bio}</Text>
           </View>
-          <Text style={styles.candidateName}>{candidate.name}</Text>
-          {candidate.location ? (
-            <View style={styles.locationRow}>
-              <Ionicons name="location-outline" size={13} color="#888" />
-              <Text style={styles.locationText}>{candidate.location}</Text>
+
+          {candidate.skills.length > 0 && (
+            <View style={{ marginTop: 6, marginBottom: 20 }}>
+              <Text style={styles.sectionTitle}>Skills</Text>
+              <View style={styles.chipsWrap}>
+                {candidate.skills.map((s, i) => (
+                  <View key={`${s}-${i}`} style={styles.chip}>
+                    <Text style={styles.chipText}>{s}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
-          ) : null}
-        </View>
+          )}
 
-        <View style={styles.descriptionSection}>
-          {/* <Text style={styles.sectionTitle}>Bio</Text> */}
-          <Text style={styles.description}>{candidate.bio}</Text>
-        </View>
+          {candidate.interests.length > 0 && (
+            <View style={{ marginTop: 6, marginBottom: 20 }}>
+              <Text style={styles.sectionTitle}>Interests</Text>
+              <View style={styles.chipsWrap}>
+                {candidate.interests.map((s, i) => (
+                  <View key={`${s}-${i}`} style={styles.chip}>
+                    <Text style={styles.chipText}>{s}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
 
-        {/* Skills chips (if available) */}
-        {candidate.skills.length > 0 && (
-          <View style={{ marginTop: 6, marginBottom: 20 }}>
-            <Text style={styles.sectionTitle}>Skills</Text>
-            <View style={styles.chipsWrap}>
-              {candidate.skills.map((s, i) => (
-                <View key={`${s}-${i}`} style={styles.chip}>
-                  <Text style={styles.chipText}>{s}</Text>
-                </View>
+          {candidate.experience?.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Experience</Text>
+              <View style={styles.timeline}>
+                {candidate.experience.map((e, i) => (
+                  <ExperienceBlock key={`ex-${i}`} item={e} />
+                ))}
+              </View>
+            </View>
+          )}
+
+          {candidate.education?.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Education</Text>
+              <View style={styles.timeline}>
+                {candidate.education.map((e, i) => (
+                  <EducationBlock key={`ed-${i}`} item={e} />
+                ))}
+              </View>
+            </View>
+          )}
+
+          {candidate.personal_projects.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Personal Projects</Text>
+              {candidate.personal_projects.map((p, i) => (
+                <ProjectBlock key={`pp-${i}`} item={p} />
               ))}
             </View>
-          </View>
-        )}
+          )}
 
-        {/* interests chips (if available) */}
-        {candidate.interests.length > 0 && (
-          <View style={{ marginTop: 6, marginBottom: 20 }}>
-            <Text style={styles.sectionTitle}>Interests</Text>
-            <View style={styles.chipsWrap}>
-              {candidate.interests.map((s, i) => (
-                <View key={`${s}-${i}`} style={styles.chip}>
-                  <Text style={styles.chipText}>{s}</Text>
-                </View>
-              ))}
+          {hasLinks && (
+            <View style={[styles.section, { marginBottom: 32 }]}>
+              <Text style={styles.sectionTitle}>Links</Text>
+              <View style={styles.linksContainer}>
+                {candidate.links.github != null && (
+                  <LinkRow label="github" url={candidate.links.github} />
+                )}
+                {candidate.links.linkedin != null && (
+                  <LinkRow label="linkedin" url={candidate.links.linkedin} />
+                )}
+                {candidate.links.twitter != null && (
+                  <LinkRow label="twitter" url={candidate.links.twitter} />
+                )}
+                {candidate.links.instagram != null && (
+                  <LinkRow label="instagram" url={candidate.links.instagram} />
+                )}
+                {candidate.links.portfolio != null && (
+                  <LinkRow label="portfolio" url={candidate.links.portfolio} />
+                )}
+                {candidate.links.other != null && (
+                  <LinkRow label="other" url={candidate.links.other} />
+                )}
+              </View>
             </View>
-          </View>
-        )}
-
-        {/* ── Experience ── */}
-        {candidate.experience?.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Experience</Text>
-            <View style={styles.timeline}>
-              {candidate.experience.map((e, i) => (
-                <ExperienceBlock key={`ex-${i}`} item={e} />
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* ── Education ── */}
-        {candidate.education?.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Education</Text>
-            <View style={styles.timeline}>
-              {candidate.education.map((e, i) => (
-                <EducationBlock key={`ed-${i}`} item={e} />
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* ── Personal Projects ── */}
-        {candidate.personal_projects.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Personal Projects</Text>
-            {candidate.personal_projects.map((p, i) => (
-              <ProjectBlock key={`pp-${i}`} item={p} />
-            ))}
-          </View>
-        )}
-
-        {/* ── Links ── */}
-        {hasLinks && (
-          <View style={[styles.section, { marginBottom: 32 }]}>
-            <Text style={styles.sectionTitle}>Links</Text>
-            <View style={styles.linksContainer}>
-              {candidate.links.github != null && (
-                <LinkRow label="github" url={candidate.links.github} />
-              )}
-              {candidate.links.linkedin != null && (
-                <LinkRow label="linkedin" url={candidate.links.linkedin} />
-              )}
-              {candidate.links.twitter != null && (
-                <LinkRow label="twitter" url={candidate.links.twitter} />
-              )}
-              {candidate.links.instagram != null && (
-                <LinkRow label="instagram" url={candidate.links.instagram} />
-              )}
-              {candidate.links.portfolio != null && (
-                <LinkRow label="portfolio" url={candidate.links.portfolio} />
-              )}
-              {candidate.links.other != null && (
-                <LinkRow label="other" url={candidate.links.other} />
-              )}
-            </View>
-          </View>
-        )}
-      </ScrollView>
+          )}
+        </ScrollView>
+      </View>
     </Animated.View>
   );
 };
@@ -393,44 +406,43 @@ const CandidateCard = ({
    ========================= */
 export default function CandidateFeed() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
+  const browseBottomPadding = Math.max(tabBarHeight, 88) + 12;
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [overallCandidates, setAllCandidates] = useState<Candidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [useMatching, setUseMatching] = useState(false);
+  const [deckHeight, setDeckHeight] = useState(DECK_CARD_HEIGHT);
 
   const [hasProjects, setHasProjects] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const [myProjects, setMyProjects] = useState<FilterProject[]>([]);
   const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
-  const [showAllSkills, setShowAllSkills] = useState<Boolean>(true);
+  const [showAllSkills, setShowAllSkills] = useState<boolean>(true);
   const { session } = useAuth();
 
   const filterFetchedCandidates = () => {
+    let filteredCandidates: Candidate[] = [];
+    const pids = myProjects.filter((p) => p.included).map((p) => p.id);
+    const skills = filterSkills.filter((s) => s.included).map((s) => s.name);
 
-    let filteredCandidates : Candidate[] = [];
-    const pids = myProjects.filter(p => p.included).map(p => p.id);
-    const skills = filterSkills.filter(s => s.included).map(s => s.name);
-    
-    overallCandidates.forEach(c => {
+    overallCandidates.forEach((c) => {
       if (pids.includes(Number(c.project_id))) {
         if (!showAllSkills) {
-          const intersection = c.skills.filter(x => skills.includes(x)); 
+          const intersection = c.skills.filter((x) => skills.includes(x));
           if (intersection.length > 0) {
-            filteredCandidates.push(c)
+            filteredCandidates.push(c);
           }
-        }
-        else {
-          filteredCandidates.push(c)
+        } else {
+          filteredCandidates.push(c);
         }
       }
-    })
+    });
 
-    setCandidates(filteredCandidates)
-  }
-
+    setCandidates(filteredCandidates);
+  };
 
   //useEffect(() => {
   useFocusEffect(
@@ -442,7 +454,7 @@ export default function CandidateFeed() {
 
           // Get current authenticated user's projects
           const userProjects = await fetchMyProjects(session?.user?.id);
-          setMyProjects(userProjects.map(p => ({ ...p, included: true })));
+          setMyProjects(userProjects.map((p) => ({ ...p, included: true })));
           // let one_active = false;
           // for(let i = 0; i < userProjects.length; i++) {
           //   let p = userProjects[i];
@@ -458,14 +470,15 @@ export default function CandidateFeed() {
           // setHasProjects(userProjects.length > 0);
 
           if (one_active) {
-
             let allSkills = new Set<string>();
-            userProjects.forEach(p => {
-              (p.skills_needed ?? []).forEach(s => allSkills.add(s));
+            userProjects.forEach((p) => {
+              (p.skills_needed ?? []).forEach((s) => allSkills.add(s));
             });
 
             // setFilterSkills([...allSkills].map(s => ({name : s, included : true})))
-            setFilterSkills([...allSkills].map(s => ({ name: s, included: true })));
+            setFilterSkills(
+              [...allSkills].map((s) => ({ name: s, included: true })),
+            );
 
             // Fetch all candidates
             const allCandidates = await fetchCandidates(50, session?.user?.id);
@@ -475,25 +488,37 @@ export default function CandidateFeed() {
             const matchingAvailable = await checkMatchingAPIHealth();
 
             if (matchingAvailable) {
-              console.log('Matching API available - ranking candidates by match score...');
+              console.log(
+                "Matching API available - ranking candidates by match score...",
+              );
               try {
-
-
                 const results = await Promise.all(
                   userProjects
-                    .filter(p => p.is_active)
+                    .filter((p) => p.is_active)
                     .map(async (p) => {
-                      const matches = await getMatchedCandidates(p, allCandidates);
-                      return matches.map(m => ({ ...m, project_id: String(p.id) }));
-                    })
+                      const matches = await getMatchedCandidates(
+                        p,
+                        allCandidates,
+                      );
+                      return matches.map((m) => ({
+                        ...m,
+                        project_id: String(p.id),
+                      }));
+                    }),
                 );
                 const firstMatchScores = results.flat();
                 // from matchScores remove duplicates (keep highest match score)
-                const bestMatchMap = new Map<string, (typeof firstMatchScores)[number]>();
+                const bestMatchMap = new Map<
+                  string,
+                  (typeof firstMatchScores)[number]
+                >();
 
                 for (const match of firstMatchScores) {
                   const existing = bestMatchMap.get(match.candidate_id);
-                  if (!existing || match.overall_score > existing.overall_score) {
+                  if (
+                    !existing ||
+                    match.overall_score > existing.overall_score
+                  ) {
                     bestMatchMap.set(match.candidate_id, match);
                   }
                 }
@@ -501,7 +526,9 @@ export default function CandidateFeed() {
                 const matchScores = Array.from(bestMatchMap.values());
 
                 // Create a map of candidate IDs to match scores
-                const scoreMap = new Map(matchScores.map(m => [m.candidate_id, m.overall_score]));
+                const scoreMap = new Map(
+                  matchScores.map((m) => [m.candidate_id, m.overall_score]),
+                );
 
                 // Sort candidates by match score
                 const rankedCandidates = [...allCandidates].sort((a, b) => {
@@ -513,24 +540,35 @@ export default function CandidateFeed() {
                 setAllCandidates(rankedCandidates as Candidate[]);
                 setCandidates(rankedCandidates as Candidate[]);
 
-                setUseMatching(true);
-                console.log(`Candidates ranked by match score (top: ${(scoreMap.get(rankedCandidates[0].id) || 0) * 100}%)`);
+                console.log(
+                  `Candidates ranked by match score (top: ${(scoreMap.get(rankedCandidates[0].id) || 0) * 100}%)`,
+                );
               } catch (matchError) {
-                console.warn('Failed to rank candidates, using default order:', matchError);
+                console.warn(
+                  "Failed to rank candidates, using default order:",
+                  matchError,
+                );
                 setAllCandidates(allCandidates as Candidate[]);
                 setCandidates(allCandidates as Candidate[]);
               }
             } else {
-              console.log('Matching API not available - showing candidates in default order');
-              const pid = String(userProjects.find(p => p.is_active)?.id);
-              const p_name = String(userProjects.find(p => p.is_active)?.title);
-              const temp = allCandidates.map(c => ({ ...c, project_id: pid, project_name: p_name })) as Candidate[]
+              console.log(
+                "Matching API not available - showing candidates in default order",
+              );
+              const pid = String(userProjects.find((p) => p.is_active)?.id);
+              const p_name = String(
+                userProjects.find((p) => p.is_active)?.title,
+              );
+              const temp = allCandidates.map((c) => ({
+                ...c,
+                project_id: pid,
+                project_name: p_name,
+              })) as Candidate[];
               setAllCandidates(temp);
               setCandidates(temp);
             }
             setCurrentIndex(0);
           }
-
         } catch (e: any) {
           if (!alive) return;
           setErr(e.message ?? String(e));
@@ -538,9 +576,12 @@ export default function CandidateFeed() {
           if (alive) setLoading(false);
         }
       })();
-      return () => { alive = false; };
+      return () => {
+        alive = false;
+      };
       //}, []);
-    }, []));
+    }, [session?.user?.id]),
+  );
 
   const advance = () => {
     if (currentIndex < candidates.length) setCurrentIndex((i) => i + 1);
@@ -556,18 +597,28 @@ export default function CandidateFeed() {
         session.user.id,
         candidate.project_id,
         candidate.id,
-        direction == "right" ? "like" : "pass",
+        direction === "right" ? "like" : "pass",
       );
     } catch (e: any) {
       console.warn("Failed to record candidate like:", e.message ?? e);
     }
   };
 
+  const handleDeckLayout = (event: LayoutChangeEvent) => {
+    const nextHeight = Math.max(
+      event.nativeEvent.layout.height,
+      DECK_CARD_HEIGHT,
+    );
+    setDeckHeight((currentHeight) =>
+      Math.abs(currentHeight - nextHeight) > 1 ? nextHeight : currentHeight,
+    );
+  };
+
   if (loading)
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#007AFF"/>
-        <Text style={{margin : 20, color :"#999"}}>Loading candidates...</Text>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={{ margin: 20, color: "#999" }}>Loading candidates...</Text>
       </View>
     );
   if (err)
@@ -577,16 +628,28 @@ export default function CandidateFeed() {
       </View>
     );
 
-  return (hasProjects ? (dropdownOpen ? (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <View>
-        <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setDropdownOpen(false); filterFetchedCandidates() }}>
-          <Ionicons name="close" size={35} color="000" />
-        </TouchableOpacity>
-      </View>
+  return hasProjects ? (
+    dropdownOpen ? (
+      <View
+        style={[
+          styles.container,
+          { paddingTop: insets.top, paddingBottom: insets.bottom },
+        ]}
+      >
+        <View>
+          <TouchableOpacity
+            style={styles.closeDropDownButton}
+            onPress={() => {
+              setDropdownOpen(false);
+              filterFetchedCandidates();
+            }}
+          >
+            <Ionicons name="close" size={35} color="000" />
+          </TouchableOpacity>
+        </View>
 
-      <View>
-        {/* {myProjects.length > 0 && (
+        <View>
+          {/* {myProjects.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Personal Projects</Text>
             {myProjects.map((p, i) =>
@@ -615,120 +678,159 @@ export default function CandidateFeed() {
           </View>
         )} */}
 
-        {myProjects.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Personal Projects</Text>
-            {myProjects.map((p, i) => (
+          {myProjects.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Personal Projects</Text>
+              {myProjects.map((p, i) => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={styles.filterRow}
+                  onPress={() =>
+                    setMyProjects((prev) =>
+                      prev.map((proj, j) =>
+                        j === i ? { ...proj, included: !proj.included } : proj,
+                      ),
+                    )
+                  }
+                >
+                  <Ionicons
+                    name={p.included ? "checkmark-circle" : "ellipse-outline"}
+                    size={20}
+                    color="#333"
+                  />
+                  <Text style={styles.filterLabel}>{p.title}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* skills to browse on */}
+          {filterSkills.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Skills</Text>
               <TouchableOpacity
-                key={p.id}
-                style={styles.filterRow}
-                onPress={() => setMyProjects(prev =>
-                  prev.map((proj, j) => j === i ? { ...proj, included: !proj.included } : proj)
-                )}
-              >
-                <Ionicons name={p.included ? "checkmark-circle" : "ellipse-outline"} size={20} color="#333" />
-                <Text style={styles.filterLabel}>{p.title}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-
-        {/* skills to browse on */}
-        {filterSkills.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Skills</Text>
-            <TouchableOpacity
                 style={styles.filterRow}
                 onPress={() => {
-                  
-                  setShowAllSkills(!showAllSkills); 
-
+                  setShowAllSkills(!showAllSkills);
                 }}
               >
-                <Ionicons name={showAllSkills ? "checkmark-circle" : "ellipse-outline"} size={20} color="#333" />
+                <Ionicons
+                  name={showAllSkills ? "checkmark-circle" : "ellipse-outline"}
+                  size={20}
+                  color="#333"
+                />
                 <Text style={styles.filterLabel}>Show All Skills</Text>
               </TouchableOpacity>
 
-            {[...filterSkills].map((s, i) =>
-
-              <TouchableOpacity
-                key={i}
-                style={[styles.filterRow, {paddingHorizontal : 40}]}
-                onPress={() => {
-                  if (!showAllSkills) setFilterSkills(prev => prev.map((skill, j) => j === i ? { ...skill, included: !skill.included } : skill));
-                }}
-              >
-                <Ionicons name={s.included ? "checkmark-circle" : "ellipse-outline"} size={20} color={showAllSkills? "#ddd": "#333"} />
-                <Text style={[styles.filterLabel, {color: showAllSkills ? "#ddd" : "#333" }]}>{s.name}</Text>
-              </TouchableOpacity>
-
-            )}
-          </View>
-        )}
-
+              {[...filterSkills].map((s, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.filterRow, { paddingHorizontal: 40 }]}
+                  onPress={() => {
+                    if (!showAllSkills)
+                      setFilterSkills((prev) =>
+                        prev.map((skill, j) =>
+                          j === i
+                            ? { ...skill, included: !skill.included }
+                            : skill,
+                        ),
+                      );
+                  }}
+                >
+                  <Ionicons
+                    name={s.included ? "checkmark-circle" : "ellipse-outline"}
+                    size={20}
+                    color={showAllSkills ? "#ddd" : "#333"}
+                  />
+                  <Text
+                    style={[
+                      styles.filterLabel,
+                      { color: showAllSkills ? "#ddd" : "#333" },
+                    ]}
+                  >
+                    {s.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
       </View>
-    </View>
-
-  ) : (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* FILTER */}
-      <View>
-        <TouchableOpacity style={styles.filterButton} onPress={() => { setDropdownOpen(true) }}>
-          <Ionicons name="filter" size={30} color="000" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.cardContainer}>
-        {candidates
-          .slice(currentIndex, currentIndex + 2)
-          .reverse()
-          .map((p, i, arr) => (
-            <CandidateCard
-              key={p.id}
-              candidate={p}
-              // isTop={i === 1}
-              isTop={i === arr.length - 1}
-              onSwipe={handleSwipe}
-            />
-          ))}
-
-        {currentIndex >= candidates.length && (
-          <View style={styles.endCard}>
-            <Text style={styles.endText}>No more candidates!</Text>
-            <TouchableOpacity
-              style={styles.resetButton}
-              onPress={() => setCurrentIndex(0)}
-            >
-              <Text style={styles.resetButtonText}>Start Over</Text>
-            </TouchableOpacity>
-            <Text style={{ paddingVertical : 10, fontSize: 16, color: '#999', marginBottom: 16, width: "75%", textAlign: "center" }}>Or edit your filter settings</Text>
-          </View>
-        )}
-      </View>
-
-      {currentIndex < candidates.length && (
-        <View style={styles.buttonsContainer}>
-          <TouchableOpacity style={styles.passButton} onPress={() => handleSwipe('left')}>
-            <Ionicons name="close" size={28} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.likeButton} onPress={() => handleSwipe('right')}>
-            <Ionicons name="checkmark" size={28} color="#fff" />
+    ) : (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        {/* FILTER */}
+        <View>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => {
+              setDropdownOpen(true);
+            }}
+          >
+            <Ionicons name="filter" size={30} color="000" />
           </TouchableOpacity>
         </View>
-      )}
-    </View>
-  ))
 
-    : (
-      <View style={[styles.center, { backgroundColor: "#fff" }]}>
-        <Text style={{ fontSize: 16, color: '#999', marginBottom: 16, width: "75%", textAlign: "center" }}>You must have an active project to browse candidates.</Text>
-        <TouchableOpacity style={styles.resetButton} onPress={() => router.push('/create-project' as any)}>
-          <Text style={styles.resetButtonText}>Create Your First Project</Text>
-        </TouchableOpacity>
+        <View
+          style={[
+            styles.browseLayout,
+            {
+              paddingBottom: browseBottomPadding,
+            },
+          ]}
+        >
+          <View style={styles.cardContainer} onLayout={handleDeckLayout}>
+            <View style={[styles.deckSlot, { height: deckHeight }]}>
+              {candidates
+                .slice(currentIndex, currentIndex + 2)
+                .reverse()
+                .map((p, i, arr) => (
+                  <CandidateCard
+                    key={p.id}
+                    candidate={p}
+                    isTop={i === arr.length - 1}
+                    onSwipe={handleSwipe}
+                  />
+                ))}
+
+              {currentIndex >= candidates.length && (
+                <View style={styles.endCard}>
+                  <Text style={styles.endText}>No more candidates!</Text>
+                  <TouchableOpacity
+                    style={styles.resetButton}
+                    onPress={() => setCurrentIndex(0)}
+                  >
+                    <Text style={styles.resetButtonText}>Start Over</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.endSubtext}>
+                    Or edit your filter settings
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
       </View>
     )
-
+  ) : (
+    <View style={[styles.center, { backgroundColor: "#fff" }]}>
+      <Text
+        style={{
+          fontSize: 16,
+          color: "#999",
+          marginBottom: 16,
+          width: "75%",
+          textAlign: "center",
+        }}
+      >
+        You must have an active project to browse candidates.
+      </Text>
+      <TouchableOpacity
+        style={styles.resetButton}
+        onPress={() => router.push("/create-project" as any)}
+      >
+        <Text style={styles.resetButtonText}>Create Your First Project</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -738,20 +840,31 @@ export default function CandidateFeed() {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   container: { flex: 1, backgroundColor: "#fff" },
-  cardContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  browseLayout: {
+    flex: 1,
+    paddingTop: 12,
+  },
+  cardContainer: {
+    flex: 1,
+    justifyContent: "flex-start",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  deckSlot: {
+    width: DECK_CARD_WIDTH,
+    maxWidth: 430,
+    position: "relative",
+    alignSelf: "center",
+  },
 
   card: {
-    position: "absolute",
-    width: SCREEN_WIDTH * 0.9,
-    maxWidth: 430,
-    height: SCREEN_HEIGHT * 0.65,
-    backgroundColor: '#fff',
+    ...StyleSheet.absoluteFillObject,
+    ...deckCardShell,
+  },
+  cardSurface: {
+    flex: 1,
+    backgroundColor: "#fff",
     borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
     overflow: "hidden",
   },
   cardBehind: { transform: [{ scale: 0.95 }], opacity: 0.8 },
@@ -779,8 +892,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#333",
   },
-
-  content: { flex: 1, padding: 20, paddingTop: 30 },
+  content: { flex: 1 },
+  contentContainer: { padding: 20, paddingTop: 30, paddingBottom: 24 },
   location: {
     fontSize: 14,
     color: "#666",
@@ -799,8 +912,18 @@ const styles = StyleSheet.create({
   projectImage: { width: "100%", height: "100%" },
 
   descriptionSection: { marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
-  description: { fontSize: 14, color: '#333', lineHeight: 20, textAlign: 'center' },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  description: {
+    fontSize: 14,
+    color: "#333",
+    lineHeight: 20,
+    textAlign: "center",
+  },
 
   // overlays
   likeOverlay: {
@@ -826,17 +949,30 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   overlayText: { fontSize: 32, fontWeight: "bold", color: "#4CAF50" },
-
   nopeOverlayText: { fontSize: 32, fontWeight: "bold", color: "#F44336" },
 
-  buttonsContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 60, paddingBottom: 10, paddingTop: 0 },
-  passButton: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
-  likeButton: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
-
-  endCard: { width: SCREEN_WIDTH * 0.9, maxWidth: 430, height: SCREEN_HEIGHT * 0.65, backgroundColor: '#fff', borderRadius: 20, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
-  endText: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  resetButton: { backgroundColor: '#007AFF', paddingHorizontal: 30, paddingVertical: 12, borderRadius: 25 },
-  resetButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  endCard: {
+    ...StyleSheet.absoluteFillObject,
+    ...deckCardShell,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  endText: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
+  endSubtext: {
+    paddingVertical: 10,
+    fontSize: 16,
+    color: "#999",
+    marginBottom: 16,
+    width: "75%",
+    textAlign: "center",
+  },
+  resetButton: {
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  resetButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 
   // skills chips
   chipsWrap: {
@@ -965,10 +1101,35 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
 
-  //filtering drop down 
-  filterButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 60, borderRadius: 25 },
-  closeDropDownButton: { alignSelf: 'flex-end', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 70, borderRadius: 25 },
+  //filtering drop down
+  filterButton: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    width: 100,
+    height: 60,
+    borderRadius: 25,
+  },
+  closeDropDownButton: {
+    alignSelf: "flex-end",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    width: 100,
+    height: 70,
+    borderRadius: 25,
+  },
 
-  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 20 },
-  filterLabel: { fontSize: 14, color: '#333' },
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  filterLabel: { fontSize: 14, color: "#333" },
 });
