@@ -3,6 +3,7 @@
 /* =========================
    Imports & setup
    ========================= */
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { router, useFocusEffect } from "expo-router";
@@ -44,6 +45,7 @@ const HEADER_TABS = [
   { key: "browse", label: "Browse", icon: "compass-outline" },
   { key: "mine", label: "My Projects", icon: "folder-outline" },
 ] as const;
+const PROJECT_SWIPE_HINT_SEEN_KEY = "projectSwipeHintSeen";
 const deckCardShell = {
   backgroundColor: "#fff",
   borderRadius: 20,
@@ -80,11 +82,13 @@ const ProjectCard = ({
   isTop,
   onSwipe,
   onTap,
+  onOpenHelp,
 }: {
   project: Project;
   isTop: boolean;
   onSwipe: (d: "left" | "right") => void;
   onTap: () => void;
+  onOpenHelp: () => void;
 }) => {
   const position = useRef(new Animated.ValueXY()).current;
 
@@ -178,6 +182,16 @@ const ProjectCard = ({
             >
               <Text style={styles.nopeOverlayText}>PASS</Text>
             </Animated.View>
+            <TouchableOpacity
+              accessibilityLabel="Show matching help"
+              accessibilityRole="button"
+              activeOpacity={0.85}
+              hitSlop={8}
+              onPress={onOpenHelp}
+              style={styles.cardHelpButton}
+            >
+              <Text style={styles.cardHelpButtonLabel}>?</Text>
+            </TouchableOpacity>
           </>
         )}
         <ScrollView
@@ -253,6 +267,9 @@ export default function ProjectFeed() {
   const [myLoading, setMyLoading] = useState(false);
   const [headerTrackWidth, setHeaderTrackWidth] = useState(0);
   const [deckHeight, setDeckHeight] = useState(DECK_CARD_HEIGHT);
+  const [hasSeenSwipeHint, setHasSeenSwipeHint] = useState<boolean | null>(
+    null,
+  );
   const [swipeHintVisible, setSwipeHintVisible] = useState(false);
   const [filterDropDownOpen, setFilterDropDownOpen] = useState(false);
 
@@ -407,46 +424,90 @@ export default function ProjectFeed() {
   }, [tab, fetchMyProjects]);
 
   useEffect(() => {
-    if (
-      loading ||
-      tab !== "browse" ||
-      projects.length === 0 ||
-      swipeHintHasShown.current
-    ) {
-      return;
-    }
+    let isMounted = true;
 
-    swipeHintHasShown.current = true;
+    const loadSwipeHintSeenState = async () => {
+      try {
+        const storedValue = await AsyncStorage.getItem(
+          PROJECT_SWIPE_HINT_SEEN_KEY,
+        );
+        if (isMounted) {
+          setHasSeenSwipeHint(storedValue === "true");
+        }
+      } catch (error) {
+        console.warn("Failed to load project swipe hint state:", error);
+        if (isMounted) {
+          setHasSeenSwipeHint(false);
+        }
+      }
+    };
+
+    void loadSwipeHintSeenState();
+
+    return () => {
+      isMounted = false;
+      swipeHintAnimation.current?.stop();
+      swipeHintAnimation.current = null;
+    };
+  }, []);
+
+  const persistSwipeHintSeen = useCallback(async () => {
+    try {
+      await AsyncStorage.setItem(PROJECT_SWIPE_HINT_SEEN_KEY, "true");
+    } catch (error) {
+      console.warn("Failed to save project swipe hint state:", error);
+    }
+  }, []);
+
+  const showSwipeHint = useCallback(() => {
+    swipeHintAnimation.current?.stop();
     setSwipeHintVisible(true);
     swipeHintOpacity.setValue(0);
     swipeHintTranslateY.setValue(12);
 
-    const animation = Animated.sequence([
-      Animated.parallel([
-        Animated.timing(swipeHintOpacity, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.spring(swipeHintTranslateY, {
-          toValue: 0,
-          speed: 18,
-          bounciness: 5,
-          useNativeDriver: true,
-        }),
-      ]),
+    const animation = Animated.parallel([
+      Animated.timing(swipeHintOpacity, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.spring(swipeHintTranslateY, {
+        toValue: 0,
+        speed: 18,
+        bounciness: 5,
+        useNativeDriver: true,
+      }),
     ]);
 
     swipeHintAnimation.current = animation;
     animation.start(() => {
       swipeHintAnimation.current = null;
     });
+  }, [swipeHintOpacity, swipeHintTranslateY]);
 
-    return () => {
-      swipeHintAnimation.current?.stop();
-      swipeHintAnimation.current = null;
-    };
-  }, [loading, projects.length, swipeHintOpacity, swipeHintTranslateY, tab]);
+  useEffect(() => {
+    if (
+      loading ||
+      tab !== "browse" ||
+      projects.length === 0 ||
+      hasSeenSwipeHint !== false ||
+      swipeHintHasShown.current
+    ) {
+      return;
+    }
+
+    swipeHintHasShown.current = true;
+    setHasSeenSwipeHint(true);
+    void persistSwipeHintSeen();
+    showSwipeHint();
+  }, [
+    hasSeenSwipeHint,
+    loading,
+    persistSwipeHintSeen,
+    projects.length,
+    showSwipeHint,
+    tab,
+  ]);
 
   const dismissSwipeHint = () => {
     swipeHintAnimation.current?.stop();
@@ -726,6 +787,7 @@ export default function ProjectFeed() {
                     project={p}
                     isTop={i === arr.length - 1}
                     onSwipe={handleSwipe}
+                    onOpenHelp={showSwipeHint}
                     onTap={() => setDetailProject(p)}
                   />
                 ))}
@@ -1209,6 +1271,26 @@ const styles = StyleSheet.create({
 
   content: { flex: 1 },
   contentContainer: { padding: 20, paddingTop: 30, paddingBottom: 24 },
+  cardHelpButton: {
+    position: "absolute",
+    top: 18,
+    right: 18,
+    zIndex: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#DCE5F6",
+    backgroundColor: "#F8FAFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardHelpButtonLabel: {
+    color: "#2B4CD8",
+    fontSize: 16,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
 
   pageHeader: {
     fontSize: 24,
