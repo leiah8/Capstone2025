@@ -22,6 +22,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import MatchCelebrationOverlay from "../../components/MatchCelebrationOverlay";
 import {
   CandidateUI,
   fetchCandidates,
@@ -471,6 +472,9 @@ export default function CandidateFeed() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [deckHeight, setDeckHeight] = useState(DECK_CARD_HEIGHT);
+  const [matchCelebrationTarget, setMatchCelebrationTarget] = useState<
+    string | null
+  >(null);
 
   const [hasProjects, setHasProjects] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -638,12 +642,15 @@ export default function CandidateFeed() {
 
     if (!session?.user?.id || !candidate) return;
     try {
-      await likeCandidate(
+      const matchResult = await likeCandidate(
         session.user.id,
         candidate.project_id,
         candidate.id,
         direction === "right" ? "like" : "pass",
       );
+      if (matchResult?.match) {
+        setMatchCelebrationTarget(candidate.name);
+      }
     } catch (e: any) {
       console.warn("Failed to record candidate like:", e.message ?? e);
     }
@@ -878,6 +885,14 @@ export default function CandidateFeed() {
             </View>
           </View>
         </View>
+
+        <MatchCelebrationOverlay
+          accentColor="#79BE58"
+          highlight={matchCelebrationTarget ?? ""}
+          onHidden={() => setMatchCelebrationTarget(null)}
+          surfaceColor="#E8F5E2"
+          visible={matchCelebrationTarget !== null}
+        />
       </View>
     )
   ) : (
