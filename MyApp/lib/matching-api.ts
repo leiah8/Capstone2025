@@ -147,10 +147,18 @@ export async function getMatchedProjects(
       id: p.id,
       name: p.name,
       description: p.description,
+      // Send both keys for compatibility across backend versions.
+      skills_needed: p.skillsNeeded || [],
       must_have_skills: p.skillsNeeded || [],
       nice_to_have_skills: [], // Could be extended later
       interests: p.interests || [],
+      tags: p.interests || [],
     }));
+
+    console.log(`[API] Sending ${apiProjects.length} projects to matching API`);
+    console.log(`[API] First 3 project IDs:`, apiProjects.slice(0, 3).map(p => p.id));
+    console.log(`[API] Sample project tags:`, apiProjects.slice(0, 2).map(p => ({ id: p.id, tags: p.tags })));
+    console.log(`[API] User interests:`, userProfile.interests);
 
     const requestBody: MatchRequestProject = {
       user_profile: {
@@ -177,6 +185,10 @@ export async function getMatchedProjects(
     }
 
     const data: MatchResponseProject = await response.json();
+    console.log(`[API] Received ${data.ranked_projects.length} ranked projects from API`);
+    console.log(`[API] First 3 project_ids in response:`, data.ranked_projects.slice(0, 3).map(r => r.project_id));
+    console.log(`[API] Response sample scores:`, data.ranked_projects.slice(0, 3).map(r => ({ id: r.project_id, overall_score: r.overall_score, total_score: r.total_score })));
+    
     return data.ranked_projects.map((r: any) => ({
       project_id: r.project_id,
       project_name: r.project_name ?? "",

@@ -466,11 +466,21 @@ export default function ProjectFeed() {
             matchScores.map((m) => [m.project_id, m.overall_score]),
           );
 
+          // DIAGNOSTIC: Log score map population
+          console.log(`[MATCHING] Got ${matchScores.length} match scores for ${allProjects.length} projects`);
+          console.log(`[MATCHING] First few project IDs from API:`, matchScores.slice(0, 3).map(m => m.project_id));
+          console.log(`[MATCHING] First few project IDs from fetched:`, allProjects.slice(0, 3).map(p => p.id));
+          
           const rankedProjects = [...allProjects].sort((a, b) => {
             const scoreA = scoreMap.get(a.id) || 0;
             const scoreB = scoreMap.get(b.id) || 0;
             return scoreB - scoreA;
           });
+
+          console.log(`[MATCHING] Before sort - first 3 projects by created_at (expect oldest first):`);
+          allProjects.slice(0, 3).forEach(p => console.log(`  - ${p.id}: ${p.name}`));
+          console.log(`[MATCHING] After sort - first 3 projects (expect highest score first):`);
+          rankedProjects.slice(0, 3).forEach(p => console.log(`  - ${p.id}: ${p.name}, score: ${scoreMap.get(p.id)}`));
 
           setAllProjects(rankedProjects as Project[]);
           setProjects(rankedProjects as Project[]);

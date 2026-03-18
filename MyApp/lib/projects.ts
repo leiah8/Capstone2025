@@ -15,6 +15,7 @@ export type ProjectUI = {
 
   lat : number | null;
   lng : number | null;
+  interests?: string[];
 };
 
 type DbProject = {
@@ -26,6 +27,7 @@ type DbProject = {
   is_active: boolean | null;
   created_at: string;
   skills_needed: string[] | null;
+  tags: string[] | null;
   // allow either object or array (if join inference ever breaks)
   profiles:
     | { location: string | null; profile_image: string | null }
@@ -122,6 +124,7 @@ export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promis
         is_active,
         created_at,
         skills_needed,
+        tags,
         profiles:profiles!${FK} (
           location,
           profile_image
@@ -167,6 +170,7 @@ export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promis
       skillsNeeded: row.skills_needed ?? [],
       lat : row.lat,
       lng : row.lng
+      interests: row.tags ?? [],
     };
   });
 }

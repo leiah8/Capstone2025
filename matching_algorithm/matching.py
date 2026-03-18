@@ -174,7 +174,7 @@ class MatchingEngine:
         self,
         user_profile: Dict[str, Any],
         project: Dict[str, Any],
-        must_have_skills_key: str = "skills_needed",
+        must_have_skills_key: str = "must_have_skills",
         nice_to_have_skills_key: str = "nice_to_have_skills",
     ) -> MatchScore:
         user_skills = user_profile.get("skills", [])
@@ -183,9 +183,9 @@ class MatchingEngine:
         
         project_id = str(project.get("id", "unknown"))
         project_description = project.get("description", "")
-        must_have_skills = project.get(must_have_skills_key, [])
+        must_have_skills = project.get(must_have_skills_key, []) or project.get("skills_needed", [])
         nice_to_have_skills = project.get(nice_to_have_skills_key, [])
-        project_tags = project.get("tags", [])
+        project_tags = project.get("tags", []) or project.get("interests", [])
         
         semantic_score = self.calculate_semantic_similarity(user_bio, project_description)
         must_have_ratio, matched_must, missing_must = self.calculate_skill_match(
@@ -204,6 +204,9 @@ class MatchingEngine:
             self.weights.nice_to_have_skills * nice_to_have_ratio +
             self.weights.interests * interest_ratio
         )
+        
+        logger.info(f"[CALC] Project {project_id}: semantic={semantic_score:.3f}, must_have={must_have_ratio:.3f}, nice_to_have={nice_to_have_ratio:.3f}, interest={interest_ratio:.3f} -> total={total_score:.3f}")
+        logger.debug(f"[CALC] Project {project_id}: tags={project_tags}, user_interests={user_interests}")
         
         return MatchScore(
             project_id=project_id,

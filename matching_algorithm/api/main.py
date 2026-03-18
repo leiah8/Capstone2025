@@ -74,6 +74,11 @@ class CandidateMatchResponse(BaseModel):
 @app.post("/match/score", response_model=MatchResponse)
 async def score_matches(request: MatchRequest):
     try:
+        logger.info(f"[SCORE] Received {len(request.projects)} projects from client")
+        logger.info(f"[SCORE] First 3 project IDs: {[p.get('id', 'MISSING') for p in request.projects[:3]]}")
+        logger.info(f"[SCORE] User profile - skills: {request.user_profile.get('skills', [])}, interests: {request.user_profile.get('interests', [])}")
+        logger.info(f"[SCORE] Sample project data: {request.projects[0] if request.projects else 'NONE'}")
+        
         weights = None
         if request.weights:
             weights = MatchWeights(**request.weights)
@@ -84,6 +89,10 @@ async def score_matches(request: MatchRequest):
             projects=request.projects
         )
 
+        logger.info(f"[SCORE] Ranked {len(match_scores)} projects")
+        logger.info(f"[SCORE] Score distribution: min={min(s.total_score for s in match_scores):.3f}, max={max(s.total_score for s in match_scores):.3f}, mean={sum(s.total_score for s in match_scores) / len(match_scores):.3f}")
+        logger.info(f"[SCORE] First 3 result IDs and scores: {[(s.project_id, s.total_score) for s in match_scores[:3]]}")
+
         ranked = [score.to_dict() for score in match_scores]
 
         return MatchResponse(
@@ -92,6 +101,7 @@ async def score_matches(request: MatchRequest):
         )
 
     except Exception as e:
+        logger.error(f"[SCORE] Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Matching failed: {str(e)}"
