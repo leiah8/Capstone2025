@@ -306,8 +306,8 @@ export default function DateRangePickerModal({
                 setPresent(v);
                 if (v && tab === "end") setTab("start");
               }}
-              trackColor={{ false: "#d1d5db", true: "#93c5fd" }}
-              thumbColor={present ? "#2563eb" : "#f4f3f4"}
+              trackColor={{ false: "#d1d5db", true: "#B5D9A0" }}
+              thumbColor={present ? "#79BE58" : "#f4f3f4"}
             />
           </View>
 
@@ -367,11 +367,11 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   tabActive: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "#79BE58",
     borderRadius: 10,
   },
   tabText: { fontSize: 12, color: "#6b7280", fontWeight: "600" },
-  tabTextActive: { color: "#dbeafe" },
+  tabTextActive: { color: "#E8F5E2" },
   tabValue: { fontSize: 15, fontWeight: "700", color: "#111827", marginTop: 2 },
   tabValueActive: { color: "#fff" },
   tabDisabled: { color: "#d1d5db" },
@@ -398,7 +398,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#f9fafb",
   },
-  cellSelected: { backgroundColor: "#2563eb" },
+  cellSelected: { backgroundColor: "#79BE58" },
   cellText: { fontSize: 14, fontWeight: "500", color: "#374151" },
   cellTextSelected: { color: "#fff", fontWeight: "700" },
 
@@ -431,7 +431,7 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 24,
     borderRadius: 8,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#79BE58",
   },
   confirmBtnText: { fontSize: 14, fontWeight: "600", color: "#fff" },
 });

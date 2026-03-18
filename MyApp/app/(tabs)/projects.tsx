@@ -3,6 +3,7 @@
 /* =========================
    Imports & setup
    ========================= */
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { router, useFocusEffect } from "expo-router";
@@ -24,6 +25,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import MatchCelebrationOverlay from "../../components/MatchCelebrationOverlay";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   checkMatchingAPIHealth,
@@ -44,12 +46,13 @@ const HEADER_TABS = [
   { key: "browse", label: "Browse", icon: "compass-outline" },
   { key: "mine", label: "My Projects", icon: "folder-outline" },
 ] as const;
+const PROJECT_SWIPE_HINT_SEEN_KEY = "projectSwipeHintSeen";
 const deckCardShell = {
   backgroundColor: "#fff",
   borderRadius: 20,
   borderWidth: 1,
-  borderColor: "#E1E8F5",
-  shadowColor: "#9EADD6",
+  borderColor: "#DCF0D4",
+  shadowColor: "#7BAF6A",
   shadowOffset: { width: 0, height: 10 },
   shadowOpacity: 0.18,
   shadowRadius: 18,
@@ -80,11 +83,13 @@ const ProjectCard = ({
   isTop,
   onSwipe,
   onTap,
+  onOpenHelp,
 }: {
   project: Project;
   isTop: boolean;
   onSwipe: (d: "left" | "right") => void;
   onTap: () => void;
+  onOpenHelp: () => void;
 }) => {
   const position = useRef(new Animated.ValueXY()).current;
 
@@ -178,6 +183,16 @@ const ProjectCard = ({
             >
               <Text style={styles.nopeOverlayText}>PASS</Text>
             </Animated.View>
+            <TouchableOpacity
+              accessibilityLabel="Show matching help"
+              accessibilityRole="button"
+              activeOpacity={0.85}
+              hitSlop={8}
+              onPress={onOpenHelp}
+              style={styles.cardHelpButton}
+            >
+              <Text style={styles.cardHelpButtonLabel}>?</Text>
+            </TouchableOpacity>
           </>
         )}
         <ScrollView
@@ -253,6 +268,12 @@ export default function ProjectFeed() {
   const [myLoading, setMyLoading] = useState(false);
   const [headerTrackWidth, setHeaderTrackWidth] = useState(0);
   const [deckHeight, setDeckHeight] = useState(DECK_CARD_HEIGHT);
+  const [matchCelebrationTarget, setMatchCelebrationTarget] = useState<
+    string | null
+  >(null);
+  const [hasSeenSwipeHint, setHasSeenSwipeHint] = useState<boolean | null>(
+    null,
+  );
   const [swipeHintVisible, setSwipeHintVisible] = useState(false);
   const [filterDropDownOpen, setFilterDropDownOpen] = useState(false);
 
@@ -367,7 +388,15 @@ export default function ProjectFeed() {
     advance();
     if (direction !== "right" || !session?.user?.id || !project) return;
     try {
-      await likeProject(session.user.id, project.owner_id, project.id, "like");
+      const matchResult = await likeProject(
+        session.user.id,
+        project.owner_id,
+        project.id,
+        "like",
+      );
+      if (matchResult?.match) {
+        setMatchCelebrationTarget(project.name);
+      }
     } catch (e: any) {
       console.warn("Failed to record project like:", e.message ?? e);
     }
@@ -407,46 +436,90 @@ export default function ProjectFeed() {
   }, [tab, fetchMyProjects]);
 
   useEffect(() => {
-    if (
-      loading ||
-      tab !== "browse" ||
-      projects.length === 0 ||
-      swipeHintHasShown.current
-    ) {
-      return;
-    }
+    let isMounted = true;
 
-    swipeHintHasShown.current = true;
+    const loadSwipeHintSeenState = async () => {
+      try {
+        const storedValue = await AsyncStorage.getItem(
+          PROJECT_SWIPE_HINT_SEEN_KEY,
+        );
+        if (isMounted) {
+          setHasSeenSwipeHint(storedValue === "true");
+        }
+      } catch (error) {
+        console.warn("Failed to load project swipe hint state:", error);
+        if (isMounted) {
+          setHasSeenSwipeHint(false);
+        }
+      }
+    };
+
+    void loadSwipeHintSeenState();
+
+    return () => {
+      isMounted = false;
+      swipeHintAnimation.current?.stop();
+      swipeHintAnimation.current = null;
+    };
+  }, []);
+
+  const persistSwipeHintSeen = useCallback(async () => {
+    try {
+      await AsyncStorage.setItem(PROJECT_SWIPE_HINT_SEEN_KEY, "true");
+    } catch (error) {
+      console.warn("Failed to save project swipe hint state:", error);
+    }
+  }, []);
+
+  const showSwipeHint = useCallback(() => {
+    swipeHintAnimation.current?.stop();
     setSwipeHintVisible(true);
     swipeHintOpacity.setValue(0);
     swipeHintTranslateY.setValue(12);
 
-    const animation = Animated.sequence([
-      Animated.parallel([
-        Animated.timing(swipeHintOpacity, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.spring(swipeHintTranslateY, {
-          toValue: 0,
-          speed: 18,
-          bounciness: 5,
-          useNativeDriver: true,
-        }),
-      ]),
+    const animation = Animated.parallel([
+      Animated.timing(swipeHintOpacity, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.spring(swipeHintTranslateY, {
+        toValue: 0,
+        speed: 18,
+        bounciness: 5,
+        useNativeDriver: true,
+      }),
     ]);
 
     swipeHintAnimation.current = animation;
     animation.start(() => {
       swipeHintAnimation.current = null;
     });
+  }, [swipeHintOpacity, swipeHintTranslateY]);
 
-    return () => {
-      swipeHintAnimation.current?.stop();
-      swipeHintAnimation.current = null;
-    };
-  }, [loading, projects.length, swipeHintOpacity, swipeHintTranslateY, tab]);
+  useEffect(() => {
+    if (
+      loading ||
+      tab !== "browse" ||
+      projects.length === 0 ||
+      hasSeenSwipeHint !== false ||
+      swipeHintHasShown.current
+    ) {
+      return;
+    }
+
+    swipeHintHasShown.current = true;
+    setHasSeenSwipeHint(true);
+    void persistSwipeHintSeen();
+    showSwipeHint();
+  }, [
+    hasSeenSwipeHint,
+    loading,
+    persistSwipeHintSeen,
+    projects.length,
+    showSwipeHint,
+    tab,
+  ]);
 
   const dismissSwipeHint = () => {
     swipeHintAnimation.current?.stop();
@@ -544,7 +617,7 @@ export default function ProjectFeed() {
   if (loading && tab === "browse")
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#79BE58" />
         <Text style={{ margin: 15, color: "#999" }}>Loading projects...</Text>
       </View>
     );
@@ -679,7 +752,7 @@ export default function ProjectFeed() {
                   <Ionicons
                     name={headerTab.icon}
                     size={17}
-                    color={isActive ? "#2B4CD8" : "#172033"}
+                    color={isActive ? "#5EA03E" : "#172033"}
                   />
                   <Text
                     numberOfLines={1}
@@ -726,6 +799,7 @@ export default function ProjectFeed() {
                     project={p}
                     isTop={i === arr.length - 1}
                     onSwipe={handleSwipe}
+                    onOpenHelp={showSwipeHint}
                     onTap={() => setDetailProject(p)}
                   />
                 ))}
@@ -797,7 +871,7 @@ export default function ProjectFeed() {
       {tab === "mine" &&
         (myLoading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#007AFF" />
+            <ActivityIndicator size="large" color="#79BE58" />
           </View>
         ) : myProjects.length === 0 ? (
           <View style={styles.center}>
@@ -885,7 +959,7 @@ export default function ProjectFeed() {
                         <Ionicons
                           name="create-outline"
                           size={22}
-                          color="#007AFF"
+                          color="#79BE58"
                         />
                         <Text style={styles.actionText}>Edit</Text>
                       </TouchableOpacity>
@@ -900,7 +974,7 @@ export default function ProjectFeed() {
                               : "play-circle-outline"
                           }
                           size={22}
-                          color="#007AFF"
+                          color="#79BE58"
                         />
                         <Text style={styles.actionText}>
                           {p.is_active ? "Pause" : "Activate"}
@@ -925,6 +999,14 @@ export default function ProjectFeed() {
               ))}
           </ScrollView>
         ))}
+
+      <MatchCelebrationOverlay
+        accentColor="#79BE58"
+        highlight={matchCelebrationTarget ?? ""}
+        onHidden={() => setMatchCelebrationTarget(null)}
+        surfaceColor="#E8F5E2"
+        visible={matchCelebrationTarget !== null}
+      />
 
       {/* Project Detail Modal */}
       <Modal visible={!!detailProject} animationType="slide" transparent>
@@ -1032,10 +1114,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#DCE5F6",
+    borderColor: "#C8E4BC",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#9EADD6",
+    shadowColor: "#7BAF6A",
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 6 },
@@ -1059,7 +1141,7 @@ const styles = StyleSheet.create({
   headerTabsTrack: {
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderColor: "#DCE5F6",
+    borderColor: "#C8E4BC",
     borderRadius: 30,
     borderWidth: 1,
     flexDirection: "row",
@@ -1067,7 +1149,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     paddingHorizontal: HEADER_TRACK_PADDING,
     paddingVertical: HEADER_TRACK_PADDING,
-    shadowColor: "#9EADD6",
+    shadowColor: "#7BAF6A",
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 10 },
@@ -1085,13 +1167,13 @@ const styles = StyleSheet.create({
     }),
   },
   headerTabsIndicator: {
-    backgroundColor: "#E6EEFF",
+    backgroundColor: "#E8F5E2",
     borderRadius: 24,
     bottom: HEADER_TRACK_PADDING,
     left: HEADER_TRACK_PADDING,
     position: "absolute",
     top: HEADER_TRACK_PADDING,
-    shadowColor: "#9EADD6",
+    shadowColor: "#7BAF6A",
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 4 },
@@ -1124,12 +1206,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: -0.1,
   },
-  headerTabLabelActive: { color: "#2B4CD8" },
+  headerTabLabelActive: { color: "#5EA03E" },
   createButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#007AFF",
+    backgroundColor: "#79BE58",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1209,6 +1291,26 @@ const styles = StyleSheet.create({
 
   content: { flex: 1 },
   contentContainer: { padding: 20, paddingTop: 30, paddingBottom: 24 },
+  cardHelpButton: {
+    position: "absolute",
+    top: 18,
+    right: 18,
+    zIndex: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E8F5E2",
+    backgroundColor: "#E8F5E2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardHelpButtonLabel: {
+    color: "#79BE58",
+    fontSize: 16,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
 
   pageHeader: {
     fontSize: 24,
@@ -1365,10 +1467,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: "#E6EEFF",
+    backgroundColor: "#E8F5E2",
   },
   swipeHintDismissText: {
-    color: "#2B4CD8",
+    color: "#79BE58",
     fontSize: 13,
     fontWeight: "700",
     textAlign: "center",
@@ -1384,7 +1486,7 @@ const styles = StyleSheet.create({
   },
   endText: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
   resetButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#79BE58",
     paddingHorizontal: 30,
     paddingVertical: 12,
     borderRadius: 25,
@@ -1483,7 +1585,7 @@ const styles = StyleSheet.create({
   statusBadgeText: { fontSize: 12, fontWeight: "600", color: "#333" },
   myProjectActions: { flexDirection: "row", marginTop: 12, gap: 16 },
   actionButton: { flexDirection: "row", alignItems: "center", gap: 4 },
-  actionText: { fontSize: 13, color: "#007AFF", fontWeight: "500" },
+  actionText: { fontSize: 13, color: "#79BE58", fontWeight: "500" },
 
   //filter dropdown menu
   closeDropDownButton: {

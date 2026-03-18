@@ -22,6 +22,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import MatchCelebrationOverlay from "../../components/MatchCelebrationOverlay";
 import {
   CandidateUI,
   fetchCandidates,
@@ -45,8 +46,8 @@ const deckCardShell = {
   backgroundColor: "#fff",
   borderRadius: 20,
   borderWidth: 1,
-  borderColor: "#E1E8F5",
-  shadowColor: "#9EADD6",
+  borderColor: "#DCF0D4",
+  shadowColor: "#7BAF6A",
   shadowOffset: { width: 0, height: 10 },
   shadowOpacity: 0.18,
   shadowRadius: 18,
@@ -471,6 +472,9 @@ export default function CandidateFeed() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [deckHeight, setDeckHeight] = useState(DECK_CARD_HEIGHT);
+  const [matchCelebrationTarget, setMatchCelebrationTarget] = useState<
+    string | null
+  >(null);
 
   const [hasProjects, setHasProjects] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -587,6 +591,14 @@ export default function CandidateFeed() {
     setErr(null);
   }, [session?.user?.id]);
 
+  // Re-allow loading when user has no projects yet, so returning
+  // from project creation triggers a fresh check.
+  useEffect(() => {
+    if (!hasProjects) {
+      hasLoadedRef.current = false;
+    }
+  }, [hasProjects]);
+
   const fetchMore = async () => {
     if (isFetchingMoreRef.current || allFetched || !session?.user?.id || !hasProjects) return;
     isFetchingMoreRef.current = true;
@@ -630,12 +642,15 @@ export default function CandidateFeed() {
 
     if (!session?.user?.id || !candidate) return;
     try {
-      await likeCandidate(
+      const matchResult = await likeCandidate(
         session.user.id,
         candidate.project_id,
         candidate.id,
         direction === "right" ? "like" : "pass",
       );
+      if (matchResult?.match) {
+        setMatchCelebrationTarget(candidate.name);
+      }
     } catch (e: any) {
       console.warn("Failed to record candidate like:", e.message ?? e);
     }
@@ -654,7 +669,7 @@ export default function CandidateFeed() {
   if (loading)
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#79BE58" />
         <Text style={{ margin: 20, color: "#999" }}>Loading candidates...</Text>
       </View>
     );
@@ -870,6 +885,14 @@ export default function CandidateFeed() {
             </View>
           </View>
         </View>
+
+        <MatchCelebrationOverlay
+          accentColor="#79BE58"
+          highlight={matchCelebrationTarget ?? ""}
+          onHidden={() => setMatchCelebrationTarget(null)}
+          surfaceColor="#E8F5E2"
+          visible={matchCelebrationTarget !== null}
+        />
       </View>
     )
   ) : (
@@ -1033,7 +1056,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   resetButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#79BE58",
     paddingHorizontal: 30,
     paddingVertical: 12,
     borderRadius: 25,
@@ -1183,10 +1206,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#DCE5F6",
+    borderColor: "#C8E4BC",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#9EADD6",
+    shadowColor: "#7BAF6A",
     marginLeft: 15,
     ...Platform.select({
       ios: {
