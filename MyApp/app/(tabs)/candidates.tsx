@@ -587,6 +587,14 @@ export default function CandidateFeed() {
     setErr(null);
   }, [session?.user?.id]);
 
+  // Re-allow loading when user has no projects yet, so returning
+  // from project creation triggers a fresh check.
+  useEffect(() => {
+    if (!hasProjects) {
+      hasLoadedRef.current = false;
+    }
+  }, [hasProjects]);
+
   const fetchMore = async () => {
     if (isFetchingMoreRef.current || allFetched || !session?.user?.id || !hasProjects) return;
     isFetchingMoreRef.current = true;
