@@ -6,12 +6,13 @@ import { DbMatch, MatchUI } from '../../lib/match';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
-import { useNotifications } from '../../contexts/NotificationContext';
 import { router } from 'expo-router';
+import { useNotifications } from '../../contexts/NotificationContext';
 import { supabase } from '../../lib/supabase';
 
 
 import {
+    ActivityIndicator,
     Image,
     KeyboardAvoidingView,
     Platform,
@@ -259,7 +260,15 @@ export default function MatchesPage() {
         })();
       }, [session?.user?.id]);
 
+      if (loading)
+        return (
+        <View style={styles.center}>
+            <ActivityIndicator size={80} color="#007AFF"/>
+            <Text style={{margin : 20, color :"#999"}}>Loading matches...</Text>
+        </View>
+        );
 
+        
       //project matches
       if (projectsPage) {
         return (
@@ -444,6 +453,7 @@ tabsContainer: {
 placeholderImage: { width: 60, height: 60, borderRadius: 60, backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center' },
   
 activeTab : {fontWeight : "bold", fontSize : 18, justifyContent :"center"},
+center: { flex: 1, alignItems: "center", justifyContent: "center" },
 
 newBadge: {
     backgroundColor: 'red',
