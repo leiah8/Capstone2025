@@ -47,7 +47,7 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          railway up --service ${{ secrets.RAILWAY_MATCHING_SERVICE_ID }} --project ${{ secrets.RAILWAY_MATCHING_PROJECT_ID }}
+          railway up --service ${{ secrets.RAILWAY_MATCHING_SERVICE_ID }} --project ${{ secrets.RAILWAY_MATCHING_PROJECT_ID }} --environment production
 
   deploy-resume-parser:
     needs: changes
@@ -67,4 +67,4 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          railway up --service ${{ secrets.RAILWAY_RESUME_SERVICE_ID }} --project ${{ secrets.RAILWAY_PROJECT_ID }}
+          railway up --service ${{ secrets.RAILWAY_RESUME_SERVICE_ID }} --project ${{ secrets.RAILWAY_PROJECT_ID }} --environment production
