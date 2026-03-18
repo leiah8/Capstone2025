@@ -3,34 +3,34 @@
 /* =========================
    Imports & setup
    ========================= */
-import React, { useState, useEffect } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
+import { useEffect, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
-  Image,
-  ScrollView,
   TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  Linking,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
-import * as DocumentPicker from "expo-document-picker";
-import Constants from "expo-constants";
-import { useAuth } from "../../contexts/AuthContext";
-import { router } from "expo-router";
-import { supabase } from "../../lib/supabase";
-import ParseReviewModal, {
-  type ParsedData,
-  type ConfirmedData,
-} from "../../components/ParseReviewModal";
 import DateRangePickerModal from "../../components/DateRangePickerModal";
+import ParseReviewModal, {
+  type ConfirmedData,
+  type ParsedData,
+} from "../../components/ParseReviewModal";
+import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabase";
 
 /* =========================
    Helpers
@@ -824,7 +824,7 @@ export default function ProfilePage() {
           { alignItems: "center", justifyContent: "center" },
         ]}
       >
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size={80} color="#007AFF" />
       </View>
     );
   }
@@ -870,7 +870,7 @@ export default function ProfilePage() {
               )}
               {uploadingImage && (
                 <View style={styles.uploadingOverlay}>
-                  <ActivityIndicator size="large" color="#007AFF" />
+                  <ActivityIndicator size={80} color="#007AFF" />
                 </View>
               )}
             </TouchableOpacity>
@@ -1000,7 +1000,7 @@ export default function ProfilePage() {
                 activeOpacity={0.9}
               >
                 {parsingResume ? (
-                  <ActivityIndicator color="#2563eb" />
+                  <ActivityIndicator size={80} color="#007AFF" />
                 ) : (
                   <Text style={styles.secondaryBtnText}>Re-parse Resume</Text>
                 )}

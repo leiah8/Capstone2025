@@ -6,6 +6,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   Image,
@@ -565,7 +566,8 @@ export default function CandidateFeed() {
   if (loading)
     return (
       <View style={styles.center}>
-        <Text>Loading candidates</Text>
+        <ActivityIndicator size={80} color="#007AFF"/>
+        <Text style={{margin : 20, color :"#999"}}>Loading candidates...</Text>
       </View>
     );
   if (err)
