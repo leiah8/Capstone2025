@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Dict, List, Any, Optional, Tuple
 import logging
+import os
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -71,10 +72,20 @@ class MatchingEngine:
         weights: Optional[MatchWeights] = None,
         cache: Optional[EmbeddingCache] = None
     ):
-        self.model = SentenceTransformer(model_name)
+        self.enable_semantic = os.getenv("ENABLE_SEMANTIC_SCORING", "false").lower() in ("1", "true", "yes")
+        self.model: Optional[SentenceTransformer] = None
+        if self.enable_semantic:
+            try:
+                self.model = SentenceTransformer(model_name)
+            except Exception as e:
+                logger.warning(f"Failed to initialize semantic model ({model_name}), disabling semantic scoring: {e}")
+                self.enable_semantic = False
         self.weights = weights or MatchWeights()
         self.cache = cache or get_embedding_cache()
-        logger.info(f"Initialized MatchingEngine with model={model_name}, cache_enabled={self.cache.enabled}")
+        logger.info(
+            f"Initialized MatchingEngine with semantic_enabled={self.enable_semantic}, "
+            f"model={model_name if self.enable_semantic else 'disabled'}, cache_enabled={self.cache.enabled}"
+        )
     
     def normalize_text(self, text: Optional[str]) -> str:
         if not text:
@@ -88,6 +99,9 @@ class MatchingEngine:
     
     def _get_embedding(self, text: str) -> Optional[np.ndarray]:
         """Get embedding from cache or compute it."""
+        if not self.enable_semantic or self.model is None:
+            return None
+
         if not text:
             return None
 
@@ -110,6 +124,9 @@ class MatchingEngine:
             return None
 
     def calculate_semantic_similarity(self, user_text: str, project_text: str) -> float:
+        if not self.enable_semantic or self.model is None:
+            return 0.0
+
         if not user_text or not project_text:
             return 0.0
 
@@ -227,7 +244,7 @@ class MatchingEngine:
         projects: List[Dict[str, Any]],
     ) -> List[MatchScore]:
         # Pre-warm cache with batch operation for better performance
-        if self.cache.enabled and projects:
+        if self.enable_semantic and self.model is not None and self.cache.enabled and projects:
             texts_to_cache = []
             user_bio = self.normalize_text(user_profile.get("bio", ""))
             if user_bio:

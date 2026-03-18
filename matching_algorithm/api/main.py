@@ -77,7 +77,6 @@ async def score_matches(request: MatchRequest):
         logger.info(f"[SCORE] Received {len(request.projects)} projects from client")
         logger.info(f"[SCORE] First 3 project IDs: {[p.get('id', 'MISSING') for p in request.projects[:3]]}")
         logger.info(f"[SCORE] User profile - skills: {request.user_profile.get('skills', [])}, interests: {request.user_profile.get('interests', [])}")
-        logger.info(f"[SCORE] Sample project data: {request.projects[0] if request.projects else 'NONE'}")
         
         weights = None
         if request.weights:

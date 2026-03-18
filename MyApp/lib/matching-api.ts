@@ -142,6 +142,7 @@ export async function getMatchedProjects(
   }>
 ): Promise<MatchScoreProject[]> {
   try {
+    const REQUEST_TIMEOUT_MS = 7000;
     // Transform projects to match API format
     const apiProjects = projects.map(p => ({
       id: p.id,
@@ -170,14 +171,22 @@ export async function getMatchedProjects(
     };
 
     const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch(`${MATCHING_API_URL}/match/score`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      },
-      body: JSON.stringify(requestBody),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`${MATCHING_API_URL}/match/score`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        signal: controller.signal,
+        body: JSON.stringify(requestBody),
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -202,7 +211,13 @@ export async function getMatchedProjects(
       matched_interests: r.matched_interests ?? r.explanation?.matched_interests ?? [],
       missing_must_have: r.missing_must_have ?? r.explanation?.missing_must_have_skills ?? [],
     }));
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      const timeoutError = new Error('Matching API timed out after 7s');
+      console.warn('Matching request timed out, falling back to default ordering');
+      throw timeoutError;
+    }
+
     console.error('Error calling matching algorithm:', error);
     throw error;
   }
