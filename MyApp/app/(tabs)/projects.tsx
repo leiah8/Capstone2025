@@ -12,8 +12,10 @@ import {
   Animated,
   Dimensions,
   Image,
+  LayoutChangeEvent,
   Modal,
   PanResponder,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -32,6 +34,11 @@ import { getUserProfile } from "../../lib/user-profile";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 120;
+const HEADER_TRACK_PADDING = 6;
+const HEADER_TABS = [
+  { key: "browse", label: "Browse Projects", icon: "compass-outline" },
+  { key: "mine", label: "My Projects", icon: "folder-outline" },
+] as const;
 
 /* =========================
    Types (make skills optional & flexible)
@@ -205,11 +212,19 @@ export default function ProjectFeed() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [useMatching, setUseMatching] = useState(false);
   const [detailProject, setDetailProject] = useState<Project | null>(null);
   const [myProjects, setMyProjects] = useState<MyProject[]>([]);
   const [myLoading, setMyLoading] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [headerTrackWidth, setHeaderTrackWidth] = useState(0);
+  const headerIndicatorX = useRef(new Animated.Value(0)).current;
+  const activeHeaderIndex = tab === "browse" ? 0 : 1;
+  const headerSegmentWidth =
+    headerTrackWidth > 0
+      ? Math.max(
+          (headerTrackWidth - HEADER_TRACK_PADDING * 2) / HEADER_TABS.length,
+          0,
+        )
+      : 0;
 
   const loadBrowseProjects = useCallback(async () => {
     let alive = true;
@@ -244,7 +259,6 @@ export default function ProjectFeed() {
           });
 
           setProjects(rankedProjects as Project[]);
-          setUseMatching(true);
           console.log(
             `Projects ranked by match score (top: ${(scoreMap.get(rankedProjects[0].id) || 0) * 100}%)`,
           );
@@ -274,14 +288,6 @@ export default function ProjectFeed() {
     };
   }, [session?.user?.id]);
 
-  // Re-fetch data every time the screen gains focus (e.g. returning from edit/create)
-  useFocusEffect(
-    useCallback(() => {
-      loadBrowseProjects();
-      if (tab === "mine") fetchMyProjects();
-    }, [tab, loadBrowseProjects]),
-  );
-
   const advance = () => {
     if (currentIndex < projects.length) setCurrentIndex((i) => i + 1);
   };
@@ -297,7 +303,7 @@ export default function ProjectFeed() {
     }
   };
 
-  const fetchMyProjects = async () => {
+  const fetchMyProjects = useCallback(async () => {
     if (!session?.user?.id) return;
     setMyLoading(true);
     try {
@@ -315,12 +321,38 @@ export default function ProjectFeed() {
     } finally {
       setMyLoading(false);
     }
-  };
+  }, [session?.user?.id]);
+
+  // Refresh both project lists when the screen regains focus,
+  // but don't re-run just because the local segmented tab changed.
+  useFocusEffect(
+    useCallback(() => {
+      loadBrowseProjects();
+      fetchMyProjects();
+    }, [loadBrowseProjects, fetchMyProjects]),
+  );
 
   useEffect(() => {
     if (tab === "mine") fetchMyProjects();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, fetchMyProjects]);
+
+  useEffect(() => {
+    const nextPosition = headerSegmentWidth * activeHeaderIndex;
+    if (headerSegmentWidth === 0) {
+      headerIndicatorX.setValue(nextPosition);
+      return;
+    }
+
+    Animated.timing(headerIndicatorX, {
+      toValue: nextPosition,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [activeHeaderIndex, headerIndicatorX, headerSegmentWidth]);
+
+  const handleHeaderTrackLayout = (event: LayoutChangeEvent) => {
+    setHeaderTrackWidth(event.nativeEvent.layout.width);
+  };
 
   const toggleActive = async (project: MyProject) => {
     const newStatus = !project.is_active;
@@ -382,21 +414,56 @@ export default function ProjectFeed() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Header with dropdown + create button */}
+      {/* Header with segmented slider + create button */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerDropdown}
-          onPress={() => setDropdownOpen(!dropdownOpen)}
-        >
-          <Text style={styles.headerTitle}>
-            {tab === "browse" ? "Browse Projects" : "My Projects"}
-          </Text>
-          <Ionicons
-            name={dropdownOpen ? "chevron-up" : "chevron-down"}
-            size={20}
-            color="#333"
-          />
-        </TouchableOpacity>
+        <View style={styles.headerTabsWrapper}>
+          <View
+            onLayout={handleHeaderTrackLayout}
+            style={styles.headerTabsTrack}
+          >
+            {headerSegmentWidth > 0 && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.headerTabsIndicator,
+                  {
+                    width: headerSegmentWidth,
+                    transform: [{ translateX: headerIndicatorX }],
+                  },
+                ]}
+              />
+            )}
+
+            {HEADER_TABS.map((headerTab) => {
+              const isActive = tab === headerTab.key;
+
+              return (
+                <TouchableOpacity
+                  key={headerTab.key}
+                  activeOpacity={0.85}
+                  onPress={() => setTab(headerTab.key)}
+                  style={styles.headerTabSegment}
+                >
+                  <Ionicons
+                    name={headerTab.icon}
+                    size={17}
+                    color={isActive ? "#2B4CD8" : "#172033"}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.headerTabLabel,
+                      isActive && styles.headerTabLabelActive,
+                    ]}
+                  >
+                    {headerTab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
         <TouchableOpacity
           style={styles.createButton}
           onPress={() => router.push("/create-project")}
@@ -404,60 +471,6 @@ export default function ProjectFeed() {
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
       </View>
-
-      {/* Dropdown menu */}
-      {dropdownOpen && (
-        <View style={styles.dropdown}>
-          <TouchableOpacity
-            style={[
-              styles.dropdownItem,
-              tab === "browse" && styles.dropdownItemActive,
-            ]}
-            onPress={() => {
-              setTab("browse");
-              setDropdownOpen(false);
-            }}
-          >
-            <Ionicons
-              name="compass-outline"
-              size={18}
-              color={tab === "browse" ? "#007AFF" : "#666"}
-            />
-            <Text
-              style={[
-                styles.dropdownText,
-                tab === "browse" && styles.dropdownTextActive,
-              ]}
-            >
-              Browse Projects
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.dropdownItem,
-              tab === "mine" && styles.dropdownItemActive,
-            ]}
-            onPress={() => {
-              setTab("mine");
-              setDropdownOpen(false);
-            }}
-          >
-            <Ionicons
-              name="folder-outline"
-              size={18}
-              color={tab === "mine" ? "#007AFF" : "#666"}
-            />
-            <Text
-              style={[
-                styles.dropdownText,
-                tab === "mine" && styles.dropdownTextActive,
-              ]}
-            >
-              My Projects
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* Browse view */}
       {tab === "browse" && (
@@ -517,7 +530,7 @@ export default function ProjectFeed() {
         ) : myProjects.length === 0 ? (
           <View style={styles.center}>
             <Text style={{ fontSize: 16, color: "#999", marginBottom: 16 }}>
-              You haven't created any projects yet.
+              You haven&apos;t created any projects yet.
             </Text>
             <TouchableOpacity
               style={styles.resetButton}
@@ -732,8 +745,78 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 10,
+    gap: 12,
   },
-  headerTitle: { fontSize: 24, fontWeight: "bold", color: "#333" },
+  headerTabsWrapper: { flex: 1 },
+  headerTabsTrack: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#DCE5F6",
+    borderRadius: 30,
+    borderWidth: 1,
+    flexDirection: "row",
+    minHeight: 56,
+    overflow: "hidden",
+    paddingHorizontal: HEADER_TRACK_PADDING,
+    paddingVertical: HEADER_TRACK_PADDING,
+    shadowColor: "#9EADD6",
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+      },
+      android: {
+        elevation: 7,
+      },
+      default: {
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+      },
+    }),
+  },
+  headerTabsIndicator: {
+    backgroundColor: "#E6EEFF",
+    borderRadius: 24,
+    bottom: HEADER_TRACK_PADDING,
+    left: HEADER_TRACK_PADDING,
+    position: "absolute",
+    top: HEADER_TRACK_PADDING,
+    shadowColor: "#9EADD6",
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 2,
+      },
+      default: {
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+      },
+    }),
+  },
+  headerTabSegment: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    minHeight: 44,
+    paddingHorizontal: 10,
+    zIndex: 1,
+  },
+  headerTabLabel: {
+    color: "#172033",
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: -0.1,
+  },
+  headerTabLabelActive: { color: "#2B4CD8" },
   createButton: {
     width: 40,
     height: 40,
@@ -945,34 +1028,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   modalDescription: { fontSize: 15, color: "#444", lineHeight: 22 },
-
-  // header dropdown
-  headerDropdown: { flexDirection: "row", alignItems: "center", gap: 6 },
-  dropdown: {
-    position: "absolute",
-    top: 90,
-    left: 20,
-    right: 20,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    zIndex: 100,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-    overflow: "hidden",
-  },
-  dropdownItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  dropdownItemActive: { backgroundColor: "#F0F7FF" },
-  dropdownText: { fontSize: 15, color: "#666" },
-  dropdownTextActive: { color: "#007AFF", fontWeight: "600" },
 
   // my projects
   myProjectCard: {
