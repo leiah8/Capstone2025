@@ -71,11 +71,13 @@ const ProjectCard = ({
   isTop,
   onSwipe,
   onTap,
+  openFilterFunc,
 }: {
   project: Project;
   isTop: boolean;
   onSwipe: (d: "left" | "right") => void;
   onTap: () => void;
+  openFilterFunc : (b : boolean) => void;
 }) => {
   const position = useRef(new Animated.ValueXY()).current;
 
@@ -168,6 +170,14 @@ const ProjectCard = ({
       )}
 
       {/* Content */}
+      <View>
+        {/* <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setDropdownOpen(false); filterFetchedCandidates() }}> */}
+        <TouchableOpacity style={styles.filterButton} onPress={() => { openFilterFunc(true)}}>
+          <Ionicons name="filter" size={35} color="000" />
+        </TouchableOpacity>
+      </View> 
+
+      
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -229,6 +239,8 @@ export default function ProjectFeed() {
   const [myProjects, setMyProjects] = useState<MyProject[]>([]);
   const [myLoading, setMyLoading] = useState(false);
   const [headerTrackWidth, setHeaderTrackWidth] = useState(0);
+  const [filterDropDownOpen, setFilterDropDownOpen] = useState(false);
+
   const headerIndicatorX = useRef(new Animated.Value(0)).current;
   const activeHeaderIndex = tab === "browse" ? 0 : 1;
   const headerSegmentWidth =
@@ -425,7 +437,17 @@ export default function ProjectFeed() {
       </View>
     );
 
-  return (
+  return (filterDropDownOpen ? 
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <View>
+        <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setFilterDropDownOpen(false); }}>
+        {/* <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setFilterDropDownOpen(false); filterFetchedCandidates() }}> */}
+
+          <Ionicons name="close" size={35} color="000" />
+        </TouchableOpacity>
+      </View> 
+    </SafeAreaView> : 
+
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header with segmented slider + create button */}
       <View style={styles.header}>
@@ -490,10 +512,10 @@ export default function ProjectFeed() {
         <View
           style={[
             styles.browseLayout,
-            { paddingBottom: Math.max(tabBarHeight, 88) + 12 },
+            // { paddingBottom: Math.max(tabBarHeight, 88) + 12 },
           ]}
         >
-          <View style={styles.cardContainer}>
+          <View style={[styles.cardContainer, { paddingBottom: Math.max(tabBarHeight, 88) + 12 },]}>
             <View style={styles.deckSlot}>
               {projects
                 .slice(currentIndex, currentIndex + 2)
@@ -505,6 +527,7 @@ export default function ProjectFeed() {
                     isTop={i === arr.length - 1}
                     onSwipe={handleSwipe}
                     onTap={() => setDetailProject(p)}
+                    openFilterFunc={(b) => {setFilterDropDownOpen(b)}}
                   />
                 ))}
 
@@ -523,7 +546,7 @@ export default function ProjectFeed() {
           </View>
 
           {currentIndex < projects.length && (
-            <View style={styles.buttonsContainer}>
+            <View style={[styles.buttonsContainer, { paddingBottom: 16 },]}>
               <TouchableOpacity
                 style={styles.passButton}
                 onPress={() => handleSwipe("left")}
@@ -854,6 +877,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 16,
+    marginTop: 40,
   },
   deckSlot: {
     width: DECK_CARD_WIDTH,
@@ -863,9 +887,21 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
 
+  // 
+  
+
   card: {
-    ...StyleSheet.absoluteFillObject,
-    ...deckCardShell,
+    position: "absolute",
+    width: SCREEN_WIDTH * 0.9,
+    maxWidth: 430,
+    height: SCREEN_HEIGHT * 0.65,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
     overflow: "hidden",
   },
   cardBehind: { transform: [{ scale: 0.95 }], opacity: 0.8 },
@@ -979,32 +1015,37 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingHorizontal: 16,
   },
-  passButton: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: "#111",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  likeButton: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: "#111",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 5,
-  },
+  // passButton: {
+  //   width: 58,
+  //   height: 58,
+  //   borderRadius: 29,
+  //   backgroundColor: "#111",
+  //   justifyContent: "center",
+  //   alignItems: "center",
+  //   shadowColor: "#000",
+  //   shadowOffset: { width: 0, height: 4 },
+  //   shadowOpacity: 0.18,
+  //   shadowRadius: 8,
+  //   elevation: 5,
+  // },
+  // likeButton: {
+  //   width: 58,
+  //   height: 58,
+  //   borderRadius: 29,
+  //   backgroundColor: "#111",
+  //   justifyContent: "center",
+  //   alignItems: "center",
+  //   shadowColor: "#000",
+  //   shadowOffset: { width: 0, height: 4 },
+  //   shadowOpacity: 0.18,
+  //   shadowRadius: 8,
+  //   elevation: 5,
+  // },
+
+  // buttonsContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 60, paddingBottom: 10, paddingTop: 0 },
+  passButton: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
+  likeButton: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
+
 
   endCard: {
     width: DECK_CARD_WIDTH,
@@ -1116,4 +1157,9 @@ const styles = StyleSheet.create({
   myProjectActions: { flexDirection: "row", marginTop: 12, gap: 16 },
   actionButton: { flexDirection: "row", alignItems: "center", gap: 4 },
   actionText: { fontSize: 13, color: "#007AFF", fontWeight: "500" },
+
+  //filter dropdown menu
+  closeDropDownButton: { alignSelf: 'flex-end', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 70, borderRadius: 25 },
+  filterButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 60, borderRadius: 25 },
+  
 });
