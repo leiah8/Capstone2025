@@ -1,5 +1,7 @@
 from __future__ import annotations
+import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import uvicorn
@@ -8,9 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from matching import get_matching_engine, MatchWeights
+from cache import get_embedding_cache
+from middleware import TimeoutMiddleware, RequestLoggingMiddleware
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Matching Algorithm API", version="1.0.0")
 
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,6 +26,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Request logging middleware
+app.add_middleware(RequestLoggingMiddleware)
+
+# Timeout middleware - configurable via environment
+TIMEOUT_SECONDS = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "30.0"))
+app.add_middleware(TimeoutMiddleware, timeout_seconds=TIMEOUT_SECONDS)
+
 
 class MatchRequest(BaseModel):
     user_profile: Dict[str, Any]
@@ -26,9 +40,24 @@ class MatchRequest(BaseModel):
     weights: Optional[Dict[str, float]] = None
 
 
+class BatchMatchRequest(BaseModel):
+    """Request to process multiple user-project combinations in batch."""
+    user_profiles: List[Dict[str, Any]]
+    projects: List[Dict[str, Any]]
+    weights: Optional[Dict[str, float]] = None
+
+
 class MatchResponse(BaseModel):
     ranked_projects: List[Dict[str, Any]]
     count: int
+
+
+class BatchMatchResponse(BaseModel):
+    """Response with match results for each user profile."""
+    results: List[Dict[str, Any]]
+    total_profiles: int
+    total_projects: int
+    processing_time_seconds: float
 
 
 class CandidateMatchRequest(BaseModel):
@@ -48,24 +77,87 @@ async def score_matches(request: MatchRequest):
         weights = None
         if request.weights:
             weights = MatchWeights(**request.weights)
-        
+
         engine = get_matching_engine(weights=weights)
         match_scores = engine.rank_projects(
             user_profile=request.user_profile,
             projects=request.projects
         )
-        
+
         ranked = [score.to_dict() for score in match_scores]
-        
+
         return MatchResponse(
             ranked_projects=ranked,
             count=len(ranked)
         )
-        
+
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"Matching failed: {str(e)}"
+        )
+
+
+@app.post("/match/batch", response_model=BatchMatchResponse)
+async def batch_score_matches(request: BatchMatchRequest):
+    """
+    Process multiple user profiles against a set of projects in batch.
+
+    This endpoint is optimized for scenarios where you need to rank projects
+    for multiple users simultaneously. It leverages:
+    - Shared embedding cache across all users
+    - Batch embedding computation for efficiency
+    - Single model instance for all computations
+
+    Example use case: Matching all candidates to a set of projects.
+    """
+    start_time = time.perf_counter()
+
+    try:
+        weights = None
+        if request.weights:
+            weights = MatchWeights(**request.weights)
+
+        engine = get_matching_engine(weights=weights)
+
+        results = []
+        for user_profile in request.user_profiles:
+            try:
+                match_scores = engine.rank_projects(
+                    user_profile=user_profile,
+                    projects=request.projects
+                )
+
+                ranked = [score.to_dict() for score in match_scores]
+                results.append({
+                    "user_id": user_profile.get("id", "unknown"),
+                    "ranked_projects": ranked,
+                    "count": len(ranked)
+                })
+
+            except Exception as e:
+                # Log error but continue processing other profiles
+                logger.error(f"Error processing user {user_profile.get('id', 'unknown')}: {e}")
+                results.append({
+                    "user_id": user_profile.get("id", "unknown"),
+                    "error": str(e),
+                    "ranked_projects": [],
+                    "count": 0
+                })
+
+        processing_time = time.perf_counter() - start_time
+
+        return BatchMatchResponse(
+            results=results,
+            total_profiles=len(request.user_profiles),
+            total_projects=len(request.projects),
+            processing_time_seconds=round(processing_time, 3)
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Batch matching failed: {str(e)}"
         )
 
 
@@ -113,6 +205,9 @@ async def score_candidates(request: CandidateMatchRequest):
 async def match_health_check():
     try:
         engine = get_matching_engine()
+        cache = get_embedding_cache()
+        cache_stats = cache.get_stats()
+
         return {
             "status": "healthy",
             "model": "all-MiniLM-L6-v2",
@@ -121,7 +216,8 @@ async def match_health_check():
                 "must_have_skills": engine.weights.must_have_skills,
                 "nice_to_have_skills": engine.weights.nice_to_have_skills,
                 "interests": engine.weights.interests,
-            }
+            },
+            "cache": cache_stats
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Health check failed: {e}")

@@ -119,8 +119,87 @@ def test_candidate_matching():
     print(f"Candidate 2 (Bob) score: {bob['total_score']:.4f}")
 
 
+def test_batch_matching():
+    print("\nTesting batch matching endpoint...")
+
+    payload = {
+        "user_profiles": [
+            {
+                "id": "user_1",
+                "skills": ["Python", "React", "Machine Learning"],
+                "interests": ["AI", "Web Development"],
+                "bio": "Full-stack developer with ML expertise"
+            },
+            {
+                "id": "user_2",
+                "skills": ["C#", "Unity"],
+                "interests": ["Gaming"],
+                "bio": "Game developer specializing in Unity"
+            },
+            {
+                "id": "user_3",
+                "skills": ["Python", "Docker", "Kubernetes"],
+                "interests": ["DevOps", "Cloud"],
+                "bio": "DevOps engineer with Python automation skills"
+            }
+        ],
+        "projects": [
+            {
+                "id": "proj_1",
+                "description": "Building an AI chatbot with Python and React",
+                "skills_needed": ["Python", "React", "NLP"],
+                "nice_to_have_skills": ["Docker"],
+                "tags": ["AI", "Web Development"]
+            },
+            {
+                "id": "proj_2",
+                "description": "Mobile game development using Unity",
+                "skills_needed": ["C#", "Unity"],
+                "tags": ["Gaming"]
+            },
+            {
+                "id": "proj_3",
+                "description": "Cloud infrastructure automation",
+                "skills_needed": ["Python", "Docker", "Kubernetes"],
+                "tags": ["DevOps", "Cloud"]
+            }
+        ]
+    }
+
+    response = httpx.post(f"{BASE_URL}/match/batch", json=payload)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "results" in data
+    assert data["total_profiles"] == 3
+    assert data["total_projects"] == 3
+    assert "processing_time_seconds" in data
+
+    results = data["results"]
+    assert len(results) == 3
+
+    # Verify each user has their matches
+    user1_result = next(r for r in results if r["user_id"] == "user_1")
+    user2_result = next(r for r in results if r["user_id"] == "user_2")
+    user3_result = next(r for r in results if r["user_id"] == "user_3")
+
+    # User 1 should match best with proj_1 (AI chatbot)
+    assert user1_result["ranked_projects"][0]["project_id"] == "proj_1"
+
+    # User 2 should match best with proj_2 (Unity game)
+    assert user2_result["ranked_projects"][0]["project_id"] == "proj_2"
+
+    # User 3 should match best with proj_3 (DevOps)
+    assert user3_result["ranked_projects"][0]["project_id"] == "proj_3"
+
+    print(f"Batch matching passed")
+    print(f"Processed {data['total_profiles']} users in {data['processing_time_seconds']:.3f}s")
+    print(f"Average: {data['processing_time_seconds']/data['total_profiles']:.3f}s per user")
+
+
 if __name__ == "__main__":
     test_health_endpoint()
     test_match_scoring()
     test_candidate_matching()
+    test_batch_matching()
     print("\nAll API tests passed")

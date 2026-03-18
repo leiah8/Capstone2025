@@ -46,8 +46,8 @@ jobs:
         working-directory: ./matching_algorithm
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_MATCHING_SERVICE_ID }}
-        run: railway up --service $RAILWAY_SERVICE_ID
+        run: |
+          railway up --service ${{ secrets.RAILWAY_MATCHING_SERVICE_ID }} --project ${{ secrets.RAILWAY_MATCHING_PROJECT_ID }}
 
   deploy-resume-parser:
     needs: changes
@@ -66,5 +66,5 @@ jobs:
         working-directory: ./resume_parser
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_RESUME_SERVICE_ID }}
-        run: railway up --service $RAILWAY_SERVICE_ID
+        run: |
+          railway up --service ${{ secrets.RAILWAY_RESUME_SERVICE_ID }} --project ${{ secrets.RAILWAY_PROJECT_ID }}
