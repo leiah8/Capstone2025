@@ -1,0 +1,1117 @@
+[
+  {
+    "id": "u_000",
+    "name": "Alex Chen",
+    "archetype": "junior_frontend_dev",
+    "skills": [
+      "React",
+      "JavaScript",
+      "CSS",
+      "HTML"
+    ],
+    "interests": [
+      "web development",
+      "startups",
+      "open source"
+    ],
+    "bio": "Recent CS graduate passionate about building beautiful user interfaces. Looking to collaborate on web projects and learn from experienced developers."
+  },
+  {
+    "id": "u_001",
+    "name": "Jordan Martinez",
+    "archetype": "junior_frontend_dev",
+    "skills": [
+      "Vue",
+      "JavaScript",
+      "Tailwind CSS"
+    ],
+    "interests": [
+      "web development",
+      "design systems"
+    ],
+    "bio": ""
+  },
+  {
+    "id": "u_002",
+    "name": "Sam Patel",
+    "archetype": "senior_frontend_dev",
+    "skills": [
+      "React",
+      "TypeScript",
+      "Angular",
+      "CSS-in-JS",
+      "Webpack",
+      "Testing Library"
+    ],
+    "interests": [
+      "web development",
+      "performance optimization",
+      "open source"
+    ],
+    "bio": "Senior frontend engineer with 5+ years experience. Specialized in large-scale React applications and component architecture. Mentor and tech lead looking to share knowledge in capstone projects."
+  },
+  {
+    "id": "u_003",
+    "name": "Casey Wong",
+    "archetype": "senior_frontend_dev",
+    "skills": [
+      "React",
+      "TypeScript",
+      "Next.js",
+      "GraphQL",
+      "Testing",
+      "Accessibility"
+    ],
+    "interests": [
+      "web development",
+      "accessibility",
+      "startups"
+    ],
+    "bio": ""
+  },
+  {
+    "id": "u_004",
+    "name": "Morgan Lee",
+    "archetype": "backend_dev",
+    "skills": [
+      "Node.js",
+      "Express",
+      "Python",
+      "PostgreSQL"
+    ],
+    "interests": [
+      "backend development",
+      "databases",
+      "scalability"
+    ],
+    "bio": "Backend developer focused on API design and database optimization. Interested in joining projects that need robust server infrastructure."
+  },
+  {
+    "id": "u_005",
+    "name": "Taylor Brown",
+    "archetype": "backend_dev",
+    "skills": [
+      "Node.js",
+      "TypeScript",
+      "MongoDB",
+      "Docker"
+    ],
+    "interests": [
+      "backend development",
+      "microservices",
+      "devops"
+    ],
+    "bio": ""
+  },
+  {
+    "id": "u_006",
+    "name": "Riley Kim",
+    "archetype": "backend_dev",
+    "skills": [
+      "Express",
+      "Python",
+      "SQL",
+      "Redis",
+      "AWS"
+    ],
+    "interests": [
+      "backend development",
+      "cloud infrastructure",
+      "open source"
+    ],
+    "bio": "Computer science student with a passion for building scalable backend systems. Experienced with AWS deployment and real-time data processing."
+  },
+  {
+    "id": "u_007",
+    "name": "Avery Johnson",
+    "archetype": "full_stack_dev",
+    "skills": [
+      "React",
+      "Node.js",
+      "Express",
+      "MongoDB",
+      "TypeScript",
+      "Docker"
+    ],
+    "interests": [
+      "web development",
+      "startups",
+      "full stack"
+    ],
+    "bio": "Full stack developer comfortable with modern JavaScript ecosystems. Experienced building end-to-end applications from API to UI. Looking for exciting hackathon projects and mentorship opportunities."
+  },
+  {
+    "id": "u_008",
+    "name": "Quinn Davis",
+    "archetype": "full_stack_dev",
+    "skills": [
+      "React",
+      "Vue",
+      "Node.js",
+      "PostgreSQL",
+      "TypeScript",
+      "GraphQL",
+      "AWS"
+    ],
+    "interests": [
+      "full stack",
+      "web development",
+      "machine learning"
+    ],
+    "bio": "Versatile full stack engineer with experience in multiple frameworks. Passionate about learning new technologies and contributing to open source projects."
+  },
+  {
+    "id": "u_009",
+    "name": "Jamie Rodriguez",
+    "archetype": "full_stack_dev",
+    "skills": [
+      "Angular",
+      "Express",
+      "TypeScript",
+      "Firebase"
+    ],
+    "interests": [
+      "full stack",
+      "web development"
+    ],
+    "bio": ""
+  },
+  {
+    "id": "u_010",
+    "name": "Sarah Chen",
+    "archetype": "ml_engineer",
+    "skills": [
+      "Python",
+      "PyTorch",
+      "TensorFlow",
+      "scikit-learn",
+      "CUDA",
+      "Docker"
+    ],
+    "interests": [
+      "computer vision",
+      "deep learning",
+      "open source",
+      "model optimization"
+    ],
+    "bio": "Junior ML Engineer with 2 years of experience building production computer vision systems. Currently focused on efficient neural network architectures and edge deployment. Contributed to several open-source ML projects and love collaborating on challenging problems."
+  },
+  {
+    "id": "u_011",
+    "name": "Marcus Rodriguez",
+    "archetype": "ml_engineer",
+    "skills": [
+      "Python",
+      "TensorFlow",
+      "Keras",
+      "scikit-learn",
+      "MLflow",
+      "AWS SageMaker"
+    ],
+    "interests": [
+      "machine learning",
+      "mlops",
+      "cloud infrastructure",
+      "startups"
+    ],
+    "bio": "Passionate about bringing ML models to production at scale. Experience with MLOps pipelines and model serving. Currently studying Computer Science with focus on applied machine learning. Looking for projects that bridge research and real-world deployment."
+  },
+  {
+    "id": "u_012",
+    "name": "Priya Patel",
+    "archetype": "ml_engineer",
+    "skills": [
+      "Python",
+      "PyTorch",
+      "HuggingFace",
+      "ONNX",
+      "Git",
+      "Linux"
+    ],
+    "interests": [
+      "natural language processing",
+      "transformers",
+      "machine learning",
+      "nlp"
+    ],
+    "bio": "NLP enthusiast working with transformer models and fine-tuning large language models. Strong foundation in deep learning theory and practical implementation. Seeking capstone project involving text generation or semantic understanding. Open to learning new frameworks."
+  },
+  {
+    "id": "u_013",
+    "name": "James Kowalski",
+    "archetype": "ml_engineer",
+    "skills": [
+      "Python",
+      "PyTorch",
+      "scikit-learn",
+      "Pandas",
+      "NumPy",
+      "Jupyter"
+    ],
+    "interests": [
+      "reinforcement learning",
+      "robotics",
+      "machine learning",
+      "algorithms"
+    ],
+    "bio": "Junior developer transitioning into ML with strong algorithmic background. Recently completed online ML specialization. Interested in reinforcement learning applications and control systems. Eager to contribute to team projects and learn best practices from experienced developers."
+  },
+  {
+    "id": "u_014",
+    "name": "Aisha Mohammed",
+    "archetype": "data_scientist",
+    "skills": [
+      "Python",
+      "R",
+      "SQL",
+      "Tableau",
+      "scikit-learn",
+      "Pandas"
+    ],
+    "interests": [
+      "data analysis",
+      "statistics",
+      "business intelligence",
+      "startups"
+    ],
+    "bio": "Data scientist with passion for turning raw data into actionable insights. Strong statistical background and experience with A/B testing frameworks. Skilled in exploratory data analysis and data visualization. Looking for projects with real business impact."
+  },
+  {
+    "id": "u_015",
+    "name": "David Liu",
+    "archetype": "data_scientist",
+    "skills": [
+      "Python",
+      "SQL",
+      "Spark",
+      "scikit-learn",
+      "Matplotlib",
+      "Seaborn"
+    ],
+    "interests": [
+      "machine learning",
+      "predictive modeling",
+      "data science",
+      "finance"
+    ],
+    "bio": "Economics graduate with quantitative focus now diving deep into data science. Experience building predictive models for time series forecasting. Comfortable with large datasets and statistical validation. Interested in financial or economic applications of ML."
+  },
+  {
+    "id": "u_016",
+    "name": "Elena Vasquez",
+    "archetype": "data_scientist",
+    "skills": [
+      "Python",
+      "SQL",
+      "TensorFlow",
+      "scikit-learn",
+      "Git",
+      "PowerBI"
+    ],
+    "interests": [
+      "machine learning",
+      "data visualization",
+      "healthcare",
+      "social impact"
+    ],
+    "bio": "Health informatics focused data scientist exploring ML applications in medical diagnostics. Strong domain knowledge in healthcare data and regulatory requirements. Committed to responsible AI and interpretability in predictive models. Seeking healthcare or social impact projects."
+  },
+  {
+    "id": "u_017",
+    "name": "Nikhil Sharma",
+    "archetype": "data_engineer",
+    "skills": [
+      "Python",
+      "SQL",
+      "Spark",
+      "Airflow",
+      "Docker",
+      "PostgreSQL"
+    ],
+    "interests": [
+      "data engineering",
+      "infrastructure",
+      "distributed systems",
+      "open source"
+    ],
+    "bio": "Data engineer with experience designing scalable ETL pipelines and data warehouses. Proficient in Apache Spark and workflow orchestration. Building data platforms that enable data science teams. Interested in big data architectures and performance optimization."
+  },
+  {
+    "id": "u_018",
+    "name": "Yuki Tanaka",
+    "archetype": "data_engineer",
+    "skills": [
+      "Python",
+      "SQL",
+      "Spark",
+      "Kafka",
+      "AWS",
+      "Java"
+    ],
+    "interests": [
+      "data pipelines",
+      "stream processing",
+      "cloud",
+      "distributed systems"
+    ],
+    "bio": "Passionate about building robust data infrastructure. Experience with real-time data processing and cloud data platforms. Strong software engineering practices applied to data systems. Looking for backend-heavy projects involving data at scale."
+  },
+  {
+    "id": "u_019",
+    "name": "Alex Chen",
+    "archetype": "research_engineer",
+    "skills": [
+      "Python",
+      "PyTorch",
+      "HuggingFace",
+      "Jupyter",
+      "Git",
+      "LaTeX"
+    ],
+    "interests": [
+      "machine learning research",
+      "deep learning",
+      "academic papers",
+      "innovation"
+    ],
+    "bio": "Research-focused engineer with interest in pushing boundaries of machine learning. Experience implementing papers and conducting experimental research. Strong in mathematical foundations of deep learning. Seeking projects with novel technical challenges and publication potential."
+  },
+  {
+    "id": "u_020",
+    "name": "Sarah Chen",
+    "archetype": "ios_dev",
+    "skills": [
+      "Swift",
+      "Xcode",
+      "Firebase",
+      "UIKit"
+    ],
+    "interests": [
+      "mobile apps",
+      "startups",
+      "open source"
+    ],
+    "bio": "iOS developer with 2 years of experience. Built a fitness tracking app with 5k downloads. Looking for capstone projects involving health tech or social networking."
+  },
+  {
+    "id": "u_021",
+    "name": "Marcus Johnson",
+    "archetype": "android_dev",
+    "skills": [
+      "Kotlin"
+    ],
+    "interests": [
+      "mobile apps"
+    ],
+    "bio": ""
+  },
+  {
+    "id": "u_022",
+    "name": "Emma Rodriguez",
+    "archetype": "ios_dev",
+    "skills": [
+      "Swift",
+      "Objective-C",
+      "Xcode"
+    ],
+    "interests": [
+      "mobile apps",
+      "education",
+      "accessibility"
+    ],
+    "bio": "Junior iOS engineer passionate about inclusive design. Currently learning Firebase. Excited to work on projects that make technology accessible to everyone."
+  },
+  {
+    "id": "u_023",
+    "name": "Raj Patel",
+    "archetype": "react_native_dev",
+    "skills": [
+      "React Native",
+      "JavaScript",
+      "Firebase",
+      "Redux"
+    ],
+    "interests": [
+      "cross-platform development",
+      "startups",
+      "mobile apps"
+    ],
+    "bio": "3 years building cross-platform apps with React Native. Shipped 2 production apps for iOS and Android. Seeking hackathons or capstone projects with fast-paced teams."
+  },
+  {
+    "id": "u_024",
+    "name": "Lia Zhang",
+    "archetype": "flutter_dev",
+    "skills": [
+      "Flutter",
+      "Dart",
+      "Firebase"
+    ],
+    "interests": [
+      "mobile apps",
+      "open source",
+      "performance optimization"
+    ],
+    "bio": "Flutter enthusiast exploring Dart deeply. Contributed to 3 open-source Flutter packages. Interested in projects focusing on smooth animations and responsive UI."
+  },
+  {
+    "id": "u_025",
+    "name": "James O'Brien",
+    "archetype": "android_dev",
+    "skills": [
+      "Kotlin",
+      "Java",
+      "Android Studio",
+      "Firebase"
+    ],
+    "interests": [
+      "mobile apps",
+      "gaming",
+      "open source"
+    ],
+    "bio": "Android developer with 18 months professional experience. Built e-commerce app and real-time chat feature. Interested in game development or messaging platforms."
+  },
+  {
+    "id": "u_026",
+    "name": "Sophie Laurent",
+    "archetype": "ios_dev",
+    "skills": [
+      "Swift",
+      "SwiftUI",
+      "Xcode",
+      "Core Data"
+    ],
+    "interests": [
+      "mobile apps",
+      "design",
+      "music"
+    ],
+    "bio": "SwiftUI specialist with eye for UI/UX. Built a music streaming companion app. Looking for projects where design and development collaborate closely."
+  },
+  {
+    "id": "u_027",
+    "name": "Arun Kumar",
+    "archetype": "flutter_dev",
+    "skills": [
+      "Flutter",
+      "Dart",
+      "Firebase",
+      "GetX",
+      "REST APIs"
+    ],
+    "interests": [
+      "cross-platform development",
+      "mobile apps",
+      "backend integration"
+    ],
+    "bio": "1.5 years Flutter development experience. Shipped 4 production apps across iOS and Android. Strong in state management and API integration. Seeking ambitious projects."
+  },
+  {
+    "id": "u_028",
+    "name": "Priya Singh",
+    "archetype": "android_dev",
+    "skills": [
+      "Kotlin",
+      "Java",
+      "Android Architecture",
+      "Room Database"
+    ],
+    "interests": [
+      "mobile apps",
+      "data persistence",
+      "clean architecture"
+    ],
+    "bio": "Android developer focused on robust, maintainable code. Experienced with MVVM and Repository patterns. Looking for capstone projects with strong architectural foundations."
+  },
+  {
+    "id": "u_029",
+    "name": "David Nguyen",
+    "archetype": "react_native_dev",
+    "skills": [
+      "React Native",
+      "JavaScript",
+      "TypeScript",
+      "React Navigation"
+    ],
+    "interests": [
+      "cross-platform development",
+      "mobile apps",
+      "performance"
+    ],
+    "bio": "React Native developer learning TypeScript. Built logistics tracking app. Interested in projects requiring complex navigation patterns or real-time updates."
+  },
+  {
+    "id": "u_030",
+    "name": "Marcus Chen",
+    "archetype": "backend_engineer",
+    "skills": [
+      "Python",
+      "Go",
+      "PostgreSQL",
+      "Redis",
+      "Docker",
+      "REST APIs",
+      "gRPC",
+      "Microservices"
+    ],
+    "interests": [
+      "distributed systems",
+      "scalability",
+      "open source",
+      "startups"
+    ],
+    "bio": "Final-year CS student passionate about building robust backend systems. Experience with Django and FastAPI in production. Looking for a capstone project focused on high-performance distributed systems."
+  },
+  {
+    "id": "u_031",
+    "name": "Priya Sharma",
+    "archetype": "devops_engineer",
+    "skills": [
+      "Docker",
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD",
+      "Jenkins",
+      "GitLab CI"
+    ],
+    "interests": [
+      "infrastructure",
+      "automation",
+      "cloud native",
+      "open source"
+    ],
+    "bio": "DevOps enthusiast with 1.5 years of internship experience. Strong hands-on knowledge of Kubernetes orchestration and Infrastructure-as-Code. Seeking hackathon projects involving containerization and cloud deployment."
+  },
+  {
+    "id": "u_032",
+    "name": "James Rodriguez",
+    "archetype": "backend_engineer",
+    "skills": [
+      "Java",
+      "Spring Boot",
+      "Rust",
+      "SQL",
+      "Message Queues",
+      "API Design"
+    ],
+    "interests": [
+      "performance optimization",
+      "systems design",
+      "web development",
+      "fintech"
+    ],
+    "bio": "Junior developer with strong Java foundations. Recently diving into Rust for systems programming. Interested in projects that challenge architectural decisions and require careful performance tuning."
+  },
+  {
+    "id": "u_033",
+    "name": "Elena Volkova",
+    "archetype": "cloud_architect",
+    "skills": [
+      "AWS",
+      "GCP",
+      "Terraform",
+      "CloudFormation",
+      "Architecture Design",
+      "Python",
+      "Cost Optimization",
+      "Networking"
+    ],
+    "interests": [
+      "cloud infrastructure",
+      "enterprise solutions",
+      "scalability",
+      "multi-cloud"
+    ],
+    "bio": "Studying cloud architecture with certifications in AWS Solutions Architect and GCP Associate. Experienced in designing multi-region deployments and cost-effective infrastructure. Looking for projects requiring thoughtful architectural planning."
+  },
+  {
+    "id": "u_034",
+    "name": "Aditya Patel",
+    "archetype": "backend_engineer",
+    "skills": [
+      "Python",
+      "Node.js",
+      "MongoDB",
+      "FastAPI",
+      "Docker"
+    ],
+    "interests": [
+      "rapid prototyping",
+      "full-stack development",
+      "machine learning",
+      "web apis"
+    ],
+    "bio": "Full-stack leaning backend developer. Comfortable with Python and JavaScript ecosystems. Interested in MVPs and hackathon projects where speed and iteration matter most."
+  },
+  {
+    "id": "u_035",
+    "name": "Sophie Laurent",
+    "archetype": "devops_engineer",
+    "skills": [
+      "Kubernetes",
+      "Docker",
+      "AWS",
+      "Ansible",
+      "Prometheus",
+      "ELK Stack",
+      "Bash",
+      "Python"
+    ],
+    "interests": [
+      "observability",
+      "infrastructure automation",
+      "reliability",
+      "open source"
+    ],
+    "bio": "DevOps engineer focused on observability and monitoring. Strong experience with Kubernetes and containerized workloads. Passionate about building reliable systems with comprehensive logging and alerting."
+  },
+  {
+    "id": "u_036",
+    "name": "David Kim",
+    "archetype": "security_engineer",
+    "skills": [
+      "Python",
+      "Go",
+      "Kubernetes",
+      "AWS",
+      "Security Scanning",
+      "Container Security",
+      "Network Security"
+    ],
+    "interests": [
+      "cybersecurity",
+      "secure systems",
+      "devops",
+      "vulnerability management"
+    ],
+    "bio": "Security-focused developer with interests in both application and infrastructure security. Experience with container scanning, policy enforcement, and secure API design. Seeking projects where security is a first-class concern."
+  },
+  {
+    "id": "u_037",
+    "name": "Yuki Tanaka",
+    "archetype": "cloud_architect",
+    "skills": [
+      "GCP",
+      "AWS",
+      "Terraform",
+      "Go",
+      "Kubernetes",
+      "Service Mesh",
+      "Python"
+    ],
+    "interests": [
+      "serverless architecture",
+      "microservices",
+      "cloud native",
+      "kubernetes"
+    ],
+    "bio": "Cloud infrastructure enthusiast exploring serverless patterns and microservices architectures. Working on GCP certifications. Interested in capstone projects involving modern cloud-native application design."
+  },
+  {
+    "id": "u_038",
+    "name": "Niklas Bergstrom",
+    "archetype": "devops_engineer",
+    "skills": [
+      "Docker",
+      "Kubernetes",
+      "GitLab CI",
+      "Terraform",
+      "AWS"
+    ],
+    "interests": [
+      "ci/cd pipelines",
+      "deployment automation",
+      "infrastructure",
+      "open source"
+    ],
+    "bio": ""
+  },
+  {
+    "id": "u_039",
+    "name": "Isabelle Moreau",
+    "archetype": "backend_engineer",
+    "skills": [
+      "Python",
+      "Rust",
+      "PostgreSQL",
+      "Celery",
+      "Docker",
+      "Kafka",
+      "gRPC",
+      "System Design"
+    ],
+    "interests": [
+      "scalable backends",
+      "event-driven architecture",
+      "performance",
+      "distributed systems"
+    ],
+    "bio": "Backend specialist with expertise in event-driven systems and asynchronous processing. Strong in Python and learning Rust for systems-level work. Looking for complex backend projects addressing real scalability challenges."
+  },
+  {
+    "id": "u_040",
+    "name": "Maya Patel",
+    "archetype": "ux_designer",
+    "skills": [
+      "Figma",
+      "User Research",
+      "Wireframing",
+      "Prototyping",
+      "CSS",
+      "Adobe XD"
+    ],
+    "interests": [
+      "web development",
+      "accessibility",
+      "healthcare tech",
+      "user research"
+    ],
+    "bio": "Passionate UX designer with 2 years of freelance experience. Specializing in healthcare and fintech interfaces. Strong advocate for accessible design practices."
+  },
+  {
+    "id": "u_041",
+    "name": "James Chen",
+    "archetype": "ui_designer",
+    "skills": [
+      "Adobe XD",
+      "Figma",
+      "CSS",
+      "Prototyping",
+      "Design Systems",
+      "Sketch"
+    ],
+    "interests": [
+      "mobile apps",
+      "design systems",
+      "gaming",
+      "animation"
+    ],
+    "bio": "UI designer obsessed with micro-interactions and polished user experiences. Currently learning animation principles to bring designs to life."
+  },
+  {
+    "id": "u_042",
+    "name": "Sofia Rojas",
+    "archetype": "product_manager",
+    "skills": [
+      "Product Strategy",
+      "Data Analysis",
+      "User Interviews",
+      "Roadmapping",
+      "Market Research"
+    ],
+    "interests": [
+      "startups",
+      "saas",
+      "ecommerce",
+      "sustainability"
+    ],
+    "bio": "Junior PM with background in business operations. Looking to launch a startup idea in the sustainability space. Love working cross-functionally with design and engineering teams."
+  },
+  {
+    "id": "u_043",
+    "name": "Aisha Williams",
+    "archetype": "ux_designer",
+    "skills": [
+      "Figma",
+      "User Testing",
+      "Information Architecture",
+      "Adobe XD",
+      "CSS",
+      "Interaction Design"
+    ],
+    "interests": [
+      "education tech",
+      "social impact",
+      "accessibility",
+      "web development"
+    ],
+    "bio": "UX designer passionate about EdTech. Recently completed Google UX Certificate. Excited to apply user-centered design to real-world problems."
+  },
+  {
+    "id": "u_044",
+    "name": "Marcus Thompson",
+    "archetype": "full_stack_dev",
+    "skills": [
+      "React",
+      "Node.js",
+      "Python",
+      "PostgreSQL",
+      "MongoDB",
+      "AWS",
+      "Docker"
+    ],
+    "interests": [
+      "web development",
+      "open source",
+      "machine learning",
+      "startups"
+    ],
+    "bio": "Full-stack developer with capstone project experience building e-commerce platforms. Comfortable jumping between frontend and backend. Open source contributor."
+  },
+  {
+    "id": "u_045",
+    "name": "Elena Kov\u00e1cs",
+    "archetype": "technical_writer",
+    "skills": [
+      "Technical Documentation",
+      "Markdown",
+      "API Documentation",
+      "User Guides",
+      "Content Strategy"
+    ],
+    "interests": [
+      "developer tools",
+      "open source",
+      "cloud computing",
+      "devops"
+    ],
+    "bio": "Technical writer transitioning from customer support. Experienced documenting APIs and developer tools. Passionate about making complex concepts accessible."
+  },
+  {
+    "id": "u_046",
+    "name": "David Okonkwo",
+    "archetype": "ui_designer",
+    "skills": [
+      "Figma",
+      "CSS",
+      "Adobe XD",
+      "HTML",
+      "Design Thinking",
+      "Prototyping"
+    ],
+    "interests": [
+      "fintech",
+      "mobile apps",
+      "cryptocurrency",
+      "web development"
+    ],
+    "bio": "Self-taught UI designer with background in finance. Interested in designing the next generation of fintech applications. Beginner-level HTML/CSS knowledge."
+  },
+  {
+    "id": "u_047",
+    "name": "Priya Sharma",
+    "archetype": "product_manager",
+    "skills": [
+      "Product Requirements",
+      "Competitive Analysis",
+      "Stakeholder Management",
+      "Metrics & Analytics"
+    ],
+    "interests": [
+      "saas",
+      "marketplace platforms",
+      "b2b",
+      "enterprise software"
+    ],
+    "bio": "PM intern with strong analytical skills and business acumen. Building go-to-market strategy for a campus marketplace platform as capstone project."
+  },
+  {
+    "id": "u_048",
+    "name": "Leo M\u00fcller",
+    "archetype": "full_stack_dev",
+    "skills": [
+      "JavaScript",
+      "TypeScript",
+      "React",
+      "Express.js",
+      "MySQL",
+      "Git",
+      "REST APIs"
+    ],
+    "interests": [
+      "web development",
+      "startups",
+      "open source",
+      "game development"
+    ],
+    "bio": "Full-stack developer passionate about building products from zero to one. Created 3 side projects. Seeking team for collaborative hackathon or capstone."
+  },
+  {
+    "id": "u_049",
+    "name": "Zara Kim",
+    "archetype": "ux_designer",
+    "skills": [
+      "Figma",
+      "Prototyping",
+      "Wireframing",
+      "CSS",
+      "Adobe XD",
+      "User Flows"
+    ],
+    "interests": [
+      "mobile apps",
+      "social platforms",
+      "user research",
+      "web development"
+    ],
+    "bio": "UX designer with focus on mobile-first design. Completed portfolio with 5+ case studies. Interested in joining teams building social impact applications."
+  },
+  {
+    "id": "u_050",
+    "name": "Alex Chen",
+    "archetype": "blockchain_dev",
+    "skills": [
+      "Solidity",
+      "Web3.js",
+      "JavaScript",
+      "Ethereum",
+      "Smart Contracts"
+    ],
+    "interests": [
+      "blockchain",
+      "defi",
+      "web3",
+      "cryptocurrency",
+      "decentralized finance"
+    ],
+    "bio": "Passionate about decentralized finance and smart contract security. Built several DeFi protocols on Ethereum testnet. Looking for a team to launch a yield farming optimization project."
+  },
+  {
+    "id": "u_051",
+    "name": "Jordan Rivera",
+    "archetype": "blockchain_dev",
+    "skills": [
+      "Rust",
+      "Solidity",
+      "TypeScript",
+      "Move",
+      "Anchor"
+    ],
+    "interests": [
+      "blockchain",
+      "web3",
+      "rust",
+      "solana",
+      "nfts"
+    ],
+    "bio": "Rust enthusiast focusing on Solana ecosystem development. Completed several Anchor tutorials and built token contracts. Seeking collaborators for a Solana gaming integration project."
+  },
+  {
+    "id": "u_052",
+    "name": "Morgan Taylor",
+    "archetype": "game_dev",
+    "skills": [
+      "Unity",
+      "C#",
+      "HLSL",
+      "Blender",
+      "Git"
+    ],
+    "interests": [
+      "game development",
+      "graphics programming",
+      "indie games",
+      "3d modeling",
+      "game design"
+    ],
+    "bio": "Game developer with 2 years of hobby projects in Unity. Strong shader knowledge and comfortable with graphics pipelines. Interested in joining a team for a graphics-heavy 3D game."
+  },
+  {
+    "id": "u_053",
+    "name": "Casey Williams",
+    "archetype": "game_dev",
+    "skills": [
+      "Unreal Engine",
+      "C++",
+      "Blueprint",
+      "Physics",
+      "Animation"
+    ],
+    "interests": [
+      "game development",
+      "unreal engine",
+      "vr",
+      "multiplayer games",
+      "game mechanics"
+    ],
+    "bio": "Unreal Engine developer focused on game mechanics and multiplayer systems. Built several prototypes for competitive gameplay. Looking for a capstone project in VR or networked games."
+  },
+  {
+    "id": "u_054",
+    "name": "Sam Patel",
+    "archetype": "embedded_systems_dev",
+    "skills": [
+      "C",
+      "ARM Assembly",
+      "FreeRTOS",
+      "STM32",
+      "Embedded C++"
+    ],
+    "interests": [
+      "embedded systems",
+      "iot",
+      "robotics",
+      "firmware",
+      "microcontrollers"
+    ],
+    "bio": "Embedded systems specialist with focus on ARM-based microcontrollers. Experienced with real-time operating systems and low-level hardware programming. Seeking IoT or robotics hackathon projects."
+  },
+  {
+    "id": "u_055",
+    "name": "Riley Kim",
+    "archetype": "ml_engineer",
+    "skills": [
+      "Python",
+      "TensorFlow",
+      "PyTorch",
+      "Pandas",
+      "Scikit-learn",
+      "SQL"
+    ],
+    "interests": [
+      "machine learning",
+      "deep learning",
+      "computer vision",
+      "nlp",
+      "data science"
+    ],
+    "bio": "ML engineer passionate about computer vision and natural language processing. Completed several Kaggle competitions with top 10% finishes. Looking for a capstone project applying ML to real-world problems."
+  },
+  {
+    "id": "u_056",
+    "name": "Jamie Martinez",
+    "archetype": "junior_dev",
+    "skills": [
+      "JavaScript",
+      "React"
+    ],
+    "interests": [
+      "web development",
+      "frontend",
+      "learning"
+    ],
+    "bio": "Learning full-stack development. Comfortable with React and basic JavaScript. Looking for a beginner-friendly hackathon to gain real project experience."
+  },
+  {
+    "id": "u_057",
+    "name": "Taylor Anderson",
+    "archetype": "junior_dev",
+    "skills": [
+      "Python",
+      "Flask"
+    ],
+    "interests": [
+      "web development",
+      "backend",
+      "startups"
+    ],
+    "bio": "Junior developer with Python background. Built a few Flask applications. Interested in joining a startup-focused capstone project where I can contribute backend work."
+  },
+  {
+    "id": "u_058",
+    "name": "Casey O'Brien",
+    "archetype": "completely_empty_profile",
+    "skills": [],
+    "interests": [],
+    "bio": ""
+  },
+  {
+    "id": "u_059",
+    "name": "Morgan Lee",
+    "archetype": "completely_empty_profile",
+    "skills": [],
+    "interests": [],
+    "bio": ""
+  }
+]

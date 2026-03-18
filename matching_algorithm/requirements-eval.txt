@@ -1,0 +1,9 @@
+# Evaluation pipeline dependencies — not needed for production deployment.
+# Install before running eval/pipeline.py:
+#   pip install -r requirements-eval.txt
+
+anthropic>=0.40.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+pandas>=2.1.0
+scipy>=1.11.0

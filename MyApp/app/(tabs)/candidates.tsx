@@ -22,6 +22,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import MatchCelebrationOverlay from "../../components/MatchCelebrationOverlay";
 import {
   calcDist,
   CandidateUI,
@@ -274,6 +275,11 @@ const CandidateCard = ({
   onSwipe: (d: "left" | "right") => void;
 }) => {
   const position = useRef(new Animated.ValueXY()).current;
+  const onSwipeRef = useRef(onSwipe);
+
+  useEffect(() => {
+    onSwipeRef.current = onSwipe;
+  }, [onSwipe]);
 
   const rotate = position.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
@@ -326,7 +332,7 @@ const CandidateCard = ({
       duration: 250,
       useNativeDriver: false,
     }).start(() => {
-      onSwipe("right");
+      onSwipeRef.current("right");
       position.setValue({ x: 0, y: 0 });
     });
   };
@@ -336,7 +342,7 @@ const CandidateCard = ({
       duration: 250,
       useNativeDriver: false,
     }).start(() => {
-      onSwipe("left");
+      onSwipeRef.current("left");
       position.setValue({ x: 0, y: 0 });
     });
   };
@@ -576,6 +582,9 @@ export default function CandidateFeed() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [deckHeight, setDeckHeight] = useState(DECK_CARD_HEIGHT);
+  const [matchCelebrationTarget, setMatchCelebrationTarget] = useState<
+    string | null
+  >(null);
 
   const [hasProjects, setHasProjects] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -706,6 +715,14 @@ export default function CandidateFeed() {
     setErr(null);
   }, [session?.user?.id]);
 
+  // Re-allow loading when user has no projects yet, so returning
+  // from project creation triggers a fresh check.
+  useEffect(() => {
+    if (!hasProjects) {
+      hasLoadedRef.current = false;
+    }
+  }, [hasProjects]);
+
   const fetchMore = async () => {
     if (isFetchingMoreRef.current || allFetched || !session?.user?.id || !hasProjects) return;
     isFetchingMoreRef.current = true;
@@ -749,12 +766,15 @@ export default function CandidateFeed() {
 
     if (!session?.user?.id || !candidate) return;
     try {
-      await likeCandidate(
+      const matchResult = await likeCandidate(
         session.user.id,
         candidate.project_id,
         candidate.id,
         direction === "right" ? "like" : "pass",
       );
+      if (matchResult?.match) {
+        setMatchCelebrationTarget(candidate.name);
+      }
     } catch (e: any) {
       console.warn("Failed to record candidate like:", e.message ?? e);
     }
@@ -981,6 +1001,14 @@ export default function CandidateFeed() {
             </View>
           </View>
         </View>
+
+        <MatchCelebrationOverlay
+          accentColor="#79BE58"
+          highlight={matchCelebrationTarget ?? ""}
+          onHidden={() => setMatchCelebrationTarget(null)}
+          surfaceColor="#E8F5E2"
+          visible={matchCelebrationTarget !== null}
+        />
       </View>
     )
   ) : (

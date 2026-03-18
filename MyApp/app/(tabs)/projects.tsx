@@ -26,6 +26,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import MatchCelebrationOverlay from "../../components/MatchCelebrationOverlay";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   checkMatchingAPIHealth,
@@ -194,6 +195,13 @@ const ProjectCard = ({
   onOpenHelp: () => void;
 }) => {
   const position = useRef(new Animated.ValueXY()).current;
+  const onSwipeRef = useRef(onSwipe);
+  const onTapRef = useRef(onTap);
+
+  useEffect(() => {
+    onSwipeRef.current = onSwipe;
+    onTapRef.current = onTap;
+  }, [onSwipe, onTap]);
 
   const rotate = position.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
@@ -225,7 +233,7 @@ const ProjectCard = ({
           Math.abs(g.dy) < TAP_THRESHOLD
         ) {
           resetPosition();
-          onTap();
+          onTapRef.current();
         } else resetPosition();
       },
     }),
@@ -237,7 +245,7 @@ const ProjectCard = ({
       duration: 250,
       useNativeDriver: false,
     }).start(() => {
-      onSwipe("right");
+      onSwipeRef.current("right");
       position.setValue({ x: 0, y: 0 });
     });
   };
@@ -247,7 +255,7 @@ const ProjectCard = ({
       duration: 250,
       useNativeDriver: false,
     }).start(() => {
-      onSwipe("left");
+      onSwipeRef.current("left");
       position.setValue({ x: 0, y: 0 });
     });
   };
@@ -373,6 +381,9 @@ export default function ProjectFeed() {
   const [myLoading, setMyLoading] = useState(false);
   const [headerTrackWidth, setHeaderTrackWidth] = useState(0);
   const [deckHeight, setDeckHeight] = useState(DECK_CARD_HEIGHT);
+  const [matchCelebrationTarget, setMatchCelebrationTarget] = useState<
+    string | null
+  >(null);
   const [hasSeenSwipeHint, setHasSeenSwipeHint] = useState<boolean | null>(
     null,
   );
@@ -503,7 +514,15 @@ export default function ProjectFeed() {
     advance();
     if (direction !== "right" || !session?.user?.id || !project) return;
     try {
-      await likeProject(session.user.id, project.owner_id, project.id, "like");
+      const matchResult = await likeProject(
+        session.user.id,
+        project.owner_id,
+        project.id,
+        "like",
+      );
+      if (matchResult?.match) {
+        setMatchCelebrationTarget(project.name);
+      }
     } catch (e: any) {
       console.warn("Failed to record project like:", e.message ?? e);
     }
@@ -1125,6 +1144,14 @@ export default function ProjectFeed() {
               ))}
           </ScrollView>
         ))}
+
+      <MatchCelebrationOverlay
+        accentColor="#79BE58"
+        highlight={matchCelebrationTarget ?? ""}
+        onHidden={() => setMatchCelebrationTarget(null)}
+        surfaceColor="#E8F5E2"
+        visible={matchCelebrationTarget !== null}
+      />
 
       {/* Project Detail Modal */}
       <Modal visible={!!detailProject} animationType="slide" transparent>
