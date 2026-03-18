@@ -3,8 +3,9 @@
 /* =========================
    Imports & setup
    ========================= */
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { fetchMyCoords } from "@/lib/candidates";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -36,6 +37,8 @@ import { getUserProfile } from "../../lib/user-profile";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 120;
+const MAX_DISTANCE = 10000;
+
 const HEADER_TRACK_PADDING = 6;
 const DECK_CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 430);
 const DECK_CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.68, 620);
@@ -65,12 +68,112 @@ type Project = ProjectUI & {
   skillsNeeded?: string[];
   // tolerate legacy shape if it exists
   skills?: { name: string; level?: number }[];
+  lat : number | null;
+  lng : number | null;
 };
 
 type FilterSkill = {
   name: string;
   included: boolean;
 };
+
+type Coord = {
+  lat : number | null, 
+  lng : number | null
+}
+
+/* =========================
+   Custom Slider 
+   ========================= */
+const LocationSlider = ({
+  min = 0,
+  max = 100,
+  value,
+  onValueChange,
+}: {
+  min?: number;
+  max?: number;
+  value: number;
+  onValueChange: (v: number) => void;
+}) => {
+  const trackWidth = useRef(0);
+  const clamp = (v: number) => Math.min(max, Math.max(min, v));
+
+  const sliderPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        const x = e.nativeEvent.locationX;
+        const ratio = x / trackWidth.current;
+        onValueChange(clamp(Math.round(min + ratio * (max - min))));
+      },
+      onPanResponderMove: (e) => {
+        const x = e.nativeEvent.locationX;
+        const ratio = x / trackWidth.current;
+        onValueChange(clamp(Math.round(min + ratio * (max - min))));
+      },
+    }),
+  ).current;
+
+  const fillRatio = (value - min) / (max - min);
+
+  return (
+    <View style={sliderStyles.wrapper}>
+      <View
+        style={sliderStyles.track}
+        onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
+        {...sliderPanResponder.panHandlers}
+      >
+        <View style={[sliderStyles.fill, { flex: fillRatio }]} />
+        <View style={{ flex: 1 - fillRatio }} />
+        <View
+          style={[
+            sliderStyles.thumb,
+            { left: `${fillRatio * 100}%` as any },
+          ]}
+          pointerEvents="none"
+        />
+      </View>
+    </View>
+  );
+};
+
+const sliderStyles = StyleSheet.create({
+  wrapper: {
+    width: "80%",
+    alignSelf: "center",
+    paddingVertical: 12,
+  },
+  track: {
+    height: 4,
+    backgroundColor: "#E1E8F5",
+    borderRadius: 2,
+    flexDirection: "row",
+    position: "relative",
+  },
+  fill: {
+    height: 4,
+    backgroundColor: "#79BE58",
+    borderRadius: 2,
+  },
+  thumb: {
+    position: "absolute",
+    top: -9,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#fff",
+    borderWidth: 2,
+    borderColor: "#79BE58",
+    marginLeft: -11,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+});
 
 /* =========================
    Swipeable Card
@@ -259,6 +362,9 @@ export default function ProjectFeed() {
   const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
   const [showAllSkills, setShowAllSkills] = useState<boolean>(true);
 
+  const [maxFilterDist, setMaxFilterDist] = useState<number>(MAX_DISTANCE);
+  const [myCoords, setMyCoords] = useState<Coord>({lat : null, lng : null});
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -287,19 +393,42 @@ export default function ProjectFeed() {
         )
       : 0;
 
+    const calcDist = (lat1: number | null, lng1: number | null, lat2: number | null, lng2: number | null): number => {
+    if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return Infinity;
+
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLng = (lat2 - lng1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
   const filterFetchedProjects = () => {
+    let maxDist = maxFilterDist < MAX_DISTANCE ? maxFilterDist : Infinity;
+    let filteredProjects: Project[] = [];
+
     if (showAllSkills) {
-      setProjects(overallProjects);
+      // setProjects(overallProjects);
+      overallProjects.forEach((p) => {
+        
+        if (calcDist(myCoords.lat, myCoords?.lng, p.lat, p.lng) <= maxDist) {
+            filteredProjects.push(p);
+          }
+      })
+      setProjects(filteredProjects);
       return;
     }
-
-    let filteredProjects: Project[] = [];
     const skills = filterSkills.filter((s) => s.included).map((s) => s.name);
-
     overallProjects.forEach((p) => {
       const intersection = p.skillsNeeded.filter((x) => skills.includes(x));
       if (intersection.length > 0) {
-        filteredProjects.push(p);
+        if (calcDist(myCoords.lat, myCoords?.lng, p.lat, p.lng) <= maxDist) {
+                filteredProjects.push(p);
+              }
       }
     });
 
@@ -314,6 +443,9 @@ export default function ProjectFeed() {
       // Fetch all projects (exclude own)
       const allProjects = await fetchProjects(50, session?.user?.id);
       if (!alive) return;
+
+      const coords = await fetchMyCoords(session?.user?.id);
+      setMyCoords(coords);
 
       // Check if matching API is available
       const matchingAvailable = await checkMatchingAPIHealth();
@@ -640,6 +772,25 @@ export default function ProjectFeed() {
             <Ionicons name="close" size={35} color="000" />
           </TouchableOpacity>
         </View>
+
+        {/* Location */}
+                  {myCoords.lat && (
+                    <View>
+                      <Text style={styles.sectionTitle}>Location</Text>
+                      {/* <SliderFilter/> */}
+                      <LocationSlider
+                        min={0}
+                        max={MAX_DISTANCE}
+                        value={maxFilterDist}
+                        onValueChange={setMaxFilterDist}
+                      />
+                      <Text style={{ textAlign: "center", color: "#888", fontSize: 13 }}>
+                        {maxFilterDist >= MAX_DISTANCE ? MAX_DISTANCE + "km+" : maxFilterDist + "km"}
+                      </Text>
+                    </View>
+                  )
+                  
+                  }
 
         {/* skills to browse on */}
         {filterSkills.length > 0 && (

@@ -670,6 +670,7 @@ export default function CandidateFeed() {
           const coords = await fetchMyCoords(session?.user?.id);
           setMyCoords(coords);
 
+
           
 
           let one_active = userProjects.length > 0;

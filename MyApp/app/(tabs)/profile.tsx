@@ -162,10 +162,8 @@ export default function ProfilePage() {
 
   } catch (e) {
     console.log("ERROR getting location", e);
-    setLocation("City, Country");
+    setLocation("");
   }
-
-  saveProfile();
 };
 
 
@@ -941,7 +939,7 @@ export default function ProfilePage() {
               onChangeText={setLocation}
               // onEndEditing={(e) => updateLocation(e.nativeEvent.text)}
               // onBlur={saveProfile}
-              onBlur={(e) => { updateLocation(location); }}
+              onBlur={(e) => { updateLocation(location); saveProfile() }}
               placeholder="City, Country"
               placeholderTextColor="#999"
             />

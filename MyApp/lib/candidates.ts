@@ -126,6 +126,7 @@ export async function fetchMyCoords(userId : string | undefined) : Promise<{lat 
 
       const city_name = data ? data.location : ""; 
 
+
       return fetchCoords(city_name)
 
 

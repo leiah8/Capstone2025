@@ -11,6 +11,9 @@ export type ProjectUI = {
   description: string;
   creatorImage: string;
   skillsNeeded: string[];
+
+  lat : number | null;
+  lng : number | null;
 };
 
 type DbProject = {
@@ -27,6 +30,9 @@ type DbProject = {
     | { location: string | null; profile_image: string | null }
     | { location: string | null; profile_image: string | null }[]
     | null;
+
+  lat : number | null;
+  lng : number | null;
 };
 
 const FK = 'projects_owner_id_fkey';
@@ -56,6 +62,43 @@ export async function likeProject(
     console.log(data.message);
   }
 }
+
+export async function fetchCoords(ownerId : string) : Promise<{lat : number | null, lng : number | null}> {
+  // if (city_name == null) {
+  //   return {lat : null, lng : null} 
+  // }
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('location')
+      .eq('id', ownerId)
+      .maybeSingle();
+    if (error) throw error;
+
+
+    const city_name = data ? data.location : ""; 
+
+    if (city_name == null) {
+      return {lat : null, lng : null} 
+    }
+
+    const { data : data2, error : error2 } = await supabase
+      .from('city_locations')
+      .select('*')
+      .eq('name', city_name)
+      .maybeSingle();
+    if (error2) throw error2;
+
+    return data2 ? {lat : data2.lat, lng : data2.lng} :{lat : null, lng : null}
+
+
+    
+  } catch (e: any) {
+    return {lat : null, lng : null}
+  }
+
+};
 
 export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promise<ProjectUI[]> {
   let query = supabase
@@ -88,7 +131,15 @@ export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promis
 
   if (error) throw error;
 
-  const rows = (data ?? []) as unknown as DbProject[];
+  // const rows = (data ?? []) as unknown as DbProject[];
+
+  const rows: DbProject[] = await Promise.all(
+      (data ?? []).map(async (c) => {
+        const coord = await fetchCoords(c.owner_id);
+        return { ...c, lat: coord.lat, lng: coord.lng } as unknown as DbProject;
+      })
+    );
+
 
   return rows.map((row) => {
     const prof = asSingleProfile(row.profiles);
@@ -105,6 +156,8 @@ export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promis
         'profiles' // your bucket
       ),
       skillsNeeded: row.skills_needed ?? [],
+      lat : row.lat,
+      lng : row.lng
     };
   });
 }
