@@ -4,10 +4,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { MatchUI } from "../../lib/match";
 import { fetchAllMatchesOptimized } from "../../lib/match-queries";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useNotifications } from "../../contexts/NotificationContext";
 
 import {
@@ -92,7 +92,24 @@ export default function MatchesPage() {
 
       setPage(true);
     })();
-  }, [session?.user?.id]);
+  }, [session?.user?.id, newMatchIds.size]);
+
+  // Silently refetch matches when the tab gains focus
+  useFocusEffect(
+    useCallback(() => {
+      if (!session?.user?.id) return;
+      (async () => {
+        try {
+          const { projectMatches, candidateMatches } =
+            await fetchAllMatchesOptimized(session.user.id);
+          setProjectMatchesUI(projectMatches);
+          setCandidateMatchesUI(candidateMatches);
+        } catch (e) {
+          console.error("Error loading matches:", e);
+        }
+      })();
+    }, [session?.user?.id]),
+  );
 
   useEffect(() => {
     const nextPosition = headerSegmentWidth * activeHeaderIndex;

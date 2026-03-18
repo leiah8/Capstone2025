@@ -15,7 +15,8 @@
       "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
       "Bash(find /Users/tonylin/Developer/Capstone2025/MyApp -name *Color* -o -name *color* -o -name *Theme* -o -name *theme*)",
       "Bash(find /Users/tonylin/Developer/Capstone2025/MyApp -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.js -o -name *.jsx \\\\\\) ! -path */node_modules/* ! -path */.git/*)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(grep -n \"fetchMatches\\\\|fetchAllMatches\\\\|fetchCandidate\" /Users/tonylin/Developer/Capstone2025/MyApp/lib/*.ts)"
     ]
   }
 }
