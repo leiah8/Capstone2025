@@ -557,7 +557,9 @@ export default function CandidateFeed() {
                 .sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0))
                 .map(c => {
                   const match = bestMatchMap.get(c.id);
-                  return { ...c, project_id: match?.project_id ?? '' }; 
+                  const pid = match?.project_id ?? '';
+                  const project = userProjects.find(p => String(p.id) === pid);
+                  return { ...c, project_id: pid, project_name: project?.title ?? null };
                 });
 
                 
@@ -591,6 +593,7 @@ export default function CandidateFeed() {
               })) as Candidate[];
               setAllCandidates(temp);
               setCandidates(temp);
+
             }
             setCurrentIndex(0);
           }
