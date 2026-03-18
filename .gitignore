@@ -57,3 +57,6 @@ node_modules/
 # Build outputs
 *.pyc
 *.pyo
+
+# Eval Images
+matching_algorithm/eval/data/plots/
