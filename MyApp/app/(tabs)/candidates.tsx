@@ -415,7 +415,6 @@ export default function CandidateFeed() {
 
     if (showAllSkills) {
       overallCandidates.forEach(c => {
-        console.log(c)
         if (pids.includes(Number(c.project_id))) {
             filteredCandidates.push(c)
         }
@@ -601,8 +600,10 @@ export default function CandidateFeed() {
     );
 
   return (hasProjects ? (dropdownOpen ? (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <View>
+    <ScrollView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {/* <View> */}
+       <View style={{ marginBottom : 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20 }}>
+                <Text style={styles.candidateName}>Filter Candidates</Text>
         <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setDropdownOpen(false); filterFetchedCandidates() }}>
           <Ionicons name="close" size={35} color="000" />
         </TouchableOpacity>
@@ -691,7 +692,7 @@ export default function CandidateFeed() {
         )}
 
       </View>
-    </View>
+    </ScrollView>
 
   ) : (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>

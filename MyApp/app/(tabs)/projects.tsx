@@ -176,7 +176,6 @@ const ProjectCard = ({
 
       {/* Content */}
       <View>
-        {/* <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setDropdownOpen(false); filterFetchedCandidates() }}> */}
         <TouchableOpacity style={styles.filterButton} onPress={() => { openFilterFunc(true)}}>
           <Ionicons name="filter" size={35} color="000" />
         </TouchableOpacity>
@@ -270,7 +269,6 @@ export default function ProjectFeed() {
     let filteredProjects : Project[] = [];
     const skills = filterSkills.filter(s => s.included).map(s => s.name);
     
-    console.log("SHOWING ALL SKILLS ", showAllSkills)
     
     overallProjects.forEach(p => {
         const intersection = p.skillsNeeded.filter(x => skills.includes(x)); 
@@ -279,7 +277,6 @@ export default function ProjectFeed() {
         }
     })
     
-    console.log(filteredProjects)
     setProjects(filteredProjects)
   }
 
@@ -478,14 +475,49 @@ export default function ProjectFeed() {
     );
 
   return (filterDropDownOpen ? 
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <View>
+    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor : "#FFF"}}>
+    <ScrollView style={styles.container}>
+      {/* <View> */}
+      <View style={{ marginBottom : 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20 }}>
+         <Text style={[styles.projectName]}>Filter Projects</Text>
         <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setFilterDropDownOpen(false); filterFetchedProjects()}}>
-        {/* <TouchableOpacity style={styles.closeDropDownButton} onPress={() => { setFilterDropDownOpen(false); filterFetchedCandidates() }}> */}
-
           <Ionicons name="close" size={35} color="000" />
         </TouchableOpacity>
       </View> 
+
+      {/* skills to browse on */}
+        {filterSkills.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Skills</Text>
+            <TouchableOpacity
+                style={styles.filterRow}
+                onPress={() => {
+                  
+                  setShowAllSkills(!showAllSkills); 
+
+                }}
+              >
+                <Ionicons name={showAllSkills ? "checkmark-circle" : "ellipse-outline"} size={20} color="#333" />
+                <Text style={styles.filterLabel}>Show All Skills</Text>
+              </TouchableOpacity>
+
+            {[...filterSkills].map((s, i) =>
+
+              <TouchableOpacity
+                key={i}
+                style={[styles.filterRow, {paddingHorizontal : 40}]}
+                onPress={() => {
+                  if (!showAllSkills) setFilterSkills(prev => prev.map((skill, j) => j === i ? { ...skill, included: !skill.included } : skill));
+                }}
+              >
+                <Ionicons name={s.included ? "checkmark-circle" : "ellipse-outline"} size={20} color={showAllSkills? "#ddd": "#333"} />
+                <Text style={[styles.filterLabel, {color: showAllSkills ? "#ddd" : "#333" }]}>{s.name}</Text>
+              </TouchableOpacity>
+
+            )}
+          </View>
+        )}
+    </ScrollView>
     </SafeAreaView> : 
 
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -1201,5 +1233,8 @@ const styles = StyleSheet.create({
   //filter dropdown menu
   closeDropDownButton: { alignSelf: 'flex-end', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 70, borderRadius: 25 },
   filterButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 60, borderRadius: 25 },
+   section: { marginBottom: 12 },
+   filterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 20 },
+  filterLabel: { fontSize: 14, color: '#333' },
   
 });
