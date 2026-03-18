@@ -4,6 +4,7 @@
    Imports & setup
    ========================= */
 import { Ionicons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -35,10 +36,21 @@ import { getUserProfile } from "../../lib/user-profile";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 120;
 const HEADER_TRACK_PADDING = 6;
+const DECK_CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 430);
+const DECK_CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.58, 520);
 const HEADER_TABS = [
   { key: "browse", label: "Browse Projects", icon: "compass-outline" },
   { key: "mine", label: "My Projects", icon: "folder-outline" },
 ] as const;
+const deckCardShell = {
+  backgroundColor: "#fff",
+  borderRadius: 20,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 8,
+  elevation: 5,
+} as const;
 
 /* =========================
    Types (make skills optional & flexible)
@@ -207,6 +219,7 @@ type MyProject = {
 
 export default function ProjectFeed() {
   const { session } = useAuth();
+  const tabBarHeight = useBottomTabBarHeight();
   const [tab, setTab] = useState<"browse" | "mine">("browse");
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -474,32 +487,39 @@ export default function ProjectFeed() {
 
       {/* Browse view */}
       {tab === "browse" && (
-        <>
+        <View
+          style={[
+            styles.browseLayout,
+            { paddingBottom: Math.max(tabBarHeight, 88) + 12 },
+          ]}
+        >
           <View style={styles.cardContainer}>
-            {projects
-              .slice(currentIndex, currentIndex + 2)
-              .reverse()
-              .map((p, i, arr) => (
-                <ProjectCard
-                  key={p.id}
-                  project={p}
-                  isTop={i === arr.length - 1}
-                  onSwipe={handleSwipe}
-                  onTap={() => setDetailProject(p)}
-                />
-              ))}
+            <View style={styles.deckSlot}>
+              {projects
+                .slice(currentIndex, currentIndex + 2)
+                .reverse()
+                .map((p, i, arr) => (
+                  <ProjectCard
+                    key={p.id}
+                    project={p}
+                    isTop={i === arr.length - 1}
+                    onSwipe={handleSwipe}
+                    onTap={() => setDetailProject(p)}
+                  />
+                ))}
 
-            {currentIndex >= projects.length && (
-              <View style={styles.endCard}>
-                <Text style={styles.endText}>No more projects!</Text>
-                <TouchableOpacity
-                  style={styles.resetButton}
-                  onPress={() => setCurrentIndex(0)}
-                >
-                  <Text style={styles.resetButtonText}>Start Over</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+              {currentIndex >= projects.length && (
+                <View style={styles.endCard}>
+                  <Text style={styles.endText}>No more projects!</Text>
+                  <TouchableOpacity
+                    style={styles.resetButton}
+                    onPress={() => setCurrentIndex(0)}
+                  >
+                    <Text style={styles.resetButtonText}>Start Over</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           </View>
 
           {currentIndex < projects.length && (
@@ -518,7 +538,7 @@ export default function ProjectFeed() {
               </TouchableOpacity>
             </View>
           )}
-        </>
+        </View>
       )}
 
       {/* My Projects view */}
@@ -825,20 +845,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  cardContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  browseLayout: {
+    flex: 1,
+    paddingTop: 12,
+  },
+  cardContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  deckSlot: {
+    width: DECK_CARD_WIDTH,
+    maxWidth: 430,
+    height: DECK_CARD_HEIGHT,
+    position: "relative",
+    alignSelf: "center",
+  },
 
   card: {
-    position: "absolute",
-    width: SCREEN_WIDTH * 0.9,
-    maxWidth: 430,
-    height: SCREEN_HEIGHT * 0.7,
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    ...StyleSheet.absoluteFillObject,
+    ...deckCardShell,
     overflow: "hidden",
   },
   cardBehind: { transform: [{ scale: 0.95 }], opacity: 0.8 },
@@ -942,23 +969,50 @@ const styles = StyleSheet.create({
 
   nopeOverlayText: { fontSize: 32, fontWeight: "bold", color: "#F44336" },
 
-  buttonsContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 60, paddingBottom: 10, paddingTop: 0 },
-  passButton: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
-  likeButton: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
-
-  endCard: {
-    width: SCREEN_WIDTH * 0.9,
+  buttonsContainer: {
+    width: DECK_CARD_WIDTH,
     maxWidth: 430,
-    height: SCREEN_HEIGHT * 0.7,
-    backgroundColor: "#fff",
-    borderRadius: 20,
+    alignSelf: "center",
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+    alignItems: "center",
+    marginTop: 20,
+    paddingHorizontal: 16,
+  },
+  passButton: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: "#111",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
     shadowRadius: 8,
     elevation: 5,
+  },
+  likeButton: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: "#111",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+
+  endCard: {
+    width: DECK_CARD_WIDTH,
+    maxWidth: 430,
+    height: DECK_CARD_HEIGHT,
+    ...deckCardShell,
+    justifyContent: "center",
+    alignItems: "center",
   },
   endText: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
   resetButton: {

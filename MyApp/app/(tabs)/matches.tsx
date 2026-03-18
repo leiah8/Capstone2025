@@ -1,9 +1,10 @@
 // import { Platform, StyleSheet } from 'react-native';
 
-import { DbMatch, MatchUI } from '../../lib/match';
+import { Ionicons } from '@expo/vector-icons';
+import { MatchUI } from '../../lib/match';
 
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
 import { router } from 'expo-router';
@@ -13,8 +14,10 @@ import { supabase } from '../../lib/supabase';
 
 import {
     ActivityIndicator,
+    Animated,
     Image,
     KeyboardAvoidingView,
+    LayoutChangeEvent,
     Platform,
     ScrollView,
     StyleSheet,
@@ -24,22 +27,25 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const MATCHES_TRACK_PADDING = 6;
+const MATCHES_TABS = [
+    { key: 'projects', label: 'Projects', icon: 'briefcase-outline' },
+    { key: 'candidates', label: 'Candidates', icon: 'people-outline' },
+] as const;
 
 export default function MatchesPage() {
-    const { signOut, session } = useAuth();
+    const { session } = useAuth();
     const { matchNotifs, newMatchIds } = useNotifications();
 
     /* State */
-    const [name, setName] = useState('');
     const [loading, setLoading] = useState(true);
-
-    const [projectMatches, setProjectMatches] = useState<DbMatch[]>([]);
-    const [candidateMatches, setCandidateMatches] = useState<DbMatch[]>([]);
 
     const [projectMatchesUI, setProjectMatchesUI] = useState<MatchUI[]>([]);
     const [candidateMatchesUI, setCandidateMatchesUI] = useState<MatchUI[]>([]);
 
     const [projectsPage, setPage] = useState(true);
+    const [headerTrackWidth, setHeaderTrackWidth] = useState(0);
+    const headerIndicatorX = useRef(new Animated.Value(0)).current;
 
     const projectNewCount = projectMatchesUI.reduce(
         (sum, m) => sum + (matchNotifs.get(String(m.match_id)) ?? 0), 0
@@ -47,6 +53,16 @@ export default function MatchesPage() {
     const candidateNewCount = candidateMatchesUI.reduce(
         (sum, m) => sum + (matchNotifs.get(String(m.match_id)) ?? 0), 0
     );
+    const activeTabKey = projectsPage ? 'projects' : 'candidates';
+    const activeHeaderIndex = projectsPage ? 0 : 1;
+    const headerSegmentWidth =
+        headerTrackWidth > 0
+            ? Math.max(
+                (headerTrackWidth - MATCHES_TRACK_PADDING * 2) / MATCHES_TABS.length,
+                0
+            )
+            : 0;
+    const activeMatches = projectsPage ? projectMatchesUI : candidateMatchesUI;
 
     const gotoMatch = (pid : string | number) => {
         router.push(`/match/${pid}`)
@@ -68,10 +84,6 @@ export default function MatchesPage() {
             if (e1 && e1.code !== 'PGRST116') {
               console.error('Error loading project matches', e1);
             } else if (m1) {
-
-
-                setProjectMatches(m1 as DbMatch[])
-
                 for(let i = 0; i < m1.length; i++) {
                     let obj : MatchUI = {
                         match_id: "0",
@@ -161,9 +173,6 @@ export default function MatchesPage() {
             if (e2 && e2.code !== 'PGRST116') {
               console.error('Error loading candidate matches:', e2);
             } else if (m2) {
-
-                setCandidateMatches(m2 as DbMatch[])
-
                 for(let i = 0; i < m2.length; i++) {
                     let obj : MatchUI = {
                         match_id: "0",
@@ -260,6 +269,24 @@ export default function MatchesPage() {
         })();
       }, [session?.user?.id]);
 
+      useEffect(() => {
+        const nextPosition = headerSegmentWidth * activeHeaderIndex;
+        if (headerSegmentWidth === 0) {
+            headerIndicatorX.setValue(nextPosition);
+            return;
+        }
+
+        Animated.timing(headerIndicatorX, {
+            toValue: nextPosition,
+            duration: 220,
+            useNativeDriver: true,
+        }).start();
+      }, [activeHeaderIndex, headerIndicatorX, headerSegmentWidth]);
+
+      const handleHeaderTrackLayout = (event: LayoutChangeEvent) => {
+        setHeaderTrackWidth(event.nativeEvent.layout.width);
+      };
+
       if (loading)
         return (
         <View style={styles.center}>
@@ -268,154 +295,112 @@ export default function MatchesPage() {
         </View>
         );
 
-        
-      //project matches
-      if (projectsPage) {
-        return (
-            <SafeAreaView style={styles.container} edges={['top']}>
+      return (
+        <SafeAreaView style={styles.container} edges={['top']}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                 <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                    {/* Header */}
-                    <View>
-                        <Text style={styles.headerTitle}>Matches</Text>
-                    </View>
-                    {/* Sub Headers */}
-                    
-                    <View style={styles.tabsContainer}>
-                        <TouchableOpacity style={styles.tabButton} onPress={async () => {
-                            setPage(true)} 
-                            }>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <Text style={styles.sectionTitle && styles.activeTab}>Projects</Text>
-                                {projectNewCount > 0 && (
-                                    <View style={styles.tabBadge}>
-                                        <Text style={styles.tabBadgeText}>{projectNewCount}</Text>
-                                    </View>
-                                )}
-                            </View>
-                        </TouchableOpacity>
-                         <TouchableOpacity style={styles.tabButton} onPress={async () => {
-                            setPage(false)} 
-                            }>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <Text style={styles.sectionTitle}>Candidates</Text>
-                                {candidateNewCount > 0 && (
-                                    <View style={styles.tabBadge}>
-                                        <Text style={styles.tabBadgeText}>{candidateNewCount}</Text>
-                                    </View>
-                                )}
-                            </View>
-                        </TouchableOpacity>
-                     
-                    </View>
-
-                    {/* Content */}
-                    <View style={styles.list}>
-                        {projectMatchesUI.map((match, index) => {
-                            const notifCount = matchNotifs.get(String(match.match_id)) ?? 0;
-                            const isNewMatch = newMatchIds.has(String(match.match_id));
-                            return (
-                            <TouchableOpacity key={index} onPress={async() => {gotoMatch(match.match_id)}}>
-                                <View style={styles.match}>
-                                    <Image source={{ uri: match.project_image }} style={styles.profileImage} />
-                                    <Text>{match.project_name}</Text>
-                                    {isNewMatch && (
-                                        <View style={styles.newMatchPill}>
-                                            <Text style={styles.newMatchPillText}>new</Text>
-                                        </View>
-                                    )}
-                                    {notifCount > 0 && (
-                                        <View style={styles.newBadge}>
-                                            <Text style={styles.newBadgeText}>{notifCount}</Text>
-                                        </View>
-                                    )}
-                                </View>
-                            </TouchableOpacity>
-                            );
-                        })}
-                    </View>
-
-
-                </ScrollView>
-
-            </KeyboardAvoidingView>
-            </SafeAreaView>
-        );
-      }
-    else { //candidate matches
-        return (
-            <SafeAreaView style={styles.container} edges={['top']}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-                <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                    {/* Header */}
                     <View>
                         <Text style={styles.headerTitle}>Matches</Text>
                     </View>
 
-                    {/* Sub Headers */}
-                    <View style={styles.tabsContainer}>
-                        <TouchableOpacity style={styles.tabButton} onPress={async () => {
-                            setPage(true)}
-                            }>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <Text style={styles.sectionTitle}>Projects</Text>
-                                {projectNewCount > 0 && (
-                                    <View style={styles.tabBadge}>
-                                        <Text style={styles.tabBadgeText}>{projectNewCount}</Text>
-                                    </View>
-                                )}
-                            </View>
-                        </TouchableOpacity>
-                         <TouchableOpacity style={styles.tabButton} onPress={async () => {
-                            setPage(false)}
-                            }>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <Text style={styles.sectionTitle && styles.activeTab}>Candidates</Text>
-                                {candidateNewCount > 0 && (
-                                    <View style={styles.tabBadge}>
-                                        <Text style={styles.tabBadgeText}>{candidateNewCount}</Text>
-                                    </View>
-                                )}
-                            </View>
-                        </TouchableOpacity>
+                    <View onLayout={handleHeaderTrackLayout} style={styles.headerTabsTrack}>
+                        {headerSegmentWidth > 0 && (
+                            <Animated.View
+                                pointerEvents="none"
+                                style={[
+                                    styles.headerTabsIndicator,
+                                    {
+                                        width: headerSegmentWidth,
+                                        transform: [{ translateX: headerIndicatorX }],
+                                    },
+                                ]}
+                            />
+                        )}
 
-                    </View>
+                        {MATCHES_TABS.map((tab) => {
+                            const isActive = activeTabKey === tab.key;
+                            const badgeCount =
+                                tab.key === 'projects' ? projectNewCount : candidateNewCount;
 
-
-                    {/* Content */}
-                    <View style={styles.list}>
-                        {candidateMatchesUI.map((match, index) => {
-                            const notifCount = matchNotifs.get(String(match.match_id)) ?? 0;
-                            const isNewMatch = newMatchIds.has(String(match.match_id));
                             return (
-                            <TouchableOpacity key={index} onPress={async() => {gotoMatch(match.match_id)}}>
-                                <View style={styles.match}>
-                                    <Image source={{ uri: match.project_image }} style={styles.profileImage} />
-                                    <Text>{match.candidate_name}</Text>
-                                    {isNewMatch && (
-                                        <View style={styles.newMatchPill}>
-                                            <Text style={styles.newMatchPillText}>new</Text>
+                                <TouchableOpacity
+                                    key={tab.key}
+                                    activeOpacity={0.85}
+                                    onPress={() => setPage(tab.key === 'projects')}
+                                    style={styles.headerTabSegment}
+                                >
+                                    <Ionicons
+                                        name={tab.icon}
+                                        size={17}
+                                        color={isActive ? '#2B4CD8' : '#172033'}
+                                    />
+                                    <Text
+                                        numberOfLines={1}
+                                        style={[
+                                            styles.headerTabLabel,
+                                            isActive && styles.headerTabLabelActive,
+                                        ]}
+                                    >
+                                        {tab.label}
+                                    </Text>
+                                    {badgeCount > 0 && (
+                                        <View
+                                            style={[
+                                                styles.headerTabBadge,
+                                                isActive
+                                                    ? styles.headerTabBadgeActive
+                                                    : styles.headerTabBadgeInactive,
+                                            ]}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.headerTabBadgeText,
+                                                    isActive
+                                                        ? styles.headerTabBadgeTextActive
+                                                        : styles.headerTabBadgeTextInactive,
+                                                ]}
+                                            >
+                                                {badgeCount > 99 ? '99+' : badgeCount}
+                                            </Text>
                                         </View>
                                     )}
-                                    {notifCount > 0 && (
-                                        <View style={styles.newBadge}>
-                                            <Text style={styles.newBadgeText}>{notifCount}</Text>
-                                        </View>
-                                    )}
-                                </View>
-                            </TouchableOpacity>
+                                </TouchableOpacity>
                             );
                         })}
                     </View>
 
+                    <View style={styles.list}>
+                        {activeMatches.map((match, index) => {
+                            const notifCount = matchNotifs.get(String(match.match_id)) ?? 0;
+                            const isNewMatch = newMatchIds.has(String(match.match_id));
+                            const displayName = projectsPage
+                                ? match.project_name
+                                : match.candidate_name;
 
+                            return (
+                                <TouchableOpacity key={index} onPress={async() => {gotoMatch(match.match_id)}}>
+                                    <View style={styles.match}>
+                                        <Image source={{ uri: match.project_image }} style={styles.profileImage} />
+                                        <Text>{displayName}</Text>
+                                        {isNewMatch && (
+                                            <View style={styles.newMatchPill}>
+                                                <Text style={styles.newMatchPillText}>new</Text>
+                                            </View>
+                                        )}
+                                        {notifCount > 0 && (
+                                            <View style={styles.newBadge}>
+                                                <Text style={styles.newBadgeText}>{notifCount}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
                 </ScrollView>
-
             </KeyboardAvoidingView>
-            </SafeAreaView>
-        );
-
-    }
+        </SafeAreaView>
+      );
 }
 
 /* =========================
@@ -431,6 +416,92 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1, padding: 20 },
 
   headerTitle: { fontSize: 28, fontWeight: '700', color: '#333' },
+  headerTabsTrack: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#DCE5F6',
+    borderRadius: 30,
+    borderWidth: 1,
+    flexDirection: 'row',
+    minHeight: 56,
+    overflow: 'hidden',
+    paddingHorizontal: MATCHES_TRACK_PADDING,
+    paddingVertical: MATCHES_TRACK_PADDING,
+    marginTop: 12,
+    shadowColor: '#9EADD6',
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+      },
+      android: {
+        elevation: 7,
+      },
+      default: {
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+      },
+    }),
+  },
+  headerTabsIndicator: {
+    backgroundColor: '#E6EEFF',
+    borderRadius: 24,
+    bottom: MATCHES_TRACK_PADDING,
+    left: MATCHES_TRACK_PADDING,
+    position: 'absolute',
+    top: MATCHES_TRACK_PADDING,
+    shadowColor: '#9EADD6',
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 2,
+      },
+      default: {
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+      },
+    }),
+  },
+  headerTabSegment: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 10,
+    zIndex: 1,
+  },
+  headerTabLabel: {
+    color: '#172033',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: -0.1,
+  },
+  headerTabLabelActive: { color: '#2B4CD8' },
+  headerTabBadge: {
+    borderRadius: 999,
+    height: 20,
+    justifyContent: 'center',
+    minWidth: 20,
+    paddingHorizontal: 6,
+  },
+  headerTabBadgeActive: { backgroundColor: '#3755E8' },
+  headerTabBadgeInactive: { backgroundColor: '#EDF2FF' },
+  headerTabBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  headerTabBadgeTextActive: { color: '#FFFFFF' },
+  headerTabBadgeTextInactive: { color: '#3755E8' },
 
   section: { marginBottom: 25 },
   label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
@@ -439,15 +510,6 @@ const styles = StyleSheet.create({
 
   profileImage: { width: 60, height: 60, borderRadius: 60 },
 
-
-
-tabButton: { flex : 1, alignItems : "center", paddingVertical: 8, 
-  paddingHorizontal: 16, borderRadius: 8,backgroundColor: '#f5f5f5', justifyContent :"center"
-},
-
-tabsContainer: {
-  flexDirection: 'row', justifyContent: 'space-between', alignItems: 'stretch', marginTop: 12, gap: 10, 
-},
 
 
 placeholderImage: { width: 60, height: 60, borderRadius: 60, backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center' },
@@ -475,20 +537,6 @@ newMatchPill: {
     marginLeft: 6,
 },
 newMatchPillText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-},
-tabBadge: {
-    backgroundColor: 'red',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-},
-tabBadgeText: {
     color: '#fff',
     fontSize: 11,
     fontWeight: '700',
