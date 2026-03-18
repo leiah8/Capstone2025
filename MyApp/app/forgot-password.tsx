@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   button: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#79BE58",
     padding: 15,
     borderRadius: 10,
     alignItems: "center",
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   backText: {
-    color: "#007AFF",
+    color: "#79BE58",
     fontSize: 16,
   },
 });

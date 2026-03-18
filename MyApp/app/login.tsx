@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
@@ -156,6 +157,11 @@ useEffect(() => {
         style={{ flex: 1 }}
       >
         <View style={styles.content}>
+        <Image
+          source={require('../assets/images/peeriologo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>Peer.io</Text>
         <Text style={styles.subtitle}>Find a project!</Text>
 
@@ -239,12 +245,18 @@ const styles = StyleSheet.create({
     padding: 20,
     justifyContent: 'center',
   },
+  logo: {
+    width: 120,
+    height: 120,
+    alignSelf: 'center',
+    marginBottom: 10,
+  },
   title: {
     fontSize: 36,
     fontWeight: 'bold',
     marginBottom: 10,
     textAlign: 'center',
-    color: '#333',
+    color: '#79BE58',
   },
   subtitle: {
     fontSize: 16,
@@ -262,7 +274,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#79BE58',
     padding: 15,
     borderRadius: 10,
     alignItems: 'center',
@@ -283,11 +295,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toggleText: {
-    color: '#007AFF',
+    color: '#79BE58',
     fontSize: 16,
   },
   forgotText: {
-    color: '#007AFF',
+    color: '#79BE58',
     fontSize: 14,
     textAlign: 'right',
     marginBottom: 10,
