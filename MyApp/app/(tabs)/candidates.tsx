@@ -157,7 +157,7 @@ const sliderStyles = StyleSheet.create({
   },
   fill: {
     height: 4,
-    backgroundColor: "#007AFF",
+    backgroundColor: "#79BE58",
     borderRadius: 2,
   },
   thumb: {
@@ -168,7 +168,7 @@ const sliderStyles = StyleSheet.create({
     borderRadius: 11,
     backgroundColor: "#fff",
     borderWidth: 2,
-    borderColor: "#007AFF",
+    borderColor: "#79BE58",
     marginLeft: -11,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -639,6 +639,7 @@ export default function CandidateFeed() {
           // }
         }
       })
+    }
 
     setCandidates(filteredCandidates);
   };
