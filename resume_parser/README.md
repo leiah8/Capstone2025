@@ -33,6 +33,25 @@ python resume_parser/parse_resume.py --file /path/to/resume.pdf --json out.json
 
 Outputs structured JSON with keys: `metadata`, `text`, `sections`, `tables`, `skills`, `strategy`.
 
+## Server Deployment
+
+This parser can run as a hosted API instead of requiring a local process.
+The current production deployment is:
+
+```text
+https://resume-parser-production-000c.up.railway.app
+```
+
+The repo already includes deploy artifacts for services like Railway:
+
+- `Procfile`
+- `Dockerfile`
+- `nixpacks.toml`
+
+If you want the mobile app to reach the parser through Supabase, deploy
+`supabase/functions/resume-parser` and point `RESUME_PARSER_API_BASE_URL` at the
+hosted parser URL.
+
 ## Strategy Logic
 
 - Try PyMuPDF; if extracted text length < threshold or mostly whitespace, classify as scanned and OCR each page.

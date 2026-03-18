@@ -7,13 +7,12 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
-import Constants from "expo-constants";
+import { getResumeParserUrl } from "../lib/resume-parser";
 import ParseReviewModal, {
   type ParsedData,
   type ConfirmedData,
@@ -197,14 +196,7 @@ export default function SetupScreen() {
       if (resumeUrl) {
         console.log("[Setup] Starting resume parsing...");
         try {
-          const PARSER_URL =
-            process.env.EXPO_PUBLIC_PARSER_EDGE_URL ||
-            (process.env.EXPO_PUBLIC_SUPABASE_URL
-              ? `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/resume-parser`
-              : "") ||
-            (Constants.expoConfig?.extra as any)?.parserUrl ||
-            process.env.EXPO_PUBLIC_PARSER_URL ||
-            "";
+          const PARSER_URL = getResumeParserUrl();
 
           if (PARSER_URL) {
             const { data: { session: parserSession } } = await supabase.auth.getSession();

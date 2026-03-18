@@ -19,8 +19,8 @@ export EXPO_PUBLIC_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
 export EXPO_PUBLIC_MATCHING_EDGE_URL="https://YOUR_PROJECT.supabase.co/functions/v1/match-api"
 export EXPO_PUBLIC_PARSER_EDGE_URL="https://YOUR_PROJECT.supabase.co/functions/v1/resume-parser"
 
-# Optional local direct parser fallback (dev only)
-export EXPO_PUBLIC_PARSER_URL="http://localhost:8000"
+# Optional direct parser override
+export EXPO_PUBLIC_PARSER_URL="https://resume-parser-production-000c.up.railway.app"
 ```
 
 3. Start the app
@@ -55,7 +55,28 @@ The resume parser lives in `../resume_parser/` and exposes endpoints:
 - `POST /parse/upload` multipart form-data (field: `file`) → parsed JSON with `skills`.
 - `POST /parse/url` JSON body `{ "url": "https://..." }` → parsed JSON.
 
-### Run the service
+### Hosted parser
+
+The app now defaults to the hosted parser at:
+
+```text
+https://resume-parser-production-000c.up.railway.app
+```
+
+If you want to proxy parser requests through Supabase Edge Functions, deploy
+`supabase/functions/resume-parser` and set:
+
+```bash
+supabase secrets set RESUME_PARSER_API_BASE_URL="https://resume-parser-production-000c.up.railway.app"
+```
+
+Then set:
+
+```bash
+export EXPO_PUBLIC_PARSER_EDGE_URL="https://YOUR_PROJECT.supabase.co/functions/v1/resume-parser"
+```
+
+### Run the service locally
 
 From repo root:
 
