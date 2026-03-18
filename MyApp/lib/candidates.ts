@@ -113,6 +113,19 @@ export async function fetchCoords(city_name : string | null) : Promise<{lat : nu
   return data2 ? {lat : data2.lat, lng : data2.lng} :{lat : null, lng : null}
 };
 
+export const calcDist = (lat1: number | null, lng1: number | null, lat2: number | null, lng2: number | null): number => {
+    if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return Infinity;
+
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLng = (lat2 - lng1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
 export async function fetchMyCoords(userId : string | undefined) : Promise<{lat : number | null, lng : number | null}> {
   try {

@@ -23,6 +23,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  calcDist,
   CandidateUI,
   fetchCandidates,
   fetchMyCoords,
@@ -591,19 +592,19 @@ export default function CandidateFeed() {
   const isFetchingMoreRef = useRef(false);
   const hasLoadedRef = useRef(false);
 
-  const calcDist = (lat1: number | null, lng1: number | null, lat2: number | null, lng2: number | null): number => {
-    if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return Infinity;
+  // const calcDist = (lat1: number | null, lng1: number | null, lat2: number | null, lng2: number | null): number => {
+  //   if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return Infinity;
 
-    const R = 6371; // Earth's radius in km
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLng = (lat2 - lng1) * (Math.PI / 180);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
+  //   const R = 6371; // Earth's radius in km
+  //   const dLat = (lat2 - lat1) * (Math.PI / 180);
+  //   const dLng = (lat2 - lng1) * (Math.PI / 180);
+  //   const a =
+  //     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+  //     Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+  //     Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  //   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  //   return R * c;
+  // };
 
   const filterFetchedCandidates = () => {
 
