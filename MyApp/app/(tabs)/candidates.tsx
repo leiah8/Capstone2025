@@ -45,8 +45,8 @@ const deckCardShell = {
   backgroundColor: "#fff",
   borderRadius: 20,
   borderWidth: 1,
-  borderColor: "#E1E8F5",
-  shadowColor: "#9EADD6",
+  borderColor: "#DCF0D4",
+  shadowColor: "#7BAF6A",
   shadowOffset: { width: 0, height: 10 },
   shadowOpacity: 0.18,
   shadowRadius: 18,
@@ -654,7 +654,7 @@ export default function CandidateFeed() {
   if (loading)
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#79BE58" />
         <Text style={{ margin: 20, color: "#999" }}>Loading candidates...</Text>
       </View>
     );
@@ -1033,7 +1033,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   resetButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#79BE58",
     paddingHorizontal: 30,
     paddingVertical: 12,
     borderRadius: 25,
@@ -1183,10 +1183,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#DCE5F6",
+    borderColor: "#C8E4BC",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#9EADD6",
+    shadowColor: "#7BAF6A",
     marginLeft: 15,
     ...Platform.select({
       ios: {

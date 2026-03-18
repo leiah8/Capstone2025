@@ -115,7 +115,7 @@ export default function MatchesPage() {
   if (loading)
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#79BE58" />
         <Text style={{ margin: 20, color: "#999" }}>Loading matches...</Text>
       </View>
     );
@@ -130,7 +130,12 @@ export default function MatchesPage() {
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
         >
-          <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Image
+              source={require('../../assets/images/peeriologo.png')}
+              style={{ width: 32, height: 32 }}
+              resizeMode="contain"
+            />
             <Text style={styles.headerTitle}>Matches</Text>
           </View>
 
@@ -166,7 +171,7 @@ export default function MatchesPage() {
                   <Ionicons
                     name={tab.icon}
                     size={17}
-                    color={isActive ? "#2B4CD8" : "#172033"}
+                    color={isActive ? "#5EA03E" : "#172033"}
                   />
                   <Text
                     numberOfLines={1}
@@ -267,7 +272,7 @@ const styles = StyleSheet.create({
   headerTabsTrack: {
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderColor: "#DCE5F6",
+    borderColor: "#C8E4BC",
     borderRadius: 30,
     borderWidth: 1,
     flexDirection: "row",
@@ -276,7 +281,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: MATCHES_TRACK_PADDING,
     paddingVertical: MATCHES_TRACK_PADDING,
     marginTop: 12,
-    shadowColor: "#9EADD6",
+    shadowColor: "#7BAF6A",
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 10 },
@@ -294,13 +299,13 @@ const styles = StyleSheet.create({
     }),
   },
   headerTabsIndicator: {
-    backgroundColor: "#E6EEFF",
+    backgroundColor: "#E8F5E2",
     borderRadius: 24,
     bottom: MATCHES_TRACK_PADDING,
     left: MATCHES_TRACK_PADDING,
     position: "absolute",
     top: MATCHES_TRACK_PADDING,
-    shadowColor: "#9EADD6",
+    shadowColor: "#7BAF6A",
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 4 },
@@ -333,7 +338,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: -0.1,
   },
-  headerTabLabelActive: { color: "#2B4CD8" },
+  headerTabLabelActive: { color: "#5EA03E" },
   headerTabBadge: {
     borderRadius: 999,
     height: 20,
@@ -341,15 +346,15 @@ const styles = StyleSheet.create({
     minWidth: 20,
     paddingHorizontal: 6,
   },
-  headerTabBadgeActive: { backgroundColor: "#3755E8" },
-  headerTabBadgeInactive: { backgroundColor: "#EDF2FF" },
+  headerTabBadgeActive: { backgroundColor: "#5EA03E" },
+  headerTabBadgeInactive: { backgroundColor: "#E8F5E2" },
   headerTabBadgeText: {
     fontSize: 10,
     fontWeight: "700",
     textAlign: "center",
   },
   headerTabBadgeTextActive: { color: "#FFFFFF" },
-  headerTabBadgeTextInactive: { color: "#3755E8" },
+  headerTabBadgeTextInactive: { color: "#5EA03E" },
 
   section: { marginBottom: 25 },
   label: { fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 },

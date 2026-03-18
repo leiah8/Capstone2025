@@ -50,8 +50,8 @@ const deckCardShell = {
   backgroundColor: "#fff",
   borderRadius: 20,
   borderWidth: 1,
-  borderColor: "#E1E8F5",
-  shadowColor: "#9EADD6",
+  borderColor: "#DCF0D4",
+  shadowColor: "#7BAF6A",
   shadowOffset: { width: 0, height: 10 },
   shadowOpacity: 0.18,
   shadowRadius: 18,
@@ -605,7 +605,7 @@ export default function ProjectFeed() {
   if (loading && tab === "browse")
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#79BE58" />
         <Text style={{ margin: 15, color: "#999" }}>Loading projects...</Text>
       </View>
     );
@@ -740,7 +740,7 @@ export default function ProjectFeed() {
                   <Ionicons
                     name={headerTab.icon}
                     size={17}
-                    color={isActive ? "#2B4CD8" : "#172033"}
+                    color={isActive ? "#5EA03E" : "#172033"}
                   />
                   <Text
                     numberOfLines={1}
@@ -859,7 +859,7 @@ export default function ProjectFeed() {
       {tab === "mine" &&
         (myLoading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#007AFF" />
+            <ActivityIndicator size="large" color="#79BE58" />
           </View>
         ) : myProjects.length === 0 ? (
           <View style={styles.center}>
@@ -947,7 +947,7 @@ export default function ProjectFeed() {
                         <Ionicons
                           name="create-outline"
                           size={22}
-                          color="#007AFF"
+                          color="#79BE58"
                         />
                         <Text style={styles.actionText}>Edit</Text>
                       </TouchableOpacity>
@@ -962,7 +962,7 @@ export default function ProjectFeed() {
                               : "play-circle-outline"
                           }
                           size={22}
-                          color="#007AFF"
+                          color="#79BE58"
                         />
                         <Text style={styles.actionText}>
                           {p.is_active ? "Pause" : "Activate"}
@@ -1094,10 +1094,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#DCE5F6",
+    borderColor: "#C8E4BC",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#9EADD6",
+    shadowColor: "#7BAF6A",
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 6 },
@@ -1121,7 +1121,7 @@ const styles = StyleSheet.create({
   headerTabsTrack: {
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderColor: "#DCE5F6",
+    borderColor: "#C8E4BC",
     borderRadius: 30,
     borderWidth: 1,
     flexDirection: "row",
@@ -1129,7 +1129,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     paddingHorizontal: HEADER_TRACK_PADDING,
     paddingVertical: HEADER_TRACK_PADDING,
-    shadowColor: "#9EADD6",
+    shadowColor: "#7BAF6A",
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 10 },
@@ -1147,13 +1147,13 @@ const styles = StyleSheet.create({
     }),
   },
   headerTabsIndicator: {
-    backgroundColor: "#E6EEFF",
+    backgroundColor: "#E8F5E2",
     borderRadius: 24,
     bottom: HEADER_TRACK_PADDING,
     left: HEADER_TRACK_PADDING,
     position: "absolute",
     top: HEADER_TRACK_PADDING,
-    shadowColor: "#9EADD6",
+    shadowColor: "#7BAF6A",
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 4 },
@@ -1186,12 +1186,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: -0.1,
   },
-  headerTabLabelActive: { color: "#2B4CD8" },
+  headerTabLabelActive: { color: "#5EA03E" },
   createButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#007AFF",
+    backgroundColor: "#79BE58",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1447,10 +1447,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: "#E6EEFF",
+    backgroundColor: "#E8F5E2",
   },
   swipeHintDismissText: {
-    color: "#2B4CD8",
+    color: "#5EA03E",
     fontSize: 13,
     fontWeight: "700",
     textAlign: "center",
@@ -1466,7 +1466,7 @@ const styles = StyleSheet.create({
   },
   endText: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
   resetButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#79BE58",
     paddingHorizontal: 30,
     paddingVertical: 12,
     borderRadius: 25,
@@ -1565,7 +1565,7 @@ const styles = StyleSheet.create({
   statusBadgeText: { fontSize: 12, fontWeight: "600", color: "#333" },
   myProjectActions: { flexDirection: "row", marginTop: 12, gap: 16 },
   actionButton: { flexDirection: "row", alignItems: "center", gap: 4 },
-  actionText: { fontSize: 13, color: "#007AFF", fontWeight: "500" },
+  actionText: { fontSize: 13, color: "#79BE58", fontWeight: "500" },
 
   //filter dropdown menu
   closeDropDownButton: {
