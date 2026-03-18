@@ -2,6 +2,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { MatchUI } from '../../lib/match';
+import { fetchAllMatchesOptimized } from '../../lib/match-queries';
 
 
 import { useEffect, useRef, useState } from 'react';
@@ -9,7 +10,6 @@ import { useAuth } from '../../contexts/AuthContext';
 
 import { router } from 'expo-router';
 import { useNotifications } from '../../contexts/NotificationContext';
-import { supabase } from '../../lib/supabase';
 
 
 import {
@@ -69,203 +69,27 @@ export default function MatchesPage() {
     }
 
       useEffect(() => {
-        let pMatches : MatchUI[] = [];
-        let cMatches : MatchUI[] = [];
-
         (async () => {
-            //get project matches
+          if (!session?.user?.id) {
+            setLoading(false);
+            return;
+          }
 
           try {
-            const { data : m1, error : e1} = await supabase
-              .from('matches')
-              .select('*')
-              .eq('candidate_id', session?.user?.id)
-    
-            if (e1 && e1.code !== 'PGRST116') {
-              console.error('Error loading project matches', e1);
-            } else if (m1) {
-                for(let i = 0; i < m1.length; i++) {
-                    let obj : MatchUI = {
-                        match_id: "0",
-                        candidate_name: "0",
-                        project_name : "0",
-                        owner_name : "0",
+            // Fetch all matches with optimized queries (2 queries instead of N+1)
+            const { projectMatches, candidateMatches } = await fetchAllMatchesOptimized(
+              session.user.id
+            );
 
-                        owner_id : "0", 
-                        candidate_id : "0", 
-                        created_at: "",
-                        
-                        project_image: "0",
-                        candidate_image : "0",
-                        owner_image : "0"
-                    }
-
-                    obj.match_id = m1[i].id;
-                    obj.owner_id = m1[i].owner_id;
-                    obj.candidate_id = m1[i].candidate_id;
-                    obj.created_at = m1[i].created_at;
-
-                    const { data : d1, error : e11 } = await supabase
-                        .from('projects')
-                        .select('*')
-                        .eq('id', m1[i].project_id)
-                        .single()
-            
-                    if (e11 && e11.code !== 'PGRST116') {
-                        console.error('Error loading project data:', e11);
-                    } else if (d1) {
-
-                        obj.project_name = d1.title
-                        obj.project_image = d1.image
-                                    
-                    }
-                    
-                    
-                    const { data : d2, error : e12 } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('id', m1[i].owner_id)
-                        .single()
-            
-                    if (e12 && e12.code !== 'PGRST116') {
-                    console.error('Error loading candidate data:', e12);
-                    } else if (d2) {
-
-
-                        obj.owner_name = d2.name
-                        obj.owner_image = d2.profile_image
-                                    
-                    }
-                    
-
-                    
-                    const { data : d3, error : e13} = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('id', m1[i].candidate_id)
-                        .single()
-            
-                    if (e13 && e13.code !== 'PGRST116') {
-                    console.error('Error loading owner data:', e13);
-                    } else if (d3) {
-
-
-                        obj.candidate_name = d3.name
-                        obj.candidate_image = d3.profile_image
-                                    
-                    }
-                    
-
-                    // console.log("OBJ")
-                    // console.log(obj)
-                    pMatches.push(obj)
-                }
-
-            setProjectMatchesUI(pMatches)
-                            
-            }
-
-            const { data : m2, error : e2 } = await supabase
-              .from('matches')
-              .select('*')
-              .eq('owner_id', session?.user?.id)
-    
-            if (e2 && e2.code !== 'PGRST116') {
-              console.error('Error loading candidate matches:', e2);
-            } else if (m2) {
-                for(let i = 0; i < m2.length; i++) {
-                    let obj : MatchUI = {
-                        match_id: "0",
-                        candidate_name: "0",
-                        project_name : "0",
-                        owner_name : "0",
-
-                        owner_id : "0", 
-                        candidate_id : "0",
-                        created_at: "",
-                        
-                        project_image: "0",
-                        candidate_image : "0",
-                        owner_image : "0"
-                    }
-
-                    obj.match_id = m2[i].id;
-                    obj.owner_id = m2[i].owner_id;
-                    obj.candidate_id = m2[i].candidate_id;
-                    obj.created_at = m2[i].created_at;
-
-                    const { data : d1, error : e11 } = await supabase
-                        .from('projects')
-                        .select('*')
-                        .eq('id', m2[i].project_id)
-                        .single()
-            
-                    if (e11 && e11.code !== 'PGRST116') {
-                        console.error('Error loading project data:', e11);
-                    } else if (d1) {
-
-                        obj.project_name = d1.title
-                        obj.project_image = d1.image
-                                    
-                    }
-                    
-                    
-                    const { data : d2, error : e12 } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('id', m2[i].owner_id)
-                        .single()
-            
-                    if (e12 && e12.code !== 'PGRST116') {
-                    console.error('Error loading candidate data:', e12);
-                    } else if (d2) {
-
-
-                        obj.owner_name = d2.name
-                        obj.owner_image = d2.profile_image
-                                    
-                    }
-                    
-
-                    
-                    const { data : d3, error : e13} = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('id', m2[i].candidate_id)
-                        .single()
-            
-                    if (e13 && e13.code !== 'PGRST116') {
-                    console.error('Error loading owner data:', e13);
-                    } else if (d3) {
-
-
-                        obj.candidate_name = d3.name
-                        obj.candidate_image = d3.profile_image
-                                    
-                    }
-                    
-
-                    // console.log("OBJ")
-                    // console.log(obj)
-                    cMatches.push(obj)
-                }
-
-            setCandidateMatchesUI(cMatches)
-                            
-            }
-
-            
-
-
+            setProjectMatchesUI(projectMatches);
+            setCandidateMatchesUI(candidateMatches);
           } catch (e) {
-            console.error('Error loading data', e);
+            console.error('Error loading matches:', e);
           } finally {
             setLoading(false);
           }
- 
-          setPage(true)
 
-
+          setPage(true);
         })();
       }, [session?.user?.id]);
 

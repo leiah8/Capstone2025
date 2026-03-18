@@ -7,6 +7,8 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from cache import EmbeddingCache, get_embedding_cache
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,13 +66,15 @@ class MatchingEngine:
     """
     
     def __init__(
-        self, 
+        self,
         model_name: str = "all-MiniLM-L6-v2",
-        weights: Optional[MatchWeights] = None
+        weights: Optional[MatchWeights] = None,
+        cache: Optional[EmbeddingCache] = None
     ):
         self.model = SentenceTransformer(model_name)
         self.weights = weights or MatchWeights()
-        logger.info(f"Initialized MatchingEngine with model={model_name}")
+        self.cache = cache or get_embedding_cache()
+        logger.info(f"Initialized MatchingEngine with model={model_name}, cache_enabled={self.cache.enabled}")
     
     def normalize_text(self, text: Optional[str]) -> str:
         if not text:
@@ -82,19 +86,42 @@ class MatchingEngine:
             return []
         return [s.lower().strip() for s in skills if s and s.strip()]
     
+    def _get_embedding(self, text: str) -> Optional[np.ndarray]:
+        """Get embedding from cache or compute it."""
+        if not text:
+            return None
+
+        normalized_text = self.normalize_text(text)
+        if not normalized_text:
+            return None
+
+        # Try cache first
+        cached = self.cache.get(normalized_text)
+        if cached is not None:
+            return cached
+
+        # Compute and cache
+        try:
+            embedding = self.model.encode(normalized_text)
+            self.cache.set(normalized_text, embedding)
+            return embedding
+        except Exception as e:
+            logger.error(f"Error computing embedding: {e}")
+            return None
+
     def calculate_semantic_similarity(self, user_text: str, project_text: str) -> float:
         if not user_text or not project_text:
             return 0.0
-        
-        user_text = self.normalize_text(user_text)
-        project_text = self.normalize_text(project_text)
-        
-        if not user_text or not project_text:
-            return 0.0
-        
+
         try:
-            embeddings = self.model.encode([user_text, project_text])
-            similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
+            # Get embeddings with caching
+            user_embedding = self._get_embedding(user_text)
+            project_embedding = self._get_embedding(project_text)
+
+            if user_embedding is None or project_embedding is None:
+                return 0.0
+
+            similarity = cosine_similarity([user_embedding], [project_embedding])[0][0]
             return float(max(0.0, min(1.0, similarity)))
         except Exception as e:
             logger.error(f"Error calculating semantic similarity: {e}")
@@ -196,6 +223,33 @@ class MatchingEngine:
         user_profile: Dict[str, Any],
         projects: List[Dict[str, Any]],
     ) -> List[MatchScore]:
+        # Pre-warm cache with batch operation for better performance
+        if self.cache.enabled and projects:
+            texts_to_cache = []
+            user_bio = self.normalize_text(user_profile.get("bio", ""))
+            if user_bio:
+                texts_to_cache.append(user_bio)
+
+            for project in projects:
+                desc = self.normalize_text(project.get("description", ""))
+                if desc:
+                    texts_to_cache.append(desc)
+
+            if texts_to_cache:
+                # Check which are missing from cache
+                cached_embeddings = self.cache.get_batch(texts_to_cache)
+                missing_indices = [i for i, emb in enumerate(cached_embeddings) if emb is None]
+
+                # Compute missing embeddings in batch
+                if missing_indices:
+                    missing_texts = [texts_to_cache[i] for i in missing_indices]
+                    try:
+                        new_embeddings = self.model.encode(missing_texts)
+                        # Cache the new embeddings
+                        self.cache.set_batch(missing_texts, new_embeddings)
+                    except Exception as e:
+                        logger.error(f"Error in batch embedding: {e}")
+
         scores = []
         for project in projects:
             try:
@@ -204,7 +258,7 @@ class MatchingEngine:
             except Exception as e:
                 logger.error(f"Error scoring project {project.get('id')}: {e}")
                 continue
-        
+
         scores.sort(key=lambda x: x.total_score, reverse=True)
         return scores
 

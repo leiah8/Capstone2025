@@ -44,6 +44,8 @@ Deno.serve(async (req: Request) => {
   let routePath = "";
   if (normalizedPath.endsWith("/match/score")) {
     routePath = "/match/score";
+  } else if (normalizedPath.endsWith("/match/batch")) {
+    routePath = "/match/batch";
   } else if (normalizedPath.endsWith("/match/candidates")) {
     routePath = "/match/candidates";
   } else if (normalizedPath.endsWith("/match/health")) {
@@ -52,7 +54,7 @@ Deno.serve(async (req: Request) => {
 
   if (!routePath) {
     return jsonResponse(
-      { error: "Unsupported route. Use /match/score, /match/candidates, or /match/health." },
+      { error: "Unsupported route. Use /match/score, /match/batch, /match/candidates, or /match/health." },
       404,
     );
   }

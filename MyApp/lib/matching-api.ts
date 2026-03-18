@@ -93,6 +93,41 @@ export interface MatchResponseCandidate {
   total_projects: number;
 }
 
+export interface BatchMatchRequest {
+  user_profiles: Array<{
+    id: string;
+    skills: string[];
+    interests: string[];
+    bio?: string;
+  }>;
+  projects: Array<{
+    id: string;
+    name: string;
+    description: string;
+    must_have_skills?: string[];
+    nice_to_have_skills?: string[];
+    interests?: string[];
+  }>;
+  weights?: {
+    semantic?: number;
+    must_have_skills?: number;
+    nice_to_have_skills?: number;
+    interests?: number;
+  };
+}
+
+export interface BatchMatchResponse {
+  results: Array<{
+    user_id: string;
+    ranked_projects: MatchScoreProject[];
+    count: number;
+    error?: string;
+  }>;
+  total_profiles: number;
+  total_projects: number;
+  processing_time_seconds: number;
+}
+
 /**
  * Call the matching algorithm API to score and rank projects for a user
  */
@@ -264,5 +299,90 @@ export async function checkMatchingAPIHealth(): Promise<boolean> {
   } catch (error) {
     console.warn('Matching API not available:', error);
     return false;
+  }
+}
+
+/**
+ * Batch process multiple user profiles against a set of projects.
+ *
+ * This is more efficient than calling getMatchedProjects() multiple times
+ * because it:
+ * - Shares embedding cache across all users
+ * - Computes project embeddings only once
+ * - Processes all users in a single API request
+ *
+ * Use this when you need to match multiple candidates to the same set of projects.
+ */
+export async function getBatchMatchedProjects(
+  userProfiles: Array<{
+    id: string;
+    skills: string[];
+    interests: string[];
+    bio?: string;
+  }>,
+  projects: Array<{
+    id: string;
+    name: string;
+    description: string;
+    skillsNeeded?: string[];
+    interests?: string[];
+  }>
+): Promise<BatchMatchResponse> {
+  try {
+    // Transform projects to match API format
+    const apiProjects = projects.map(p => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      must_have_skills: p.skillsNeeded || [],
+      nice_to_have_skills: [],
+      interests: p.interests || [],
+    }));
+
+    const requestBody: BatchMatchRequest = {
+      user_profiles: userProfiles,
+      projects: apiProjects,
+    };
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await fetch(`${MATCHING_API_URL}/match/batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Batch matching API error: ${response.status} - ${errorText}`);
+    }
+
+    const data: BatchMatchResponse = await response.json();
+
+    // Transform the response to match our expected format
+    return {
+      ...data,
+      results: data.results.map(result => ({
+        ...result,
+        ranked_projects: result.ranked_projects?.map((r: any) => ({
+          project_id: r.project_id,
+          project_name: r.project_name ?? "",
+          overall_score: r.overall_score ?? r.total_score ?? 0,
+          semantic_similarity: r.semantic_similarity ?? r.breakdown?.semantic_similarity ?? 0,
+          must_have_match: r.must_have_match ?? r.breakdown?.must_have_skills ?? 0,
+          nice_to_have_match: r.nice_to_have_match ?? r.breakdown?.nice_to_have_skills ?? 0,
+          interest_match: r.interest_match ?? r.breakdown?.interest_alignment ?? 0,
+          matched_must_have: r.matched_must_have ?? r.explanation?.matched_must_have_skills ?? [],
+          matched_nice_to_have: r.matched_nice_to_have ?? r.explanation?.matched_nice_to_have_skills ?? [],
+          matched_interests: r.matched_interests ?? r.explanation?.matched_interests ?? [],
+          missing_must_have: r.missing_must_have ?? r.explanation?.missing_must_have_skills ?? [],
+        })) || []
+      }))
+    };
+  } catch (error) {
+    console.error('Error calling batch matching algorithm:', error);
+    throw error;
   }
 }
