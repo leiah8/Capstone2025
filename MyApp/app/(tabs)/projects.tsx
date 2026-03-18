@@ -1083,7 +1083,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     alignItems: "center",
     paddingHorizontal: 16,
-    marginTop: 40,
+    // marginTop: 40,
   },
   deckSlot: {
     width: DECK_CARD_WIDTH,
