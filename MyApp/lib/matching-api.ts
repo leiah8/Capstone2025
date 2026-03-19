@@ -156,16 +156,27 @@ export async function getMatchedProjects(
       tags: p.interests || [],
     }));
 
+    // Build a bio proxy from skills+interests so semantic scoring works even
+    // when the user hasn't written a bio yet.
+    const effectiveBio = userProfile.bio?.trim()
+      || (userProfile.skills.length > 0 || userProfile.interests.length > 0
+        ? [
+            userProfile.skills.length > 0 ? `Skills: ${userProfile.skills.join(', ')}` : '',
+            userProfile.interests.length > 0 ? `Interests: ${userProfile.interests.join(', ')}` : '',
+          ].filter(Boolean).join('. ')
+        : undefined);
+
     console.log(`[API] Sending ${apiProjects.length} projects to matching API`);
     console.log(`[API] First 3 project IDs:`, apiProjects.slice(0, 3).map(p => p.id));
     console.log(`[API] Sample project tags:`, apiProjects.slice(0, 2).map(p => ({ id: p.id, tags: p.tags })));
     console.log(`[API] User interests:`, userProfile.interests);
+    console.log(`[API] Effective bio (raw/proxy):`, effectiveBio?.slice(0, 80));
 
     const requestBody: MatchRequestProject = {
       user_profile: {
         skills: userProfile.skills,
         interests: userProfile.interests,
-        bio: userProfile.bio,
+        bio: effectiveBio,
       },
       projects: apiProjects,
     };

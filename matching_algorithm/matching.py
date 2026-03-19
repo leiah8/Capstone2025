@@ -153,7 +153,7 @@ class MatchingEngine:
         required_skills_norm = self.normalize_skills(required_skills)
         
         if not required_skills_norm:
-            return 1.0, [], []
+            return 0.0, [], []
         
         matched = []
         missing = []
@@ -176,7 +176,7 @@ class MatchingEngine:
         project_tags_norm = set(self.normalize_skills(project_tags))
         
         if not project_tags_norm and not user_interests_norm:
-            return 0.5, []
+            return 0.0, []
         
         if not project_tags_norm or not user_interests_norm:
             return 0.0, []
@@ -194,10 +194,21 @@ class MatchingEngine:
         must_have_skills_key: str = "must_have_skills",
         nice_to_have_skills_key: str = "nice_to_have_skills",
     ) -> MatchScore:
-        user_skills = user_profile.get("skills", [])
-        user_interests = user_profile.get("interests", [])
-        user_bio = user_profile.get("bio", "")
-        
+        user_skills = user_profile.get("skills", []) or []
+        user_interests = user_profile.get("interests", []) or []
+        user_bio = user_profile.get("bio", "") or ""
+
+        # Build bio proxy from skills/interests when bio is absent so semantic
+        # scoring has signal even for users who haven't written a bio yet.
+        if not user_bio.strip() and (user_skills or user_interests):
+            parts = []
+            if user_skills:
+                parts.append("Skills: " + ", ".join(user_skills))
+            if user_interests:
+                parts.append("Interests: " + ", ".join(user_interests))
+            user_bio = ". ".join(parts)
+            logger.debug(f"[CALC] Bio proxy constructed: {user_bio[:80]}")
+
         project_id = str(project.get("id", "unknown"))
         project_description = project.get("description", "")
         must_have_skills = project.get(must_have_skills_key, []) or project.get("skills_needed", [])

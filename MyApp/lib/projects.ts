@@ -169,7 +169,7 @@ export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promis
       ),
       skillsNeeded: row.skills_needed ?? [],
       lat : row.lat,
-      lng : row.lng
+      lng : row.lng,
       interests: row.tags ?? [],
     };
   });
