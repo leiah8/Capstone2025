@@ -195,22 +195,22 @@ export async function fetchCandidates(limit = 50, userId : string | undefined, e
   const { data, error } = await query
   if (error) throw error;
 
-  // const rows = (data ?? []) as unknown as DbCandidate[];
-  const rows2 = (data ?? [])
+  // Batch-fetch coordinates: collect all unique city names in one query
+  // instead of one Supabase round-trip per candidate.
+  const cityNames = [...new Set((data ?? []).map((c) => c.location).filter(Boolean) as string[])];
+  const cityMap = new Map<string, { lat: number; lng: number }>();
+  if (cityNames.length > 0) {
+    const { data: cityRows } = await supabase
+      .from('city_locations')
+      .select('name, lat, lng')
+      .in('name', cityNames);
+    (cityRows ?? []).forEach((r) => cityMap.set(r.name, { lat: r.lat, lng: r.lng }));
+  }
 
-  // const rows : DbCandidate[] = [];
-  // rows2.forEach(async c => {
-  //   //get location
-  //   let coord = await fetchCoords(c.location)
-  //   rows2.push({ ...c, lat: coord.lat, lng: coord.lng } as unknown as DbCandidate);
-  // })
-
-  const rows: DbCandidate[] = await Promise.all(
-    (data ?? []).map(async (c) => {
-      const coord = await fetchCoords(c.location);
-      return { ...c, lat: coord.lat, lng: coord.lng } as unknown as DbCandidate;
-    })
-  );
+  const rows: DbCandidate[] = (data ?? []).map((c) => {
+    const coord = c.location ? (cityMap.get(c.location) ?? { lat: null, lng: null }) : { lat: null, lng: null };
+    return { ...c, lat: coord.lat, lng: coord.lng } as unknown as DbCandidate;
+  });
 
 
 

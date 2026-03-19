@@ -143,14 +143,30 @@ export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promis
 
   if (error) throw error;
 
-  // const rows = (data ?? []) as unknown as DbProject[];
+  // The JOIN already gives us each project owner's location. Collect unique
+  // city names and resolve them in one batch query instead of N+1 round-trips.
+  const rawRows = (data ?? []) as unknown as DbProject[];
+  const cityNames = [
+    ...new Set(
+      rawRows
+        .map((r) => asSingleProfile(r.profiles)?.location)
+        .filter(Boolean) as string[]
+    ),
+  ];
+  const cityMap = new Map<string, { lat: number; lng: number }>();
+  if (cityNames.length > 0) {
+    const { data: cityRows } = await supabase
+      .from('city_locations')
+      .select('name, lat, lng')
+      .in('name', cityNames);
+    (cityRows ?? []).forEach((r) => cityMap.set(r.name, { lat: r.lat, lng: r.lng }));
+  }
 
-  const rows: DbProject[] = await Promise.all(
-      (data ?? []).map(async (c) => {
-        const coord = await fetchCoords(c.owner_id);
-        return { ...c, lat: coord.lat, lng: coord.lng } as unknown as DbProject;
-      })
-    );
+  const rows: DbProject[] = rawRows.map((r) => {
+    const location = asSingleProfile(r.profiles)?.location ?? null;
+    const coord = location ? (cityMap.get(location) ?? { lat: null, lng: null }) : { lat: null, lng: null };
+    return { ...r, lat: coord.lat, lng: coord.lng };
+  });
 
 
   return rows.map((row) => {

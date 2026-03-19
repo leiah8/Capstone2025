@@ -535,9 +535,13 @@ async function rankCandidatesBatch(
   }
 
   try {
+    console.log(`[CANDIDATES] Ranking ${batch.length} candidates against ${activeProjects.length} active project(s)`);
     const results = await Promise.all(
       activeProjects.map(async (p) => {
+        console.log(`[CANDIDATES] Scoring candidates for project: ${p.title} (id=${p.id})`);
         const matches = await getMatchedCandidates(p, batch);
+        console.log(`[CANDIDATES] Got ${matches.length} scores for project ${p.id}`);
+        console.log(`[CANDIDATES] Top 3 for project '${p.title}':`, matches.slice(0, 3).map(m => ({ id: m.candidate_id, score: m.overall_score })));
         return matches.map((m) => ({ ...m, project_id: String(p.id) }));
       }),
     );
@@ -554,8 +558,11 @@ async function rankCandidatesBatch(
       Array.from(bestMatchMap.values()).map((m) => [m.candidate_id, m.overall_score]),
     );
 
-    return [...batch]
-      .sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0))
+    const sorted = [...batch].sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0));
+    console.log(`[CANDIDATES] Final ranking — top 3:`);
+    sorted.slice(0, 3).forEach(c => console.log(`  - ${c.id}: ${c.name}, score: ${scoreMap.get(c.id) ?? 0}`));
+
+    return sorted
       .map((c) => {
         const match = bestMatchMap.get(c.id);
         const pid = match?.project_id ?? "";
@@ -563,7 +570,7 @@ async function rankCandidatesBatch(
         return { ...c, project_id: pid, project_name: project?.title ?? "" };
       }) as Candidate[];
   } catch (matchError) {
-    console.warn("Failed to rank candidates, using default order:", matchError);
+    console.warn("[CANDIDATES] Failed to rank candidates, using default order:", matchError);
     const p = activeProjects[0] ?? userProjects[0];
     return fallback(String(p?.id ?? ""), String(p?.title ?? ""));
   }

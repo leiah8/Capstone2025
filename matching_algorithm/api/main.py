@@ -15,6 +15,15 @@ from middleware import TimeoutMiddleware, RequestLoggingMiddleware
 
 logger = logging.getLogger(__name__)
 
+# Honour LOG_LEVEL env var (e.g. LOG_LEVEL=DEBUG for verbose per-candidate
+# score breakdowns). Defaults to INFO.
+_log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, _log_level, logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger.setLevel(getattr(logging, _log_level, logging.INFO))
+
 app = FastAPI(title="Matching Algorithm API", version="1.0.0")
 
 # CORS middleware
@@ -173,7 +182,13 @@ async def batch_score_matches(request: BatchMatchRequest):
 @app.post("/match/candidates", response_model=CandidateMatchResponse)
 async def score_candidates(request: CandidateMatchRequest):
     """Rank candidates for a project by treating each candidate as a user profile."""
+    start_time = time.perf_counter()
     try:
+        project_id = request.project.get("id", "unknown")
+        logger.info(f"[CANDIDATES] Received {len(request.candidates)} candidates for project '{project_id}'")
+        logger.info(f"[CANDIDATES] Project skills: {request.project.get('skills', [])}, tags: {request.project.get('tags', [])}")
+        logger.debug(f"[CANDIDATES] Project description: {str(request.project.get('description', ''))[:100]}")
+
         weights = None
         if request.weights:
             weights = MatchWeights(**request.weights)
@@ -182,7 +197,7 @@ async def score_candidates(request: CandidateMatchRequest):
 
         # Build a single-project list from the project dict so we can reuse rank_projects
         project_as_target = {
-            "id": str(request.project.get("id", "project")),
+            "id": str(project_id),
             "description": request.project.get("description", ""),
             "skills": request.project.get("skills") or [],
             "tags": request.project.get("tags") or [],
@@ -200,12 +215,32 @@ async def score_candidates(request: CandidateMatchRequest):
             result["candidate_id"] = candidate.get("id", "")
             result["candidate_name"] = candidate.get("name", "")
             ranked.append(result)
+            logger.debug(
+                f"[CANDIDATES] {candidate.get('name', candidate.get('id', '?'))}: "
+                f"total={score.total_score:.3f}, semantic={score.semantic_score:.3f}, "
+                f"skills={score.skill_score:.3f}, interests={score.interest_score:.3f}"
+            )
 
         ranked.sort(key=lambda x: x["total_score"], reverse=True)
+
+        elapsed = time.perf_counter() - start_time
+        scores = [r["total_score"] for r in ranked]
+        if scores:
+            logger.info(
+                f"[CANDIDATES] Ranked {len(ranked)} candidates in {elapsed:.3f}s — "
+                f"min={min(scores):.3f}, max={max(scores):.3f}, "
+                f"mean={sum(scores)/len(scores):.3f}"
+            )
+            logger.info(
+                f"[CANDIDATES] Top 3: {[(r['candidate_name'] or r['candidate_id'], round(r['total_score'], 3)) for r in ranked[:3]]}"
+            )
+        else:
+            logger.info(f"[CANDIDATES] No candidates to rank (elapsed {elapsed:.3f}s)")
 
         return CandidateMatchResponse(ranked_candidates=ranked, count=len(ranked))
 
     except Exception as e:
+        logger.error(f"[CANDIDATES] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Candidate matching failed: {str(e)}")
 
 

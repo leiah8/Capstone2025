@@ -265,6 +265,9 @@ export async function getMatchedCandidates(
 
     }));
 
+    console.log(`[API] Sending ${apiCandidates.length} candidates to matching API for project '${user_project.title}' (id=${user_project.id})`);
+    console.log(`[API] Project skills:`, user_project.skills_needed, `tags:`, user_project.tags);
+
     const requestBody: MatchRequestCandidate = {
       project : {
         title: user_project.title,
@@ -276,14 +279,23 @@ export async function getMatchedCandidates(
     };
 
     const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch(`${MATCHING_API_URL}/match/candidates`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      },
-      body: JSON.stringify(requestBody),
-    });
+    const REQUEST_TIMEOUT_MS = 7000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`${MATCHING_API_URL}/match/candidates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        signal: controller.signal,
+        body: JSON.stringify(requestBody),
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -291,6 +303,13 @@ export async function getMatchedCandidates(
     }
 
     const data : MatchResponseCandidate = await response.json();
+    console.log(`[API] Received ${data.ranked_candidates.length} ranked candidates from API`);
+    console.log(`[API] Top 3 candidates:`, data.ranked_candidates.slice(0, 3).map((r: any) => ({ id: r.candidate_id, name: r.candidate_name, score: r.overall_score ?? r.total_score })));
+    const scores = data.ranked_candidates.map((r: any) => r.overall_score ?? r.total_score ?? 0);
+    if (scores.length > 0) {
+      console.log(`[API] Score distribution — min: ${Math.min(...scores).toFixed(3)}, max: ${Math.max(...scores).toFixed(3)}, mean: ${(scores.reduce((a: number, b: number) => a + b, 0) / scores.length).toFixed(3)}`);
+    }
+
     return data.ranked_candidates.map((r: any) => ({
       project_id: user_project.id, 
       project_name: r.project_name ?? "",
@@ -304,7 +323,11 @@ export async function getMatchedCandidates(
       missing_skills: r.missing_skills ?? r.explanation?.missing_skills ?? [],
       matched_interests: r.matched_interests ?? r.explanation?.matched_interests ?? [],
     }));
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      console.warn('Candidate matching request timed out after 7s, falling back to default ordering');
+      throw new Error('Matching API timed out after 7s');
+    }
     console.error('Error calling matching algorithm:', error);
     throw error;
   }
