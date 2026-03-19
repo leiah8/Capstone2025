@@ -17,12 +17,11 @@ logger = logging.getLogger(__name__)
 class MatchWeights:
     """Configurable weights for matching components (must sum to 1.0)"""
     semantic: float = 0.35
-    must_have_skills: float = 0.40
-    nice_to_have_skills: float = 0.15
+    skills: float = 0.55
     interests: float = 0.10
     
     def __post_init__(self):
-        total = self.semantic + self.must_have_skills + self.nice_to_have_skills + self.interests
+        total = self.semantic + self.skills + self.interests
         if not np.isclose(total, 1.0):
             raise ValueError(f"Weights must sum to 1.0, got {total}")
 
@@ -33,13 +32,11 @@ class MatchScore:
     project_id: str
     total_score: float
     semantic_score: float
-    must_have_score: float
-    nice_to_have_score: float
+    skill_score: float
     interest_score: float
-    matched_must_have_skills: List[str] = field(default_factory=list)
-    matched_nice_to_have_skills: List[str] = field(default_factory=list)
+    matched_skills: List[str] = field(default_factory=list)
+    missing_skills: List[str] = field(default_factory=list)
     matched_interests: List[str] = field(default_factory=list)
-    missing_must_have_skills: List[str] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -47,15 +44,13 @@ class MatchScore:
             "total_score": round(self.total_score, 4),
             "breakdown": {
                 "semantic_similarity": round(self.semantic_score, 4),
-                "must_have_skills": round(self.must_have_score, 4),
-                "nice_to_have_skills": round(self.nice_to_have_score, 4),
+                "skill_match": round(self.skill_score, 4),
                 "interest_alignment": round(self.interest_score, 4),
             },
             "explanation": {
-                "matched_must_have_skills": self.matched_must_have_skills,
-                "matched_nice_to_have_skills": self.matched_nice_to_have_skills,
+                "matched_skills": self.matched_skills,
+                "missing_skills": self.missing_skills,
                 "matched_interests": self.matched_interests,
-                "missing_must_have_skills": self.missing_must_have_skills,
             }
         }
 
@@ -191,8 +186,6 @@ class MatchingEngine:
         self,
         user_profile: Dict[str, Any],
         project: Dict[str, Any],
-        must_have_skills_key: str = "must_have_skills",
-        nice_to_have_skills_key: str = "nice_to_have_skills",
     ) -> MatchScore:
         user_skills = user_profile.get("skills", []) or []
         user_interests = user_profile.get("interests", []) or []
@@ -211,16 +204,18 @@ class MatchingEngine:
 
         project_id = str(project.get("id", "unknown"))
         project_description = project.get("description", "")
-        must_have_skills = project.get(must_have_skills_key, []) or project.get("skills_needed", [])
-        nice_to_have_skills = project.get(nice_to_have_skills_key, [])
+        # Accept both 'skills' (new) and legacy 'skills_needed' / 'must_have_skills'
+        project_skills = (
+            project.get("skills")
+            or project.get("skills_needed")
+            or project.get("must_have_skills")
+            or []
+        )
         project_tags = project.get("tags", []) or project.get("interests", [])
         
         semantic_score = self.calculate_semantic_similarity(user_bio, project_description)
-        must_have_ratio, matched_must, missing_must = self.calculate_skill_match(
-            user_skills, must_have_skills
-        )
-        nice_to_have_ratio, matched_nice, _ = self.calculate_skill_match(
-            user_skills, nice_to_have_skills
+        skill_ratio, matched_skills, missing_skills = self.calculate_skill_match(
+            user_skills, project_skills
         )
         interest_ratio, matched_interests = self.calculate_interest_match(
             user_interests, project_tags
@@ -228,25 +223,22 @@ class MatchingEngine:
         
         total_score = (
             self.weights.semantic * semantic_score +
-            self.weights.must_have_skills * must_have_ratio +
-            self.weights.nice_to_have_skills * nice_to_have_ratio +
+            self.weights.skills * skill_ratio +
             self.weights.interests * interest_ratio
         )
         
-        logger.info(f"[CALC] Project {project_id}: semantic={semantic_score:.3f}, must_have={must_have_ratio:.3f}, nice_to_have={nice_to_have_ratio:.3f}, interest={interest_ratio:.3f} -> total={total_score:.3f}")
+        logger.info(f"[CALC] Project {project_id}: semantic={semantic_score:.3f}, skills={skill_ratio:.3f}, interest={interest_ratio:.3f} -> total={total_score:.3f}")
         logger.debug(f"[CALC] Project {project_id}: tags={project_tags}, user_interests={user_interests}")
         
         return MatchScore(
             project_id=project_id,
             total_score=total_score,
             semantic_score=semantic_score,
-            must_have_score=must_have_ratio,
-            nice_to_have_score=nice_to_have_ratio,
+            skill_score=skill_ratio,
             interest_score=interest_ratio,
-            matched_must_have_skills=matched_must,
-            matched_nice_to_have_skills=matched_nice,
+            matched_skills=matched_skills,
+            missing_skills=missing_skills,
             matched_interests=matched_interests,
-            missing_must_have_skills=missing_must,
         )
     
     def rank_projects(

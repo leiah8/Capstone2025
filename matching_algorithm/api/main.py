@@ -184,8 +184,7 @@ async def score_candidates(request: CandidateMatchRequest):
         project_as_target = {
             "id": str(request.project.get("id", "project")),
             "description": request.project.get("description", ""),
-            "skills_needed": request.project.get("skills") or [],
-            "nice_to_have_skills": [],
+            "skills": request.project.get("skills") or [],
             "tags": request.project.get("tags") or [],
         }
 
@@ -222,8 +221,7 @@ async def match_health_check():
             "model": "all-MiniLM-L6-v2",
             "weights": {
                 "semantic": engine.weights.semantic,
-                "must_have_skills": engine.weights.must_have_skills,
-                "nice_to_have_skills": engine.weights.nice_to_have_skills,
+                "skills": engine.weights.skills,
                 "interests": engine.weights.interests,
             },
             "cache": cache_stats

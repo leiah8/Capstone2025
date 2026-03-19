@@ -23,8 +23,7 @@ export interface MatchRequestProject {
     id: string;
     name: string;
     description: string;
-    must_have_skills?: string[];
-    nice_to_have_skills?: string[];
+    skills?: string[];
     interests?: string[];
   }>;
 }
@@ -55,13 +54,11 @@ export interface MatchScoreProject {
   project_name: string;
   overall_score: number;
   semantic_similarity: number;
-  must_have_match: number;
-  nice_to_have_match: number;
+  skill_match: number;
   interest_match: number;
-  matched_must_have: string[];
-  matched_nice_to_have: string[];
+  matched_skills: string[];
+  missing_skills: string[];
   matched_interests: string[];
-  missing_must_have: string[];
 }
 
 
@@ -73,13 +70,11 @@ export interface MatchScoreCandidate { //might need to be fixed
   overall_score: number;
 
   semantic_similarity: number;
-  must_have_match: number;
-  nice_to_have_match: number;
+  skill_match: number;
   interest_match: number;
-  matched_must_have: string[];
-  matched_nice_to_have: string[];
+  matched_skills: string[];
+  missing_skills: string[];
   matched_interests: string[];
-  missing_must_have: string[];
 
 }
 
@@ -104,14 +99,12 @@ export interface BatchMatchRequest {
     id: string;
     name: string;
     description: string;
-    skills_needed?: string[];
-    nice_to_have_skills?: string[];
+    skills?: string[];
     tags?: string[];
   }>;
   weights?: {
     semantic?: number;
-    must_have_skills?: number;
-    nice_to_have_skills?: number;
+    skills?: number;
     interests?: number;
   };
 }
@@ -148,10 +141,7 @@ export async function getMatchedProjects(
       id: p.id,
       name: p.name,
       description: p.description,
-      // Send both keys for compatibility across backend versions.
-      skills_needed: p.skillsNeeded || [],
-      must_have_skills: p.skillsNeeded || [],
-      nice_to_have_skills: [], // Could be extended later
+      skills: p.skillsNeeded || [],
       interests: p.interests || [],
       tags: p.interests || [],
     }));
@@ -214,13 +204,11 @@ export async function getMatchedProjects(
       project_name: r.project_name ?? "",
       overall_score: r.overall_score ?? r.total_score ?? 0,
       semantic_similarity: r.semantic_similarity ?? r.breakdown?.semantic_similarity ?? 0,
-      must_have_match: r.must_have_match ?? r.breakdown?.must_have_skills ?? 0,
-      nice_to_have_match: r.nice_to_have_match ?? r.breakdown?.nice_to_have_skills ?? 0,
+      skill_match: r.skill_match ?? r.breakdown?.skill_match ?? 0,
       interest_match: r.interest_match ?? r.breakdown?.interest_alignment ?? 0,
-      matched_must_have: r.matched_must_have ?? r.explanation?.matched_must_have_skills ?? [],
-      matched_nice_to_have: r.matched_nice_to_have ?? r.explanation?.matched_nice_to_have_skills ?? [],
+      matched_skills: r.matched_skills ?? r.explanation?.matched_skills ?? [],
+      missing_skills: r.missing_skills ?? r.explanation?.missing_skills ?? [],
       matched_interests: r.matched_interests ?? r.explanation?.matched_interests ?? [],
-      missing_must_have: r.missing_must_have ?? r.explanation?.missing_must_have_skills ?? [],
     }));
   } catch (error: any) {
     if (error?.name === 'AbortError') {
@@ -310,13 +298,11 @@ export async function getMatchedCandidates(
       candidate_name: r.candidate_name ?? "",
       overall_score: r.overall_score ?? r.total_score ?? 0,
       semantic_similarity: r.semantic_similarity ?? r.breakdown?.semantic_similarity ?? 0,
-      must_have_match: r.must_have_match ?? r.breakdown?.must_have_skills ?? 0,
-      nice_to_have_match: r.nice_to_have_match ?? r.breakdown?.nice_to_have_skills ?? 0,
+      skill_match: r.skill_match ?? r.breakdown?.skill_match ?? 0,
       interest_match: r.interest_match ?? r.breakdown?.interest_alignment ?? 0,
-      matched_must_have: r.matched_must_have ?? r.explanation?.matched_must_have_skills ?? [],
-      matched_nice_to_have: r.matched_nice_to_have ?? r.explanation?.matched_nice_to_have_skills ?? [],
+      matched_skills: r.matched_skills ?? r.explanation?.matched_skills ?? [],
+      missing_skills: r.missing_skills ?? r.explanation?.missing_skills ?? [],
       matched_interests: r.matched_interests ?? r.explanation?.matched_interests ?? [],
-      missing_must_have: r.missing_must_have ?? r.explanation?.missing_must_have_skills ?? [],
     }));
   } catch (error) {
     console.error('Error calling matching algorithm:', error);
@@ -372,8 +358,7 @@ export async function getBatchMatchedProjects(
       id: p.id,
       name: p.name,
       description: p.description,
-      skills_needed: p.skillsNeeded || [],
-      nice_to_have_skills: [],
+      skills: p.skillsNeeded || [],
       tags: p.interests || [],
     }));
 
@@ -409,13 +394,11 @@ export async function getBatchMatchedProjects(
           project_name: r.project_name ?? "",
           overall_score: r.overall_score ?? r.total_score ?? 0,
           semantic_similarity: r.semantic_similarity ?? r.breakdown?.semantic_similarity ?? 0,
-          must_have_match: r.must_have_match ?? r.breakdown?.must_have_skills ?? 0,
-          nice_to_have_match: r.nice_to_have_match ?? r.breakdown?.nice_to_have_skills ?? 0,
+          skill_match: r.skill_match ?? r.breakdown?.skill_match ?? 0,
           interest_match: r.interest_match ?? r.breakdown?.interest_alignment ?? 0,
-          matched_must_have: r.matched_must_have ?? r.explanation?.matched_must_have_skills ?? [],
-          matched_nice_to_have: r.matched_nice_to_have ?? r.explanation?.matched_nice_to_have_skills ?? [],
+          matched_skills: r.matched_skills ?? r.explanation?.matched_skills ?? [],
+          missing_skills: r.missing_skills ?? r.explanation?.missing_skills ?? [],
           matched_interests: r.matched_interests ?? r.explanation?.matched_interests ?? [],
-          missing_must_have: r.missing_must_have ?? r.explanation?.missing_must_have_skills ?? [],
         })) || []
       }))
     };
