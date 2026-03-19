@@ -19,6 +19,11 @@ export EXPO_PUBLIC_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
 export EXPO_PUBLIC_MATCHING_EDGE_URL="https://YOUR_PROJECT.supabase.co/functions/v1/match-api"
 export EXPO_PUBLIC_PARSER_EDGE_URL="https://YOUR_PROJECT.supabase.co/functions/v1/resume-parser"
 
+# Optional direct matching API override (bypasses Supabase edge function)
+# iOS simulator: use http://127.0.0.1:8000
+# Physical device: use http://<YOUR_MAC_LAN_IP>:8000
+export EXPO_PUBLIC_MATCHING_API_URL="http://127.0.0.1:8000"
+
 # Optional direct parser override
 export EXPO_PUBLIC_PARSER_URL="https://resume-parser-production-000c.up.railway.app"
 ```
