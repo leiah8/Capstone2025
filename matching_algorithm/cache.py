@@ -1,4 +1,5 @@
 from __future__ import annotations
+import collections
 import hashlib
 import json
 import logging
@@ -14,6 +15,26 @@ except ImportError:
     REDIS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
+# In-process LRU cache used when Redis is unavailable.
+# Keyed by the same SHA256 hash used for Redis, bounded to avoid unbounded growth.
+_MEM_CACHE_MAX = int(os.getenv("MEM_CACHE_MAX_ENTRIES", "1024"))
+_mem_cache: collections.OrderedDict[str, np.ndarray] = collections.OrderedDict()
+
+
+def _mem_get(key: str) -> Optional[np.ndarray]:
+    if key not in _mem_cache:
+        return None
+    # Move to end to mark as recently used
+    _mem_cache.move_to_end(key)
+    return _mem_cache[key]
+
+
+def _mem_set(key: str, embedding: np.ndarray) -> None:
+    _mem_cache[key] = embedding
+    _mem_cache.move_to_end(key)
+    if len(_mem_cache) > _MEM_CACHE_MAX:
+        _mem_cache.popitem(last=False)  # evict oldest
 
 
 class EmbeddingCache:
@@ -80,12 +101,14 @@ class EmbeddingCache:
         Retrieve embedding from cache.
 
         Returns None if cache is disabled, key not found, or error occurs.
+        Falls back to in-memory LRU cache when Redis is unavailable.
         """
+        key = self._generate_cache_key(text)
+
         if not self.enabled or not self.client:
-            return None
+            return _mem_get(key)
 
         try:
-            key = self._generate_cache_key(text)
             cached_data = self.client.get(key)
 
             if cached_data is None:
@@ -104,12 +127,15 @@ class EmbeddingCache:
         Store embedding in cache.
 
         Returns True if successful, False otherwise.
+        Falls back to in-memory LRU cache when Redis is unavailable.
         """
+        key = self._generate_cache_key(text)
+
         if not self.enabled or not self.client:
-            return False
+            _mem_set(key, embedding)
+            return True
 
         try:
-            key = self._generate_cache_key(text)
             # Serialize embedding as JSON array
             embedding_list = embedding.tolist()
             serialized = json.dumps(embedding_list)
@@ -131,9 +157,10 @@ class EmbeddingCache:
         Retrieve multiple embeddings from cache.
 
         Returns a list with same length as texts, with None for cache misses.
+        Falls back to in-memory LRU cache when Redis is unavailable.
         """
         if not self.enabled or not self.client:
-            return [None] * len(texts)
+            return [_mem_get(self._generate_cache_key(t)) for t in texts]
 
         try:
             keys = [self._generate_cache_key(text) for text in texts]
@@ -163,7 +190,9 @@ class EmbeddingCache:
         Returns the number of successfully cached embeddings.
         """
         if not self.enabled or not self.client:
-            return 0
+            for text, embedding in zip(texts, embeddings):
+                _mem_set(self._generate_cache_key(text), embedding)
+            return len(texts)
 
         if len(texts) != len(embeddings):
             logger.error("Text and embedding lists must have same length")

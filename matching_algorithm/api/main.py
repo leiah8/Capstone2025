@@ -2,6 +2,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
 import uvicorn
@@ -24,7 +25,20 @@ logging.basicConfig(
 )
 logger.setLevel(getattr(logging, _log_level, logging.INFO))
 
-app = FastAPI(title="Matching Algorithm API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Pre-warm the matching engine at startup so the first request isn't slow."""
+    logger.info("[STARTUP] Pre-loading matching engine...")
+    try:
+        get_matching_engine()
+        logger.info("[STARTUP] Matching engine ready")
+    except Exception as e:
+        logger.error(f"[STARTUP] Failed to pre-load matching engine: {e}")
+    yield
+
+
+app = FastAPI(title="Matching Algorithm API", version="1.0.0", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
