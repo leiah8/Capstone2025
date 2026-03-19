@@ -10,23 +10,37 @@ Expo application with profile management, resume upload, and automatic skill ext
    npm install
    ```
 
-2. Set environment variables (create an `.env` or use eas secrets):
+2. Set environment variables by creating a `.env` file in `MyApp/`:
 
 ```bash
-export EXPO_PUBLIC_SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
-export EXPO_PUBLIC_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
-# Optional edge URL overrides (if omitted, app derives from EXPO_PUBLIC_SUPABASE_URL)
-export EXPO_PUBLIC_MATCHING_EDGE_URL="https://YOUR_PROJECT.supabase.co/functions/v1/match-api"
-export EXPO_PUBLIC_PARSER_EDGE_URL="https://YOUR_PROJECT.supabase.co/functions/v1/resume-parser"
-
-# Optional direct matching API override (bypasses Supabase edge function)
-# iOS simulator: use http://127.0.0.1:8000
-# Physical device: use http://<YOUR_MAC_LAN_IP>:8000
-export EXPO_PUBLIC_MATCHING_API_URL="http://127.0.0.1:8000"
-
-# Optional direct parser override
-export EXPO_PUBLIC_PARSER_URL="https://resume-parser-production-000c.up.railway.app"
+EXPO_PUBLIC_SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
+EXPO_PUBLIC_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
 ```
+
+### Switching the Matching API between production and local dev
+
+The app resolves the matching API URL using this priority order:
+
+| Priority | Variable | Use case |
+|----------|----------|----------|
+| 1 | `EXPO_PUBLIC_MATCHING_EDGE_URL` | Explicit Supabase edge function URL |
+| 2 | `EXPO_PUBLIC_MATCHING_API_URL` | Direct API URL (local dev or Railway) |
+| 3 | *(derived)* | `${EXPO_PUBLIC_SUPABASE_URL}/functions/v1/match-api` — **production default** |
+| 4 | `http://localhost:8000` | Last-resort fallback |
+
+**Production** (default — no extra variables needed):  
+Leave `EXPO_PUBLIC_MATCHING_API_URL` unset. The app automatically routes through the Supabase Edge Function, which proxies to the Railway deployment.
+
+**Local dev** (one-line change in `.env`):  
+```bash
+# iOS Simulator
+EXPO_PUBLIC_MATCHING_API_URL=http://127.0.0.1:8000
+# Physical device (replace with your Mac's LAN IP)
+EXPO_PUBLIC_MATCHING_API_URL=http://192.168.x.x:8000
+```
+
+Then start the local server (see `../matching_algorithm/README.md`).  
+Remove or comment out the line to switch back to production.
 
 3. Start the app
 
