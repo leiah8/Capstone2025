@@ -36,7 +36,7 @@ import {
 } from "../../lib/candidates";
 import {
   checkMatchingAPIHealth,
-  getMatchedCandidates,
+  getBatchMatchedProjects,
 } from "../../lib/matching-api";
 
 import { router, useFocusEffect } from "expo-router";
@@ -559,50 +559,61 @@ async function rankCandidatesBatch(
     if (__DEV__) {
       console.log(`[CANDIDATES] Ranking ${batch.length} candidates against ${activeProjects.length} active project(s)`);
     }
-    const results = await Promise.all(
-      activeProjects.map(async (p) => {
-        if (__DEV__) {
-          console.log(`[CANDIDATES] Scoring candidates for project: ${p.title} (id=${p.id})`);
-        }
-        const matches = await getMatchedCandidates(p, batch);
-        if (__DEV__) {
-          console.log(`[CANDIDATES] Got ${matches.length} scores for project ${p.id}`);
-          console.log(`[CANDIDATES] Top 3 for project '${p.title}':`, matches.slice(0, 3).map(m => ({ id: m.candidate_id, score: m.overall_score })));
-        }
-        return matches.map((m) => ({ ...m, project_id: String(p.id) }));
-      }),
+    const batchResponse = await getBatchMatchedProjects(
+      batch.map((candidate) => ({
+        id: candidate.id,
+        skills: candidate.skills || [],
+        interests: candidate.interests || [],
+        bio: candidate.bio ?? undefined,
+      })),
+      activeProjects.map((project) => ({
+        id: String(project.id),
+        name: project.title,
+        description: project.description,
+        skillsNeeded: project.skills_needed || [],
+        interests: project.tags || [],
+      })),
     );
 
-    const bestMatchMap = new Map<string, (typeof results)[number][number]>();
-    for (const match of results.flat()) {
-      // const existing = bestMatchMap.get(match.candidate_id);
-      // if (!existing || match.overall_score > existing.overall_score) {
-        bestMatchMap.set((match.candidate_id, match.project_id), match);
-      // }
+    const projectNameById = new Map(
+      activeProjects.map((project) => [String(project.id), project.title]),
+    );
+    const bestMatchByCandidateId = new Map(
+      batchResponse.results.map((result) => [
+        result.user_id,
+        result.ranked_projects[0],
+      ]),
+    );
+
+    if (__DEV__) {
+      console.log(`[CANDIDATES] Batch-ranked ${batchResponse.results.length} candidate profiles in one request`);
     }
 
-    const scoreMap = new Map(
-      // Array.from(bestMatchMap.values()).map((m) => [m.candidate_id, m.overall_score]),
-      Array.from(bestMatchMap.values()).map((m) => [(m.candidate_id, m.project_id), m.overall_score]),
-    );
+    return batch
+      .map((candidate, index) => {
+        const bestMatch = bestMatchByCandidateId.get(candidate.id);
+        const fallbackProject = activeProjects[0] ?? userProjects[0];
+        const projectId = bestMatch?.project_id ?? String(fallbackProject?.id ?? "");
+        const projectName = projectNameById.get(projectId) ?? String(fallbackProject?.title ?? "");
+        const overallScore = bestMatch?.overall_score ?? -1;
 
-    // const batch2 = 
-
-    let batch2 : Candidate[] = []
-
-    activeProjects.forEach(p => {
-      batch2.push(...fallback(String(p.id), p.title));
-    });
-
-    // return [...batch]
-    return [...batch2]
-      .sort((a, b) => (scoreMap.get((b.id, b.project_id)) || 0) - (scoreMap.get((a.id, a.project_id)) || 0))
-      .map((c) => {
-        const match = bestMatchMap.get((c.id, c.project_id));
-        const pid = match?.project_id ?? "";
-        // const project = activeProjects.find((p) => String(p.id) === pid);
-        return { ...c, project_id: pid, project_name: c.project_name};
-      }) as Candidate[];
+        return {
+          candidate: {
+            ...candidate,
+            project_id: projectId,
+            project_name: projectName,
+          } as Candidate,
+          index,
+          overallScore,
+        };
+      })
+      .sort((left, right) => {
+        if (right.overallScore !== left.overallScore) {
+          return right.overallScore - left.overallScore;
+        }
+        return left.index - right.index;
+      })
+      .map(({ candidate }) => candidate);
   } catch (matchError) {
     console.warn("[CANDIDATES] Failed to rank candidates, using default order:", matchError);
     const p = activeProjects[0] ?? userProjects[0];
