@@ -36,7 +36,7 @@ import {
 } from "../../lib/candidates";
 import {
   checkMatchingAPIHealth,
-  getBatchMatchedProjects,
+  getMatchedCandidates,
 } from "../../lib/matching-api";
 
 import { router, useFocusEffect } from "expo-router";
@@ -559,43 +559,50 @@ async function rankCandidatesBatch(
     if (__DEV__) {
       console.log(`[CANDIDATES] Ranking ${batch.length} candidates against ${activeProjects.length} active project(s)`);
     }
-    const batchResponse = await getBatchMatchedProjects(
-      batch.map((candidate) => ({
-        id: candidate.id,
-        skills: candidate.skills || [],
-        interests: candidate.interests || [],
-        bio: candidate.bio ?? undefined,
-      })),
-      activeProjects.map((project) => ({
-        id: String(project.id),
-        name: project.title,
-        description: project.description,
-        skillsNeeded: project.skills_needed || [],
-        interests: project.tags || [],
-      })),
+
+    // Call /match/candidates per active project in parallel
+    const perProjectResults = await Promise.all(
+      activeProjects.map((project) =>
+        getMatchedCandidates(
+          project,
+          batch.map((c) => ({
+            id: c.id,
+            name: c.name,
+            location: c.location,
+            bio: c.bio,
+            skills: c.skills,
+            interests: c.interests,
+            education: c.education,
+            personal_projects: c.personal_projects,
+            experience: c.experience,
+          })),
+          excludeCandidateIds,
+        ).then((ranked) => ({ projectId: String(project.id), projectName: project.title, ranked }))
+      ),
     );
 
-    const projectNameById = new Map(
-      activeProjects.map((project) => [String(project.id), project.title]),
-    );
-    const bestMatchByCandidateId = new Map(
-      batchResponse.results.map((result) => [
-        result.user_id,
-        result.ranked_projects[0],
-      ]),
-    );
+    // For each candidate pick the project where they scored highest
+    const bestByCandidateId = new Map<string, { projectId: string; projectName: string; score: number }>();
+    for (const { projectId, projectName, ranked } of perProjectResults) {
+      for (const score of ranked) {
+        const prev = bestByCandidateId.get(score.candidate_id);
+        if (!prev || score.overall_score > prev.score) {
+          bestByCandidateId.set(score.candidate_id, { projectId, projectName, score: score.overall_score });
+        }
+      }
+    }
 
     if (__DEV__) {
-      console.log(`[CANDIDATES] Batch-ranked ${batchResponse.results.length} candidate profiles in one request`);
+      console.log(`[CANDIDATES] Ranked candidates across ${perProjectResults.length} project(s)`);
     }
 
     return batch
       .map((candidate, index) => {
-        const bestMatch = bestMatchByCandidateId.get(candidate.id);
+        const best = bestByCandidateId.get(candidate.id);
         const fallbackProject = activeProjects[0] ?? userProjects[0];
-        const projectId = bestMatch?.project_id ?? String(fallbackProject?.id ?? "");
-        const projectName = projectNameById.get(projectId) ?? String(fallbackProject?.title ?? "");
-        const overallScore = bestMatch?.overall_score ?? -1;
+        const projectId = best?.projectId ?? String(fallbackProject?.id ?? "");
+        const projectName = best?.projectName ?? String(fallbackProject?.title ?? "");
+        const overallScore = best?.score ?? -1;
 
         return {
           candidate: {
