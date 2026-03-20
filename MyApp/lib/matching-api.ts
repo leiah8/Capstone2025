@@ -23,9 +23,9 @@ export interface MatchRequestProject {
     id: string;
     name: string;
     description: string;
-    must_have_skills?: string[];
-    nice_to_have_skills?: string[];
+    skills?: string[];
     interests?: string[];
+    tags?: string[];
   }>;
 }
 
@@ -55,13 +55,11 @@ export interface MatchScoreProject {
   project_name: string;
   overall_score: number;
   semantic_similarity: number;
-  must_have_match: number;
-  nice_to_have_match: number;
+  skill_match: number;
   interest_match: number;
-  matched_must_have: string[];
-  matched_nice_to_have: string[];
+  matched_skills: string[];
+  missing_skills: string[];
   matched_interests: string[];
-  missing_must_have: string[];
 }
 
 
@@ -73,13 +71,11 @@ export interface MatchScoreCandidate { //might need to be fixed
   overall_score: number;
 
   semantic_similarity: number;
-  must_have_match: number;
-  nice_to_have_match: number;
+  skill_match: number;
   interest_match: number;
-  matched_must_have: string[];
-  matched_nice_to_have: string[];
+  matched_skills: string[];
+  missing_skills: string[];
   matched_interests: string[];
-  missing_must_have: string[];
 
 }
 
@@ -104,14 +100,12 @@ export interface BatchMatchRequest {
     id: string;
     name: string;
     description: string;
-    skills_needed?: string[];
-    nice_to_have_skills?: string[];
+    skills?: string[];
     tags?: string[];
   }>;
   weights?: {
     semantic?: number;
-    must_have_skills?: number;
-    nice_to_have_skills?: number;
+    skills?: number;
     interests?: number;
   };
 }
@@ -142,34 +136,61 @@ export async function getMatchedProjects(
   }>
 ): Promise<MatchScoreProject[]> {
   try {
+    const REQUEST_TIMEOUT_MS = 7000;
     // Transform projects to match API format
     const apiProjects = projects.map(p => ({
       id: p.id,
       name: p.name,
       description: p.description,
-      must_have_skills: p.skillsNeeded || [],
-      nice_to_have_skills: [], // Could be extended later
+      skills: p.skillsNeeded || [],
       interests: p.interests || [],
+      tags: p.interests || [],
     }));
+
+    // Build a bio proxy from skills+interests so semantic scoring works even
+    // when the user hasn't written a bio yet.
+    const effectiveBio = userProfile.bio?.trim()
+      || (userProfile.skills.length > 0 || userProfile.interests.length > 0
+        ? [
+            userProfile.skills.length > 0 ? `Skills: ${userProfile.skills.join(', ')}` : '',
+            userProfile.interests.length > 0 ? `Interests: ${userProfile.interests.join(', ')}` : '',
+          ].filter(Boolean).join('. ')
+        : undefined);
+
+    if (__DEV__) {
+      console.log(`[API] Sending ${apiProjects.length} projects to matching API`);
+      console.log(`[API] First 3 project IDs:`, apiProjects.slice(0, 3).map(p => p.id));
+      console.log(`[API] Sample project tags:`, apiProjects.slice(0, 2).map(p => ({ id: p.id, tags: p.tags })));
+      console.log(`[API] User interests:`, userProfile.interests);
+      console.log(`[API] Effective bio (raw/proxy):`, effectiveBio?.slice(0, 80));
+    }
 
     const requestBody: MatchRequestProject = {
       user_profile: {
         skills: userProfile.skills,
         interests: userProfile.interests,
-        bio: userProfile.bio,
+        bio: effectiveBio,
       },
       projects: apiProjects,
     };
 
     const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch(`${MATCHING_API_URL}/match/score`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      },
-      body: JSON.stringify(requestBody),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`${MATCHING_API_URL}/match/score`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        signal: controller.signal,
+        body: JSON.stringify(requestBody),
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -177,20 +198,30 @@ export async function getMatchedProjects(
     }
 
     const data: MatchResponseProject = await response.json();
+    if (__DEV__) {
+      console.log(`[API] Received ${data.ranked_projects.length} ranked projects from API`);
+      console.log(`[API] First 3 project_ids in response:`, data.ranked_projects.slice(0, 3).map(r => r.project_id));
+      console.log(`[API] Response sample scores:`, data.ranked_projects.slice(0, 3).map(r => ({ id: r.project_id, overall_score: r.overall_score, total_score: r.total_score })));
+    }
+    
     return data.ranked_projects.map((r: any) => ({
       project_id: r.project_id,
       project_name: r.project_name ?? "",
       overall_score: r.overall_score ?? r.total_score ?? 0,
       semantic_similarity: r.semantic_similarity ?? r.breakdown?.semantic_similarity ?? 0,
-      must_have_match: r.must_have_match ?? r.breakdown?.must_have_skills ?? 0,
-      nice_to_have_match: r.nice_to_have_match ?? r.breakdown?.nice_to_have_skills ?? 0,
+      skill_match: r.skill_match ?? r.breakdown?.skill_match ?? 0,
       interest_match: r.interest_match ?? r.breakdown?.interest_alignment ?? 0,
-      matched_must_have: r.matched_must_have ?? r.explanation?.matched_must_have_skills ?? [],
-      matched_nice_to_have: r.matched_nice_to_have ?? r.explanation?.matched_nice_to_have_skills ?? [],
+      matched_skills: r.matched_skills ?? r.explanation?.matched_skills ?? [],
+      missing_skills: r.missing_skills ?? r.explanation?.missing_skills ?? [],
       matched_interests: r.matched_interests ?? r.explanation?.matched_interests ?? [],
-      missing_must_have: r.missing_must_have ?? r.explanation?.missing_must_have_skills ?? [],
     }));
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      const timeoutError = new Error('Matching API timed out after 7s');
+      console.warn('Matching request timed out, falling back to default ordering');
+      throw timeoutError;
+    }
+
     console.error('Error calling matching algorithm:', error);
     throw error;
   }
@@ -239,6 +270,11 @@ export async function getMatchedCandidates(
 
     }));
 
+    if (__DEV__) {
+      console.log(`[API] Sending ${apiCandidates.length} candidates to matching API for project '${user_project.title}' (id=${user_project.id})`);
+      console.log(`[API] Project skills:`, user_project.skills_needed, `tags:`, user_project.tags);
+    }
+
     const requestBody: MatchRequestCandidate = {
       project : {
         title: user_project.title,
@@ -250,14 +286,23 @@ export async function getMatchedCandidates(
     };
 
     const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch(`${MATCHING_API_URL}/match/candidates`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      },
-      body: JSON.stringify(requestBody),
-    });
+    const REQUEST_TIMEOUT_MS = 7000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`${MATCHING_API_URL}/match/candidates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        signal: controller.signal,
+        body: JSON.stringify(requestBody),
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -265,6 +310,15 @@ export async function getMatchedCandidates(
     }
 
     const data : MatchResponseCandidate = await response.json();
+    if (__DEV__) {
+      console.log(`[API] Received ${data.ranked_candidates.length} ranked candidates from API`);
+      console.log(`[API] Top 3 candidates:`, data.ranked_candidates.slice(0, 3).map((r: any) => ({ id: r.candidate_id, name: r.candidate_name, score: r.overall_score ?? r.total_score })));
+      const scores = data.ranked_candidates.map((r: any) => r.overall_score ?? r.total_score ?? 0);
+      if (scores.length > 0) {
+        console.log(`[API] Score distribution — min: ${Math.min(...scores).toFixed(3)}, max: ${Math.max(...scores).toFixed(3)}, mean: ${(scores.reduce((a: number, b: number) => a + b, 0) / scores.length).toFixed(3)}`);
+      }
+    }
+
     return data.ranked_candidates.map((r: any) => ({
       project_id: user_project.id, 
       project_name: r.project_name ?? "",
@@ -272,15 +326,17 @@ export async function getMatchedCandidates(
       candidate_name: r.candidate_name ?? "",
       overall_score: r.overall_score ?? r.total_score ?? 0,
       semantic_similarity: r.semantic_similarity ?? r.breakdown?.semantic_similarity ?? 0,
-      must_have_match: r.must_have_match ?? r.breakdown?.must_have_skills ?? 0,
-      nice_to_have_match: r.nice_to_have_match ?? r.breakdown?.nice_to_have_skills ?? 0,
+      skill_match: r.skill_match ?? r.breakdown?.skill_match ?? 0,
       interest_match: r.interest_match ?? r.breakdown?.interest_alignment ?? 0,
-      matched_must_have: r.matched_must_have ?? r.explanation?.matched_must_have_skills ?? [],
-      matched_nice_to_have: r.matched_nice_to_have ?? r.explanation?.matched_nice_to_have_skills ?? [],
+      matched_skills: r.matched_skills ?? r.explanation?.matched_skills ?? [],
+      missing_skills: r.missing_skills ?? r.explanation?.missing_skills ?? [],
       matched_interests: r.matched_interests ?? r.explanation?.matched_interests ?? [],
-      missing_must_have: r.missing_must_have ?? r.explanation?.missing_must_have_skills ?? [],
     }));
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      console.warn('Candidate matching request timed out after 7s, falling back to default ordering');
+      throw new Error('Matching API timed out after 7s');
+    }
     console.error('Error calling matching algorithm:', error);
     throw error;
   }
@@ -334,8 +390,7 @@ export async function getBatchMatchedProjects(
       id: p.id,
       name: p.name,
       description: p.description,
-      skills_needed: p.skillsNeeded || [],
-      nice_to_have_skills: [],
+      skills: p.skillsNeeded || [],
       tags: p.interests || [],
     }));
 
@@ -371,13 +426,11 @@ export async function getBatchMatchedProjects(
           project_name: r.project_name ?? "",
           overall_score: r.overall_score ?? r.total_score ?? 0,
           semantic_similarity: r.semantic_similarity ?? r.breakdown?.semantic_similarity ?? 0,
-          must_have_match: r.must_have_match ?? r.breakdown?.must_have_skills ?? 0,
-          nice_to_have_match: r.nice_to_have_match ?? r.breakdown?.nice_to_have_skills ?? 0,
+          skill_match: r.skill_match ?? r.breakdown?.skill_match ?? 0,
           interest_match: r.interest_match ?? r.breakdown?.interest_alignment ?? 0,
-          matched_must_have: r.matched_must_have ?? r.explanation?.matched_must_have_skills ?? [],
-          matched_nice_to_have: r.matched_nice_to_have ?? r.explanation?.matched_nice_to_have_skills ?? [],
+          matched_skills: r.matched_skills ?? r.explanation?.matched_skills ?? [],
+          missing_skills: r.missing_skills ?? r.explanation?.missing_skills ?? [],
           matched_interests: r.matched_interests ?? r.explanation?.matched_interests ?? [],
-          missing_must_have: r.missing_must_have ?? r.explanation?.missing_must_have_skills ?? [],
         })) || []
       }))
     };

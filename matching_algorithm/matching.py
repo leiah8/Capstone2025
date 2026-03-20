@@ -16,12 +16,11 @@ logger = logging.getLogger(__name__)
 class MatchWeights:
     """Configurable weights for matching components (must sum to 1.0)"""
     semantic: float = 0.35
-    must_have_skills: float = 0.40
-    nice_to_have_skills: float = 0.15
+    skills: float = 0.55
     interests: float = 0.10
     
     def __post_init__(self):
-        total = self.semantic + self.must_have_skills + self.nice_to_have_skills + self.interests
+        total = self.semantic + self.skills + self.interests
         if not np.isclose(total, 1.0):
             raise ValueError(f"Weights must sum to 1.0, got {total}")
 
@@ -32,13 +31,11 @@ class MatchScore:
     project_id: str
     total_score: float
     semantic_score: float
-    must_have_score: float
-    nice_to_have_score: float
+    skill_score: float
     interest_score: float
-    matched_must_have_skills: List[str] = field(default_factory=list)
-    matched_nice_to_have_skills: List[str] = field(default_factory=list)
+    matched_skills: List[str] = field(default_factory=list)
+    missing_skills: List[str] = field(default_factory=list)
     matched_interests: List[str] = field(default_factory=list)
-    missing_must_have_skills: List[str] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -46,15 +43,13 @@ class MatchScore:
             "total_score": round(self.total_score, 4),
             "breakdown": {
                 "semantic_similarity": round(self.semantic_score, 4),
-                "must_have_skills": round(self.must_have_score, 4),
-                "nice_to_have_skills": round(self.nice_to_have_score, 4),
+                "skill_match": round(self.skill_score, 4),
                 "interest_alignment": round(self.interest_score, 4),
             },
             "explanation": {
-                "matched_must_have_skills": self.matched_must_have_skills,
-                "matched_nice_to_have_skills": self.matched_nice_to_have_skills,
+                "matched_skills": self.matched_skills,
+                "missing_skills": self.missing_skills,
                 "matched_interests": self.matched_interests,
-                "missing_must_have_skills": self.missing_must_have_skills,
             }
         }
 
@@ -71,10 +66,19 @@ class MatchingEngine:
         weights: Optional[MatchWeights] = None,
         cache: Optional[EmbeddingCache] = None
     ):
-        self.model = SentenceTransformer(model_name)
+        self.enable_semantic = True
+        self.model: Optional[SentenceTransformer] = None
+        try:
+            self.model = SentenceTransformer(model_name)
+        except Exception as e:
+            logger.warning(f"Failed to initialize semantic model ({model_name}), disabling semantic scoring: {e}")
+            self.enable_semantic = False
         self.weights = weights or MatchWeights()
         self.cache = cache or get_embedding_cache()
-        logger.info(f"Initialized MatchingEngine with model={model_name}, cache_enabled={self.cache.enabled}")
+        logger.info(
+            f"Initialized MatchingEngine with semantic_enabled={self.enable_semantic}, "
+            f"model={model_name if self.enable_semantic else 'disabled'}, cache_enabled={self.cache.enabled}"
+        )
     
     def normalize_text(self, text: Optional[str]) -> str:
         if not text:
@@ -88,6 +92,9 @@ class MatchingEngine:
     
     def _get_embedding(self, text: str) -> Optional[np.ndarray]:
         """Get embedding from cache or compute it."""
+        if not self.enable_semantic or self.model is None:
+            return None
+
         if not text:
             return None
 
@@ -110,6 +117,9 @@ class MatchingEngine:
             return None
 
     def calculate_semantic_similarity(self, user_text: str, project_text: str) -> float:
+        if not self.enable_semantic or self.model is None:
+            return 0.0
+
         if not user_text or not project_text:
             return 0.0
 
@@ -136,7 +146,7 @@ class MatchingEngine:
         required_skills_norm = self.normalize_skills(required_skills)
         
         if not required_skills_norm:
-            return 1.0, [], []
+            return 0.0, [], []
         
         matched = []
         missing = []
@@ -159,7 +169,7 @@ class MatchingEngine:
         project_tags_norm = set(self.normalize_skills(project_tags))
         
         if not project_tags_norm and not user_interests_norm:
-            return 0.5, []
+            return 0.0, []
         
         if not project_tags_norm or not user_interests_norm:
             return 0.0, []
@@ -174,25 +184,36 @@ class MatchingEngine:
         self,
         user_profile: Dict[str, Any],
         project: Dict[str, Any],
-        must_have_skills_key: str = "skills_needed",
-        nice_to_have_skills_key: str = "nice_to_have_skills",
     ) -> MatchScore:
-        user_skills = user_profile.get("skills", [])
-        user_interests = user_profile.get("interests", [])
-        user_bio = user_profile.get("bio", "")
-        
+        user_skills = user_profile.get("skills", []) or []
+        user_interests = user_profile.get("interests", []) or []
+        user_bio = user_profile.get("bio", "") or ""
+
+        # Build bio proxy from skills/interests when bio is absent so semantic
+        # scoring has signal even for users who haven't written a bio yet.
+        if not user_bio.strip() and (user_skills or user_interests):
+            parts = []
+            if user_skills:
+                parts.append("Skills: " + ", ".join(user_skills))
+            if user_interests:
+                parts.append("Interests: " + ", ".join(user_interests))
+            user_bio = ". ".join(parts)
+            logger.debug(f"[CALC] Bio proxy constructed: {user_bio[:80]}")
+
         project_id = str(project.get("id", "unknown"))
         project_description = project.get("description", "")
-        must_have_skills = project.get(must_have_skills_key, [])
-        nice_to_have_skills = project.get(nice_to_have_skills_key, [])
-        project_tags = project.get("tags", [])
+        # Accept both 'skills' (new) and legacy 'skills_needed' / 'must_have_skills'
+        project_skills = (
+            project.get("skills")
+            or project.get("skills_needed")
+            or project.get("must_have_skills")
+            or []
+        )
+        project_tags = project.get("tags", []) or project.get("interests", [])
         
         semantic_score = self.calculate_semantic_similarity(user_bio, project_description)
-        must_have_ratio, matched_must, missing_must = self.calculate_skill_match(
-            user_skills, must_have_skills
-        )
-        nice_to_have_ratio, matched_nice, _ = self.calculate_skill_match(
-            user_skills, nice_to_have_skills
+        skill_ratio, matched_skills, missing_skills = self.calculate_skill_match(
+            user_skills, project_skills
         )
         interest_ratio, matched_interests = self.calculate_interest_match(
             user_interests, project_tags
@@ -200,22 +221,22 @@ class MatchingEngine:
         
         total_score = (
             self.weights.semantic * semantic_score +
-            self.weights.must_have_skills * must_have_ratio +
-            self.weights.nice_to_have_skills * nice_to_have_ratio +
+            self.weights.skills * skill_ratio +
             self.weights.interests * interest_ratio
         )
+        
+        logger.debug(f"[CALC] Project {project_id}: semantic={semantic_score:.3f}, skills={skill_ratio:.3f}, interest={interest_ratio:.3f} -> total={total_score:.3f}")
+        logger.debug(f"[CALC] Project {project_id}: tags={project_tags}, user_interests={user_interests}")
         
         return MatchScore(
             project_id=project_id,
             total_score=total_score,
             semantic_score=semantic_score,
-            must_have_score=must_have_ratio,
-            nice_to_have_score=nice_to_have_ratio,
+            skill_score=skill_ratio,
             interest_score=interest_ratio,
-            matched_must_have_skills=matched_must,
-            matched_nice_to_have_skills=matched_nice,
+            matched_skills=matched_skills,
+            missing_skills=missing_skills,
             matched_interests=matched_interests,
-            missing_must_have_skills=missing_must,
         )
     
     def rank_projects(
@@ -224,7 +245,7 @@ class MatchingEngine:
         projects: List[Dict[str, Any]],
     ) -> List[MatchScore]:
         # Pre-warm cache with batch operation for better performance
-        if self.cache.enabled and projects:
+        if self.enable_semantic and self.model is not None and self.cache.enabled and projects:
             texts_to_cache = []
             user_bio = self.normalize_text(user_profile.get("bio", ""))
             if user_bio:

@@ -27,8 +27,7 @@ def sample_projects():
             "title": "AI Chatbot Platform",
             "description": "Building an AI-powered chatbot using Python and React. "
                           "Need help with backend API development and NLP integration.",
-            "skills_needed": ["Python", "React", "FastAPI"],
-            "nice_to_have_skills": ["Docker", "PostgreSQL"],
+            "skills": ["Python", "React", "FastAPI", "Docker", "PostgreSQL"],
             "tags": ["AI", "Startups"]
         },
         {
@@ -36,8 +35,7 @@ def sample_projects():
             "title": "Mobile Gaming App",
             "description": "Creating a mobile game using Unity and C#. "
                           "Looking for developers experienced in game design.",
-            "skills_needed": ["C#", "Unity", "Game Design"],
-            "nice_to_have_skills": ["3D Modeling"],
+            "skills": ["C#", "Unity", "Game Design", "3D Modeling"],
             "tags": ["Gaming", "Mobile"]
         },
         {
@@ -45,8 +43,7 @@ def sample_projects():
             "title": "E-commerce Website",
             "description": "Building a full-stack e-commerce platform with React and Node.js. "
                           "Need help with payment integration and database design.",
-            "skills_needed": ["React", "Node.js", "PostgreSQL"],
-            "nice_to_have_skills": ["Docker", "AWS"],
+            "skills": ["React", "Node.js", "PostgreSQL", "Docker", "AWS"],
             "tags": ["Web Development", "Startups"]
         }
     ]
@@ -152,8 +149,8 @@ class TestWeightedScoring:
         
         assert isinstance(score, MatchScore)
         assert 0 <= score.total_score <= 1
-        assert score.must_have_score > 0
-        assert len(score.matched_must_have_skills) >= 2
+        assert score.skill_score > 0
+        assert len(score.matched_skills) >= 2
     
     def test_rank_projects(self, engine, sample_user_profile, sample_projects):
         ranked_scores = engine.rank_projects(sample_user_profile, sample_projects)
@@ -177,13 +174,12 @@ class TestWeightedScoring:
         
         breakdown = score_dict["breakdown"]
         assert "semantic_similarity" in breakdown
-        assert "must_have_skills" in breakdown
-        assert "nice_to_have_skills" in breakdown
+        assert "skill_match" in breakdown
         assert "interest_alignment" in breakdown
         
         explanation = score_dict["explanation"]
-        assert "matched_must_have_skills" in explanation
-        assert "missing_must_have_skills" in explanation
+        assert "matched_skills" in explanation
+        assert "missing_skills" in explanation
 
 
 class TestCustomWeights:
@@ -191,21 +187,19 @@ class TestCustomWeights:
     def test_custom_weights(self):
         custom_weights = MatchWeights(
             semantic=0.2,
-            must_have_skills=0.5,
-            nice_to_have_skills=0.2,
+            skills=0.7,
             interests=0.1
         )
         engine = MatchingEngine(weights=custom_weights)
         
         assert engine.weights.semantic == 0.2
-        assert engine.weights.must_have_skills == 0.5
+        assert engine.weights.skills == 0.7
     
     def test_invalid_weights_sum(self):
         with pytest.raises(ValueError):
             MatchWeights(
                 semantic=0.5,
-                must_have_skills=0.5,
-                nice_to_have_skills=0.5,
+                skills=0.5,
                 interests=0.5
             )
 

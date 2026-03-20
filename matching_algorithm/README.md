@@ -1,34 +1,41 @@
 # Matching Algorithm
 
-Weighted matching system for Peer.io that ranks projects based on:
-- Semantic similarity (35%)
-- Must-have skills match (40%)
-- Nice-to-have skills match (15%)
+Weighted matching system for Peer.io that ranks projects and candidates based on:
+- Semantic similarity — `all-MiniLM-L6-v2` sentence embeddings (35%)
+- Skill match (55%)
 - Interest alignment (10%)
 
 ## Installation
 
 ```bash
 cd matching_algorithm
-python -m venv venv
-source venv/bin/activate
+conda activate matching_algo   # or: python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Usage
+## Environment variables
 
-### Start API Server
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REQUEST_TIMEOUT_SECONDS` | `30` | Per-request timeout |
+| `LOG_LEVEL` | `INFO` | Set to `DEBUG` for per-candidate score breakdowns |
+| `REDIS_HOST` | *(unset)* | Redis host for embedding cache; falls back to in-process LRU if unset |
+| `MEM_CACHE_MAX_ENTRIES` | `1024` | Max entries for the in-process LRU fallback cache |
 
+## Start API server
+
+**Local dev:**
 ```bash
 cd matching_algorithm
-source venv/bin/activate
-export PYTHONPATH=$(pwd)
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+conda run -n matching_algo \
+  python -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### API Endpoints
+**Production (Railway):** deploys automatically via `Procfile`. The model is downloaded into the image at build time via `nixpacks.toml` so there is no cold-start download penalty.
 
-**POST /match/score** - Score and rank projects
+## API Endpoints
+
+**POST /match/score** — rank projects for a user profile
 
 ```bash
 curl -X POST http://localhost:8000/match/score \
@@ -42,34 +49,21 @@ curl -X POST http://localhost:8000/match/score \
     "projects": [{
       "id": "1",
       "description": "AI project",
-      "skills_needed": ["Python"],
+      "skills": ["Python"],
       "tags": ["AI"]
     }]
   }'
 ```
 
-**GET /match/health** - Health check
+**POST /match/candidates** — rank candidates for a project
 
-```bash
-curl http://localhost:8000/match/health
-```
-
-### Python API
-
-```python
-from matching_algorithm.matching import get_matching_engine
-
-engine = get_matching_engine()
-ranked = engine.rank_projects(user_profile, projects)
-```
+**GET /match/health** — health check
 
 ## Testing
 
 ```bash
 cd matching_algorithm
-source venv/bin/activate
-export PYTHONPATH=$(pwd)
-pytest tests/test_matching.py -v
+conda run -n matching_algo pytest tests/test_matching.py -v
 ```
 
 ## Custom Weights
@@ -77,10 +71,5 @@ pytest tests/test_matching.py -v
 ```python
 from matching_algorithm.matching import MatchWeights
 
-custom = MatchWeights(
-    semantic=0.2,
-    must_have_skills=0.5,
-    nice_to_have_skills=0.2,
-    interests=0.1
-)
+custom = MatchWeights(semantic=0.35, skills=0.55, interests=0.10)
 ```

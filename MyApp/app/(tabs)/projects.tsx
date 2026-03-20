@@ -466,17 +466,38 @@ export default function ProjectFeed() {
             matchScores.map((m) => [m.project_id, m.overall_score]),
           );
 
-          const rankedProjects = [...allProjects].sort((a, b) => {
-            const scoreA = scoreMap.get(a.id) || 0;
-            const scoreB = scoreMap.get(b.id) || 0;
-            return scoreB - scoreA;
-          });
+          // DIAGNOSTIC: Log score map population
+          if (__DEV__) {
+            console.log(`[MATCHING] Got ${matchScores.length} match scores for ${allProjects.length} projects`);
+            console.log(`[MATCHING] First few project IDs from API:`, matchScores.slice(0, 3).map(m => m.project_id));
+            console.log(`[MATCHING] First few project IDs from fetched:`, allProjects.slice(0, 3).map(p => p.id));
+          }
+
+          const rankedProjects = [...allProjects]
+            .map((project, index) => ({ project, index }))
+            .sort((a, b) => {
+              const scoreA = scoreMap.get(a.project.id) || 0;
+              const scoreB = scoreMap.get(b.project.id) || 0;
+              if (scoreB !== scoreA) return scoreB - scoreA;
+              // Tiebreaker: preserve original created_at order when scores are equal
+              return a.index - b.index;
+            })
+            .map(({ project }) => project);
+
+          if (__DEV__) {
+            console.log(`[MATCHING] Before sort - first 3 projects by created_at (expect oldest first):`);
+            allProjects.slice(0, 3).forEach(p => console.log(`  - ${p.id}: ${p.name}`));
+            console.log(`[MATCHING] After sort - first 3 projects (expect highest score first):`);
+            rankedProjects.slice(0, 3).forEach(p => console.log(`  - ${p.id}: ${p.name}, score: ${scoreMap.get(p.id)}`));
+          }
 
           setAllProjects(rankedProjects as Project[]);
           setProjects(rankedProjects as Project[]);
-          console.log(
-            `Projects ranked by match score (top: ${(scoreMap.get(rankedProjects[0].id) || 0) * 100}%)`,
-          );
+          if (__DEV__) {
+            console.log(
+              `Projects ranked by match score (top: ${(scoreMap.get(rankedProjects[0].id) || 0) * 100}%)`,
+            );
+          }
         } catch (matchError) {
           console.warn(
             "Failed to rank projects, using default order:",
@@ -486,9 +507,11 @@ export default function ProjectFeed() {
           setProjects(allProjects as Project[]);
         }
       } else {
-        console.log(
-          "Matching API not available - showing projects in default order",
-        );
+        if (__DEV__) {
+          console.log(
+            "Matching API not available - showing projects in default order",
+          );
+        }
         setAllProjects(allProjects as Project[]);
         setProjects(allProjects as Project[]);
       }

@@ -2,6 +2,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
 import uvicorn
@@ -15,7 +16,29 @@ from middleware import TimeoutMiddleware, RequestLoggingMiddleware
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Matching Algorithm API", version="1.0.0")
+# Honour LOG_LEVEL env var (e.g. LOG_LEVEL=DEBUG for verbose per-candidate
+# score breakdowns). Defaults to INFO.
+_log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, _log_level, logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger.setLevel(getattr(logging, _log_level, logging.INFO))
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Pre-warm the matching engine at startup so the first request isn't slow."""
+    logger.info("[STARTUP] Pre-loading matching engine...")
+    try:
+        get_matching_engine()
+        logger.info("[STARTUP] Matching engine ready")
+    except Exception as e:
+        logger.error(f"[STARTUP] Failed to pre-load matching engine: {e}")
+    yield
+
+
+app = FastAPI(title="Matching Algorithm API", version="1.0.0", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -74,6 +97,12 @@ class CandidateMatchResponse(BaseModel):
 @app.post("/match/score", response_model=MatchResponse)
 async def score_matches(request: MatchRequest):
     try:
+        logger.info(f"[SCORE] Received {len(request.projects)} projects from client")
+        logger.info(f"[SCORE] First 3 project IDs: {[p.get('id', 'MISSING') for p in request.projects[:3]]}")
+        _skills = request.user_profile.get('skills', []) or []
+        _interests = request.user_profile.get('interests', []) or []
+        logger.debug(f"[SCORE] User profile stats - skills_count: {len(_skills)}, interests_count: {len(_interests)}")
+        
         weights = None
         if request.weights:
             weights = MatchWeights(**request.weights)
@@ -84,6 +113,13 @@ async def score_matches(request: MatchRequest):
             projects=request.projects
         )
 
+        logger.info(f"[SCORE] Ranked {len(match_scores)} projects")
+        if not match_scores:
+            logger.info("[SCORE] No projects to score; returning empty result")
+            return MatchResponse(ranked_projects=[], count=0)
+        logger.info(f"[SCORE] Score distribution: min={min(s.total_score for s in match_scores):.3f}, max={max(s.total_score for s in match_scores):.3f}, mean={sum(s.total_score for s in match_scores) / len(match_scores):.3f}")
+        logger.info(f"[SCORE] First 3 result IDs and scores: {[(s.project_id, s.total_score) for s in match_scores[:3]]}")
+
         ranked = [score.to_dict() for score in match_scores]
 
         return MatchResponse(
@@ -92,6 +128,7 @@ async def score_matches(request: MatchRequest):
         )
 
     except Exception as e:
+        logger.error(f"[SCORE] Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Matching failed: {str(e)}"
@@ -164,7 +201,13 @@ async def batch_score_matches(request: BatchMatchRequest):
 @app.post("/match/candidates", response_model=CandidateMatchResponse)
 async def score_candidates(request: CandidateMatchRequest):
     """Rank candidates for a project by treating each candidate as a user profile."""
+    start_time = time.perf_counter()
     try:
+        project_id = request.project.get("id", "unknown")
+        logger.info(f"[CANDIDATES] Received {len(request.candidates)} candidates for project '{project_id}'")
+        logger.info(f"[CANDIDATES] Project skills: {request.project.get('skills', [])}, tags: {request.project.get('tags', [])}")
+        logger.debug(f"[CANDIDATES] Project description: {str(request.project.get('description', ''))[:100]}")
+
         weights = None
         if request.weights:
             weights = MatchWeights(**request.weights)
@@ -173,10 +216,9 @@ async def score_candidates(request: CandidateMatchRequest):
 
         # Build a single-project list from the project dict so we can reuse rank_projects
         project_as_target = {
-            "id": str(request.project.get("id", "project")),
+            "id": str(project_id),
             "description": request.project.get("description", ""),
-            "skills_needed": request.project.get("skills") or [],
-            "nice_to_have_skills": [],
+            "skills": request.project.get("skills") or [],
             "tags": request.project.get("tags") or [],
         }
 
@@ -192,12 +234,32 @@ async def score_candidates(request: CandidateMatchRequest):
             result["candidate_id"] = candidate.get("id", "")
             result["candidate_name"] = candidate.get("name", "")
             ranked.append(result)
+            logger.debug(
+                f"[CANDIDATES] {candidate.get('name', candidate.get('id', '?'))}: "
+                f"total={score.total_score:.3f}, semantic={score.semantic_score:.3f}, "
+                f"skills={score.skill_score:.3f}, interests={score.interest_score:.3f}"
+            )
 
         ranked.sort(key=lambda x: x["total_score"], reverse=True)
+
+        elapsed = time.perf_counter() - start_time
+        scores = [r["total_score"] for r in ranked]
+        if scores:
+            logger.info(
+                f"[CANDIDATES] Ranked {len(ranked)} candidates in {elapsed:.3f}s — "
+                f"min={min(scores):.3f}, max={max(scores):.3f}, "
+                f"mean={sum(scores)/len(scores):.3f}"
+            )
+            logger.info(
+                f"[CANDIDATES] Top 3: {[(r['candidate_name'] or r['candidate_id'], round(r['total_score'], 3)) for r in ranked[:3]]}"
+            )
+        else:
+            logger.info(f"[CANDIDATES] No candidates to rank (elapsed {elapsed:.3f}s)")
 
         return CandidateMatchResponse(ranked_candidates=ranked, count=len(ranked))
 
     except Exception as e:
+        logger.error(f"[CANDIDATES] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Candidate matching failed: {str(e)}")
 
 
@@ -210,11 +272,11 @@ async def match_health_check():
 
         return {
             "status": "healthy",
-            "model": "all-MiniLM-L6-v2",
+            "semantic_enabled": engine.enable_semantic,
+            "model": "all-MiniLM-L6-v2" if engine.enable_semantic else "disabled",
             "weights": {
                 "semantic": engine.weights.semantic,
-                "must_have_skills": engine.weights.must_have_skills,
-                "nice_to_have_skills": engine.weights.nice_to_have_skills,
+                "skills": engine.weights.skills,
                 "interests": engine.weights.interests,
             },
             "cache": cache_stats
