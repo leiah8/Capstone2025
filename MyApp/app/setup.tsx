@@ -13,7 +13,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
-import { getResumeParserUrl } from "../lib/resume-parser";
+import {
+  createEmptyParsedData,
+  getResumeParserUrl,
+  hasParsedResumeData,
+  normalizeParsedResumePayload,
+} from "../lib/resume-parser";
 import ParseReviewModal, {
   type ParsedData,
   type ConfirmedData,
@@ -90,14 +95,9 @@ export default function SetupScreen() {
 
   /* Review-modal state */
   const [reviewVisible, setReviewVisible] = useState(false);
-  const emptyParsed: ParsedData = {
-    skills: [],
-    interests: [],
-    education: [],
-    experience: [],
-    personal_projects: [],
-  };
-  const [parsedData, setParsedData] = useState<ParsedData>(emptyParsed);
+  const [parsedData, setParsedData] = useState<ParsedData>(
+    createEmptyParsedData(),
+  );
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
   // On mount: if user already onboarded, skip to app
@@ -218,45 +218,9 @@ export default function SetupScreen() {
 
             if (resp.ok) {
               const parsed = await resp.json();
+              const reviewData = normalizeParsedResumePayload(parsed);
 
-              const reviewData: ParsedData = {
-                skills: parsed?.skills ?? [],
-                interests: parsed?.interests ?? [],
-                education: (parsed?.education ?? []).map(
-                  (e: any, i: number) => ({
-                    id: e.id ?? `edu-${Date.now()}-${i}`,
-                    school: e.school ?? "",
-                    degree: e.degree ?? "",
-                    year: e.year ?? "",
-                  }),
-                ),
-                experience: (parsed?.experience ?? []).map(
-                  (e: any, i: number) => ({
-                    id: e.id ?? `exp-${Date.now()}-${i}`,
-                    company: e.company ?? "",
-                    position: e.position ?? "",
-                    duration: e.duration ?? "",
-                    description: e.description ?? "",
-                  }),
-                ),
-                personal_projects: (parsed?.personal_projects ?? []).map(
-                  (e: any, i: number) => ({
-                    id: e.id ?? `proj-${Date.now()}-${i}`,
-                    name: e.name ?? "",
-                    description: e.description ?? "",
-                    link: e.link ?? "",
-                  }),
-                ),
-              };
-
-              const hasAnything =
-                reviewData.skills.length > 0 ||
-                reviewData.interests.length > 0 ||
-                reviewData.education.length > 0 ||
-                reviewData.experience.length > 0 ||
-                reviewData.personal_projects.length > 0;
-
-              if (hasAnything) {
+              if (hasParsedResumeData(reviewData)) {
                 setParsedData(reviewData);
                 setPendingUserId(userId);
                 setReviewVisible(true);
@@ -291,6 +255,11 @@ export default function SetupScreen() {
     if (pendingUserId) {
       try {
         const payload: Record<string, any> = {};
+        if (selected.bio) payload.bio = selected.bio;
+        if (selected.location) payload.location = selected.location;
+        if (Object.values(selected.links).some(Boolean)) {
+          payload.links = selected.links;
+        }
         if (selected.skills.length) payload.skills = selected.skills;
         if (selected.interests.length) payload.interests = selected.interests;
         if (selected.education.length) payload.education = selected.education;

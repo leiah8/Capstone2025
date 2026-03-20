@@ -1,18 +1,4 @@
-pymupdf>=1.24.8
-pytesseract>=0.3.10
-pdfplumber>=0.11.0
-Pillow>=10.0.0
-numpy>=1.26.0
-
-# API service
 fastapi>=0.115.0
 uvicorn>=0.30.0
-httpx>=0.27.0
 python-multipart>=0.0.9
-
-# Optional extras for enhanced capabilities (install as needed)
-# camelot-py[cv]>=0.11.0   # requires ghostscript + opencv
-# opencv-python>=4.9.0.80  # for advanced image preprocessing
-# layoutparser>=0.3.4      # layout-aware segmentation
-# torch>=2.2.0             # required for some layoutparser DL models
-# tabula-py>=2.9.0         # requires Java
+openai>=2.29.0
