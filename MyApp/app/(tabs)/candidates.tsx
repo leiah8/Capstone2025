@@ -701,6 +701,7 @@ export default function CandidateFeed() {
   const [myProjects, setMyProjects] = useState<FilterProject[]>([]);
   const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
   const [showAllSkills, setShowAllSkills] = useState<boolean>(true);
+
   
   const { session } = useAuth();
 
@@ -724,16 +725,7 @@ export default function CandidateFeed() {
     const tempProjects : FilterProject[] = [];
     // let nextIndex = 0;
 
-    // myProjectsUI.forEach(p => {
-    //   if (p.included) {
-    //     pids.push(String(p.id));
-    //     // nextIndex = p.currentIndex;
-    //   }
-    //   if (String(p.id) == currentIndex.project) {
-    //     p.currentIndex = currentIndex.index;
-    //   }
-    //   tempProjects.push(p)
-    // });
+    
 
     myProjectsUI.forEach(p => {
       const updatedP = String(p.id) === currentIndex.project
@@ -747,13 +739,7 @@ export default function CandidateFeed() {
       tempProjects.push(updatedP);
     });  
 
-    //jereakdasldcnaslkn
 
-    
-
-
-
-    // const pids = myProjectsUI.filter(p => p.included).map(p => p.id);
 
     setMaxFilterDist(maxFilterDistUI);
     setFilterSkills(filterSkillsUI);
@@ -828,6 +814,8 @@ export default function CandidateFeed() {
         userProjects.forEach((p) => {
           (p.skills_needed ?? []).forEach((s) => allSkills.add(s));
         });
+
+        
         const tempSkills = [...allSkills].map((s) => ({ name: s, included: true }))
         setFilterSkills(tempSkills);
         setFilterSkillsUI(tempSkills);
@@ -850,15 +838,18 @@ export default function CandidateFeed() {
         if (persistedProjectId) {
           setCandidates(ranked.filter(c => c.project_id === persistedProjectId));
           setCurrentIndex({project : persistedProjectId, index : 0})
+          
         } else {
           setCandidates(ranked);
           setCurrentIndex({project : null, index : 0})
         }
 
+        
 
         const tempProjects = userProjects.map((p) => ({ ...p, currentIndex : 0, included: persistedProjectId ? String(p.id) === persistedProjectId : false }))
         setMyProjects(tempProjects);
         setMyProjectsUI(tempProjects)
+
 
         setAllCandidates(ranked);
         // setCurrentIndex(0);
@@ -873,9 +864,9 @@ export default function CandidateFeed() {
       setLoading(false);
     }
 
-    
     setMaxFilterDistUI(maxFilterDist);
     setShowAllSkillsUI(showAllSkills);
+    
 
   }, [session?.user?.id]);
 
