@@ -28,9 +28,9 @@ import {
   CandidateUI,
   deleteNonMatchedCandidateLikes,
   fetchCandidates,
-  fetchSwipedCandidateIds,
   fetchMyCoords,
   fetchMyProjects,
+  fetchSwipedCandidateIds,
   likeCandidate,
   MyProject,
 } from "../../lib/candidates";
@@ -333,7 +333,7 @@ const CandidateCard = ({
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false, //true,
       onMoveShouldSetPanResponder: (_, g) => {
         const { dx, dy } = g;
         // Only hijack the gesture if horizontal movement is dominant
@@ -646,7 +646,13 @@ export default function CandidateFeed() {
   const [myProjects, setMyProjects] = useState<FilterProject[]>([]);
   const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
   const [showAllSkills, setShowAllSkills] = useState<boolean>(true);
+  
   const { session } = useAuth();
+
+  const [maxFilterDistUI, setMaxFilterDistUI] = useState<number>(MAX_DISTANCE);
+  const [filterSkillsUI, setFilterSkillsUI] = useState<FilterSkill[]>([]);
+  const [showAllSkillsUI, setShowAllSkillsUI] = useState<boolean>(true);
+  const [myProjectsUI, setMyProjectsUI] = useState<FilterProject[]>([]);
 
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [allFetched, setAllFetched] = useState(false);
@@ -657,11 +663,16 @@ export default function CandidateFeed() {
   const filterFetchedCandidates = () => {
 
     let filteredCandidates : Candidate[] = [];
-    const pids = myProjects.filter(p => p.included).map(p => p.id);
+    const pids = myProjectsUI.filter(p => p.included).map(p => p.id);
 
-    let maxDist = maxFilterDist < MAX_DISTANCE ? maxFilterDist : Infinity;
+    setMaxFilterDist(maxFilterDistUI);
+    setFilterSkills(filterSkillsUI);
+    setMyProjects(myProjectsUI);
+    setShowAllSkills(showAllSkillsUI);
 
-    if (showAllSkills) {
+    let maxDist = maxFilterDistUI < MAX_DISTANCE ? maxFilterDistUI : Infinity;
+
+    if (showAllSkillsUI) {
       overallCandidates.forEach((c) => {
         if (pids.includes(Number(c.project_id))) {
           if (calcDist(myCoords.lat, myCoords?.lng, c.lat, c.lng) <= maxDist) {
@@ -670,7 +681,7 @@ export default function CandidateFeed() {
         }
       });
     } else {
-      const skills = filterSkills.filter((s) => s.included).map((s) => s.name);
+      const skills = filterSkillsUI.filter((s) => s.included).map((s) => s.name);
 
       overallCandidates.forEach((c) => {
         if (pids.includes(Number(c.project_id))) {
@@ -698,7 +709,12 @@ export default function CandidateFeed() {
       isFetchingMoreRef.current = false;
 
       const userProjects = await fetchMyProjects(session?.user?.id);
-      setMyProjects(userProjects.map((p) => ({ ...p, included: persistedProjectId ? String(p.id) === persistedProjectId : false })));
+      const tempProjects = userProjects.map((p) => ({ ...p, included: persistedProjectId ? String(p.id) === persistedProjectId : false }))
+      setMyProjects(tempProjects);
+      setMyProjectsUI(tempProjects)
+      if (userProjects.length == 1) {
+        persistedProjectId = String(userProjects[0].id);
+      }
 
       const coords = await fetchMyCoords(session?.user?.id);
       setMyCoords(coords);
@@ -711,7 +727,9 @@ export default function CandidateFeed() {
         userProjects.forEach((p) => {
           (p.skills_needed ?? []).forEach((s) => allSkills.add(s));
         });
-        setFilterSkills([...allSkills].map((s) => ({ name: s, included: true })));
+        const tempSkills = [...allSkills].map((s) => ({ name: s, included: true }))
+        setFilterSkills(tempSkills);
+        setFilterSkillsUI(tempSkills);
 
         swipedCandidateIdsRef.current = session?.user?.id
           ? await fetchSwipedCandidateIds(session.user.id)
@@ -746,6 +764,11 @@ export default function CandidateFeed() {
     } finally {
       setLoading(false);
     }
+
+    
+    setMaxFilterDistUI(maxFilterDist);
+    setShowAllSkillsUI(showAllSkills);
+
   }, [session?.user?.id]);
 
   useFocusEffect(
@@ -801,7 +824,19 @@ export default function CandidateFeed() {
   const handleSwipe = async (direction: "left" | "right") => {
     const candidate = candidates[currentIndex];
     const nextIndex = currentIndex + 1;
-    advance();
+    // advance();
+
+    const nextCandidate = candidates[currentIndex + 1]
+
+    //remove candidates from fetched 
+    setAllCandidates((prev) => {
+      return prev.filter((c) => c.id !== candidate.id);
+    });
+    setCandidates((prev) => {
+      return prev.filter((c) => c.id !== candidate.id);
+    });
+
+    // setCurrentIndex(candidates.indexOf(nextCandidate))
 
     // Proactively fetch the next batch when the queue is running low.
     if (candidates.length - nextIndex <= PREFETCH_THRESHOLD) {
@@ -875,6 +910,11 @@ export default function CandidateFeed() {
 
               //TODO HERE: add a new const for each of the skills, projects, dist to differentiate between UI and acc filtering
               //also in filtering, and on close, set all UI elements back to actual value
+
+              setFilterSkillsUI(filterSkills);
+              setMaxFilterDistUI(maxFilterDist);
+              setShowAllSkillsUI(showAllSkills);
+              setMyProjectsUI(myProjects);
             }}
           >
             <Ionicons name="close" size={35} color="000" />
@@ -891,11 +931,11 @@ export default function CandidateFeed() {
               <LocationSlider
                 min={0}
                 max={MAX_DISTANCE}
-                value={maxFilterDist}
-                onValueChange={setMaxFilterDist}
+                value={maxFilterDistUI}
+                onValueChange={setMaxFilterDistUI}
               />
               <Text style={{ textAlign: "center", color: "#888", fontSize: 13 }}>
-                {maxFilterDist >= MAX_DISTANCE ? "Worldwide" : maxFilterDist + "km"}
+                {maxFilterDistUI >= MAX_DISTANCE ? "Worldwide" : maxFilterDistUI + "km"}
               </Text>
             </View>
           )
@@ -906,7 +946,7 @@ export default function CandidateFeed() {
           {myProjects.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Personal Projects</Text>
-              {myProjects.map((p, i) => (
+              {myProjectsUI.map((p, i) => (
                 <TouchableOpacity
                   key={p.id}
                   style={styles.filterRow}
@@ -920,10 +960,10 @@ export default function CandidateFeed() {
                   // }
                   // }
                   onPress={() => {
-                    const newProjects = myProjects.map((proj, j) =>
+                    const newProjects = myProjectsUI.map((proj, j) =>
                       j === i ? { ...proj, included: !proj.included } : { ...proj, included: false }
                     );
-                    setMyProjects(newProjects);
+                    setMyProjectsUI(newProjects);
                     const selected = newProjects.find(p => p.included);
                     persistedProjectId = selected ? String(selected.id) : null; 
                   }}
@@ -940,30 +980,30 @@ export default function CandidateFeed() {
           )}
 
           {/* skills to browse on */}
-          {filterSkills.length > 0 && (
+          {filterSkillsUI.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Skills</Text>
               <TouchableOpacity
                 style={styles.filterRow}
                 onPress={() => {
-                  setShowAllSkills(!showAllSkills);
+                  setShowAllSkillsUI(!showAllSkills);
                 }}
               >
                 <Ionicons
-                  name={showAllSkills ? "checkmark-circle" : "ellipse-outline"}
+                  name={showAllSkillsUI ? "checkmark-circle" : "ellipse-outline"}
                   size={20}
                   color="#333"
                 />
                 <Text style={styles.filterLabel}>Show All Skills</Text>
               </TouchableOpacity>
 
-              {[...filterSkills].map((s, i) => (
+              {[...filterSkillsUI].map((s, i) => (
                 <TouchableOpacity
                   key={i}
                   style={[styles.filterRow, { paddingHorizontal: 40 }]}
                   onPress={() => {
-                    if (!showAllSkills)
-                      setFilterSkills((prev) =>
+                    if (!showAllSkillsUI)
+                      setFilterSkillsUI((prev) =>
                         prev.map((skill, j) =>
                           j === i
                             ? { ...skill, included: !skill.included }
@@ -975,12 +1015,12 @@ export default function CandidateFeed() {
                   <Ionicons
                     name={s.included ? "checkbox" : "square-outline"}
                     size={20}
-                    color={showAllSkills ? "#ddd" : "#333"}
+                    color={showAllSkillsUI ? "#ddd" : "#333"}
                   />
                   <Text
                     style={[
                       styles.filterLabel,
-                      { color: showAllSkills ? "#ddd" : "#333" },
+                      { color: showAllSkillsUI ? "#ddd" : "#333" },
                     ]}
                   >
                     {s.name}
@@ -1088,7 +1128,7 @@ export default function CandidateFeed() {
         />
 
         {/* Project picker modal */}
-        {persistedProjectId == null && (
+        {persistedProjectId == null && myProjects.length > 1 &&  (
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
               <Text style={styles.pageHeader}>Choose a Project</Text>
@@ -1105,6 +1145,7 @@ export default function CandidateFeed() {
                     j === i ? { ...proj, included: true } : { ...proj, included: false }
                   );
                   setMyProjects(newProjects);
+                  setMyProjectsUI(newProjects);
                   persistedProjectId = String(p.id);
                   setCandidates(overallCandidates.filter(c => c.project_id === String(p.id)));
                   }}
