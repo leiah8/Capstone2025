@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import Dict, List, Any, Optional, Tuple
 import logging
-import os
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -67,14 +66,13 @@ class MatchingEngine:
         weights: Optional[MatchWeights] = None,
         cache: Optional[EmbeddingCache] = None
     ):
-        self.enable_semantic = os.getenv("ENABLE_SEMANTIC_SCORING", "false").lower() in ("1", "true", "yes")
+        self.enable_semantic = True
         self.model: Optional[SentenceTransformer] = None
-        if self.enable_semantic:
-            try:
-                self.model = SentenceTransformer(model_name)
-            except Exception as e:
-                logger.warning(f"Failed to initialize semantic model ({model_name}), disabling semantic scoring: {e}")
-                self.enable_semantic = False
+        try:
+            self.model = SentenceTransformer(model_name)
+        except Exception as e:
+            logger.warning(f"Failed to initialize semantic model ({model_name}), disabling semantic scoring: {e}")
+            self.enable_semantic = False
         self.weights = weights or MatchWeights()
         self.cache = cache or get_embedding_cache()
         logger.info(

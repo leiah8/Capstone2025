@@ -17,7 +17,6 @@ pip install -r requirements.txt
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ENABLE_SEMANTIC_SCORING` | `false` | Set to `true` to enable sentence-transformer scoring |
 | `REQUEST_TIMEOUT_SECONDS` | `30` | Per-request timeout |
 | `LOG_LEVEL` | `INFO` | Set to `DEBUG` for per-candidate score breakdowns |
 | `REDIS_HOST` | *(unset)* | Redis host for embedding cache; falls back to in-process LRU if unset |
@@ -28,7 +27,7 @@ pip install -r requirements.txt
 **Local dev:**
 ```bash
 cd matching_algorithm
-ENABLE_SEMANTIC_SCORING=true conda run -n matching_algo \
+conda run -n matching_algo \
   python -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
