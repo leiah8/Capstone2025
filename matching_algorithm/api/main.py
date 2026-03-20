@@ -61,6 +61,7 @@ class MatchRequest(BaseModel):
     user_profile: Dict[str, Any]
     projects: List[Dict[str, Any]]
     weights: Optional[Dict[str, float]] = None
+    exclude_project_ids: Optional[List[str]] = None
 
 
 class BatchMatchRequest(BaseModel):
@@ -87,6 +88,7 @@ class CandidateMatchRequest(BaseModel):
     project: Dict[str, Any]
     candidates: List[Dict[str, Any]]
     weights: Optional[Dict[str, float]] = None
+    exclude_candidate_ids: Optional[List[str]] = None
 
 
 class CandidateMatchResponse(BaseModel):
@@ -102,7 +104,13 @@ async def score_matches(request: MatchRequest):
         _skills = request.user_profile.get('skills', []) or []
         _interests = request.user_profile.get('interests', []) or []
         logger.debug(f"[SCORE] User profile stats - skills_count: {len(_skills)}, interests_count: {len(_interests)}")
-        
+
+        projects_to_score = request.projects
+        if request.exclude_project_ids:
+            exclude_set = set(str(pid) for pid in request.exclude_project_ids)
+            projects_to_score = [p for p in projects_to_score if str(p.get("id", "")) not in exclude_set]
+            logger.info(f"[SCORE] Excluded {len(request.projects) - len(projects_to_score)} already-seen projects; scoring {len(projects_to_score)} remaining")
+
         weights = None
         if request.weights:
             weights = MatchWeights(**request.weights)
@@ -110,7 +118,7 @@ async def score_matches(request: MatchRequest):
         engine = get_matching_engine(weights=weights)
         match_scores = engine.rank_projects(
             user_profile=request.user_profile,
-            projects=request.projects
+            projects=projects_to_score
         )
 
         logger.info(f"[SCORE] Ranked {len(match_scores)} projects")
@@ -208,6 +216,12 @@ async def score_candidates(request: CandidateMatchRequest):
         logger.info(f"[CANDIDATES] Project skills: {request.project.get('skills', [])}, tags: {request.project.get('tags', [])}")
         logger.debug(f"[CANDIDATES] Project description: {str(request.project.get('description', ''))[:100]}")
 
+        candidates_to_score = request.candidates
+        if request.exclude_candidate_ids:
+            exclude_set = set(str(cid) for cid in request.exclude_candidate_ids)
+            candidates_to_score = [c for c in candidates_to_score if str(c.get("id", "")) not in exclude_set]
+            logger.info(f"[CANDIDATES] Excluded {len(request.candidates) - len(candidates_to_score)} already-matched candidates; scoring {len(candidates_to_score)} remaining")
+
         weights = None
         if request.weights:
             weights = MatchWeights(**request.weights)
@@ -223,7 +237,7 @@ async def score_candidates(request: CandidateMatchRequest):
         }
 
         ranked = []
-        for candidate in request.candidates:
+        for candidate in candidates_to_score:
             user_profile = {
                 "skills": candidate.get("skills") or [],
                 "interests": candidate.get("interests") or [],

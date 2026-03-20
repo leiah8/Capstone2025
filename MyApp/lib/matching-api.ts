@@ -27,6 +27,7 @@ export interface MatchRequestProject {
     interests?: string[];
     tags?: string[];
   }>;
+  exclude_project_ids?: string[];
 }
 
 export interface MatchRequestCandidate {
@@ -36,6 +37,7 @@ export interface MatchRequestCandidate {
     skills: string[] | null,
     tags: string [] | null,
   };
+  exclude_candidate_ids?: string[];
   candidates: Array<{
     id: string,
     name: string,
@@ -133,7 +135,8 @@ export async function getMatchedProjects(
     description: string;
     skillsNeeded?: string[];
     interests?: string[];
-  }>
+  }>,
+  excludeProjectIds?: string[]
 ): Promise<MatchScoreProject[]> {
   try {
     const REQUEST_TIMEOUT_MS = 7000;
@@ -172,6 +175,9 @@ export async function getMatchedProjects(
         bio: effectiveBio,
       },
       projects: apiProjects,
+      ...(excludeProjectIds && excludeProjectIds.length > 0
+        ? { exclude_project_ids: excludeProjectIds }
+        : {}),
     };
 
     const { data: { session } } = await supabase.auth.getSession();
@@ -201,7 +207,7 @@ export async function getMatchedProjects(
     if (__DEV__) {
       console.log(`[API] Received ${data.ranked_projects.length} ranked projects from API`);
       console.log(`[API] First 3 project_ids in response:`, data.ranked_projects.slice(0, 3).map(r => r.project_id));
-      console.log(`[API] Response sample scores:`, data.ranked_projects.slice(0, 3).map(r => ({ id: r.project_id, overall_score: r.overall_score, total_score: r.total_score })));
+      console.log(`[API] Response sample scores:`, data.ranked_projects.slice(0, 3).map(r => ({ id: r.project_id, overall_score: r.overall_score })));
     }
     
     return data.ranked_projects.map((r: any) => ({
@@ -251,8 +257,8 @@ export async function getMatchedCandidates(
     interests : string[] | null;
     education : ed[];
     personal_projects : profile_project[];
-    experience : job[];}>
-  
+    experience : job[];}>,
+  excludeCandidateIds?: string[]
 ): Promise<MatchScoreCandidate[]> {
   
   try {
@@ -282,6 +288,7 @@ export async function getMatchedCandidates(
         skills: user_project.skills_needed,
         tags: user_project.tags,
       },
+      ...(excludeCandidateIds && excludeCandidateIds.length > 0 ? { exclude_candidate_ids: excludeCandidateIds } : {}),
       candidates : apiCandidates,
     };
 

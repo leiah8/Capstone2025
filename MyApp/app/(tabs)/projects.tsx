@@ -31,7 +31,7 @@ import {
   checkMatchingAPIHealth,
   getMatchedProjects,
 } from "../../lib/matching-api";
-import { fetchProjects, likeProject, ProjectUI } from "../../lib/projects";
+import { fetchProjects, fetchMatchedProjectIds, likeProject, ProjectUI } from "../../lib/projects";
 import { supabase } from "../../lib/supabase";
 import { getUserProfile } from "../../lib/user-profile";
 
@@ -459,8 +459,13 @@ export default function ProjectFeed() {
     try {
       setLoading(true);
 
-      // Fetch all projects (exclude own)
-      const allProjects = await fetchProjects(50, session?.user?.id);
+      // Fetch matched project IDs first so we can exclude them at the DB level.
+      // Only projects the user has already *matched* with are hidden — liked-but-unmatched
+      // projects, and projects owned by someone the user matched with elsewhere, remain visible.
+      const matchedIds = session?.user?.id
+        ? await fetchMatchedProjectIds(session.user.id)
+        : ([] as string[]);
+      const allProjects = await fetchProjects(50, session?.user?.id, matchedIds);
       if (!alive) return;
 
       const coords = await fetchMyCoords(session?.user?.id);

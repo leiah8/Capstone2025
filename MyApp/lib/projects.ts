@@ -111,7 +111,28 @@ export async function fetchCoords(ownerId : string) : Promise<{lat : number | nu
 
 };
 
-export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promise<ProjectUI[]> {
+/**
+ * Fetch project IDs the user has already matched with (as a candidate).
+ * Only the specific matched project is excluded — not other projects from
+ * the same owner, and not projects the user merely liked without matching.
+ */
+export async function fetchMatchedProjectIds(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('matches')
+    .select('project_id')
+    .eq('candidate_id', userId);
+  if (error) {
+    console.error('Error fetching matched project IDs:', error);
+    return [];
+  }
+  return (data ?? []).map((r) => String(r.project_id));
+}
+
+export async function fetchProjects(
+  limit = 50,
+  excludeOwnerId?: string,
+  excludeProjectIds?: string[]
+): Promise<ProjectUI[]> {
   let query = supabase
     .from('projects')
     .select(
@@ -137,6 +158,10 @@ export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promis
 
   if (excludeOwnerId) {
     query = query.neq('owner_id', excludeOwnerId);
+  }
+
+  if (excludeProjectIds && excludeProjectIds.length > 0) {
+    query = query.not('id', 'in', `(${excludeProjectIds.join(',')})`);
   }
 
   const { data, error } = await query;

@@ -27,6 +27,7 @@ import {
   calcDist,
   CandidateUI,
   fetchCandidates,
+  fetchMatchedCandidateIds,
   fetchMyCoords,
   fetchMyProjects,
   likeCandidate,
@@ -542,6 +543,7 @@ async function rankCandidatesBatch(
   batch: CandidateUI[],
   userProjects: MyProject[],
   matchingAvailable: boolean,
+  excludeCandidateIds?: string[],
 ): Promise<Candidate[]> {
   const activeProjects = userProjects.filter((p) => p.is_active);
   const fallback = (pid: string, pName: string) =>
@@ -638,6 +640,7 @@ export default function CandidateFeed() {
   const [allFetched, setAllFetched] = useState(false);
   const isFetchingMoreRef = useRef(false);
   const hasLoadedRef = useRef(false);
+  const matchedCandidateIdsRef = useRef<string[]>([]);
 
 
   const filterFetchedCandidates = () => {
@@ -707,7 +710,11 @@ export default function CandidateFeed() {
             });
             setFilterSkills([...allSkills].map((s) => ({ name: s, included: true })));
 
-            const allCandidates = await fetchCandidates(INITIAL_BATCH_SIZE, session?.user?.id);
+            matchedCandidateIdsRef.current = session?.user?.id
+              ? await fetchMatchedCandidateIds(session.user.id)
+              : [];
+
+            const allCandidates = await fetchCandidates(INITIAL_BATCH_SIZE, session?.user?.id, matchedCandidateIdsRef.current);
             if (!alive) return;
 
             const matchingAvailable = await checkMatchingAPIHealth();
@@ -717,10 +724,7 @@ export default function CandidateFeed() {
                 : "Matching API not available - showing candidates in default order",
             );
 
-            const ranked = await rankCandidatesBatch(allCandidates, userProjects, matchingAvailable);
-            // console.log("HERE HI")
-            // console.log(ranked);
-
+            const ranked = await rankCandidatesBatch(allCandidates, userProjects, matchingAvailable, matchedCandidateIdsRef.current);
             if (!alive) return;
 
             // Apply persisted project filter immediately if one is selected
@@ -758,6 +762,7 @@ export default function CandidateFeed() {
   useEffect(() => {
     hasLoadedRef.current = false;
     isFetchingMoreRef.current = false;
+    matchedCandidateIdsRef.current = [];
     setCandidates([]);
     setAllCandidates([]);
     setCurrentIndex(0);
@@ -778,7 +783,9 @@ export default function CandidateFeed() {
     isFetchingMoreRef.current = true;
     setIsFetchingMore(true);
     try {
-      const excludeList = overallCandidates.map((c) => c.id);
+      const excludeList = Array.from(
+        new Set([...overallCandidates.map((c) => c.id), ...matchedCandidateIdsRef.current])
+      );
       const newBatch = await fetchCandidates(BATCH_SIZE, session.user.id, excludeList);
       if (newBatch.length === 0) {
         setAllFetched(true);
@@ -788,7 +795,7 @@ export default function CandidateFeed() {
 
       const matchingAvailable = await checkMatchingAPIHealth();
       const includedProjects = myProjects.filter((p) => p.included);
-      const ranked = await rankCandidatesBatch(newBatch, includedProjects, matchingAvailable);
+      const ranked = await rankCandidatesBatch(newBatch, includedProjects, matchingAvailable, matchedCandidateIdsRef.current);
 
       setAllCandidates((prev) => [...prev, ...ranked]);
       setCandidates((prev) => [...prev, ...ranked]);
