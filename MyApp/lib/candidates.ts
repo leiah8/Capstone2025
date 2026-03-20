@@ -200,11 +200,15 @@ export async function fetchCandidates(limit = 50, userId : string | undefined, e
   const cityNames = [...new Set((data ?? []).map((c) => c.location).filter(Boolean) as string[])];
   const cityMap = new Map<string, { lat: number; lng: number }>();
   if (cityNames.length > 0) {
-    const { data: cityRows } = await supabase
+    const { data: cityRows, error: cityError } = await supabase
       .from('city_locations')
       .select('name, lat, lng')
       .in('name', cityNames);
-    (cityRows ?? []).forEach((r) => cityMap.set(r.name, { lat: r.lat, lng: r.lng }));
+    if (cityError) {
+      console.error('Error fetching city locations for candidates:', cityError);
+    } else {
+      (cityRows ?? []).forEach((r) => cityMap.set(r.name, { lat: r.lat, lng: r.lng }));
+    }
   }
 
   const rows: DbCandidate[] = (data ?? []).map((c) => {

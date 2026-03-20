@@ -245,7 +245,12 @@ class EmbeddingCache:
     def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         if not self.enabled or not self.client:
-            return {"enabled": False}
+            return {
+                "redis_enabled": False,
+                "in_memory_fallback": True,
+                "in_memory_entries": len(_mem_cache),
+                "in_memory_max": _MEM_CACHE_MAX,
+            }
 
         try:
             info = self.client.info("stats")

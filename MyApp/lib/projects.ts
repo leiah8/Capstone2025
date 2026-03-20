@@ -155,11 +155,17 @@ export async function fetchProjects(limit = 50, excludeOwnerId?: string): Promis
   ];
   const cityMap = new Map<string, { lat: number; lng: number }>();
   if (cityNames.length > 0) {
-    const { data: cityRows } = await supabase
+    const { data: cityRows, error: cityError } = await supabase
       .from('city_locations')
       .select('name, lat, lng')
       .in('name', cityNames);
-    (cityRows ?? []).forEach((r) => cityMap.set(r.name, { lat: r.lat, lng: r.lng }));
+    if (cityError) {
+      console.error('Error fetching city_locations for projects:', cityError);
+    } else {
+      (cityRows ?? []).forEach((r) =>
+        cityMap.set(r.name, { lat: r.lat, lng: r.lng })
+      );
+    }
   }
 
   const rows: DbProject[] = rawRows.map((r) => {

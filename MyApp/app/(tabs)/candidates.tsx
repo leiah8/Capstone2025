@@ -535,13 +535,19 @@ async function rankCandidatesBatch(
   }
 
   try {
-    console.log(`[CANDIDATES] Ranking ${batch.length} candidates against ${activeProjects.length} active project(s)`);
+    if (__DEV__) {
+      console.log(`[CANDIDATES] Ranking ${batch.length} candidates against ${activeProjects.length} active project(s)`);
+    }
     const results = await Promise.all(
       activeProjects.map(async (p) => {
-        console.log(`[CANDIDATES] Scoring candidates for project: ${p.title} (id=${p.id})`);
+        if (__DEV__) {
+          console.log(`[CANDIDATES] Scoring candidates for project: ${p.title} (id=${p.id})`);
+        }
         const matches = await getMatchedCandidates(p, batch);
-        console.log(`[CANDIDATES] Got ${matches.length} scores for project ${p.id}`);
-        console.log(`[CANDIDATES] Top 3 for project '${p.title}':`, matches.slice(0, 3).map(m => ({ id: m.candidate_id, score: m.overall_score })));
+        if (__DEV__) {
+          console.log(`[CANDIDATES] Got ${matches.length} scores for project ${p.id}`);
+          console.log(`[CANDIDATES] Top 3 for project '${p.title}':`, matches.slice(0, 3).map(m => ({ id: m.candidate_id, score: m.overall_score })));
+        }
         return matches.map((m) => ({ ...m, project_id: String(p.id) }));
       }),
     );
@@ -559,8 +565,10 @@ async function rankCandidatesBatch(
     );
 
     const sorted = [...batch].sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0));
-    console.log(`[CANDIDATES] Final ranking — top 3:`);
-    sorted.slice(0, 3).forEach(c => console.log(`  - ${c.id}: ${c.name}, score: ${scoreMap.get(c.id) ?? 0}`));
+    if (__DEV__) {
+      console.log(`[CANDIDATES] Final ranking — top 3:`);
+      sorted.slice(0, 3).forEach(c => console.log(`  - ${c.id}: ${c.name}, score: ${scoreMap.get(c.id) ?? 0}`));
+    }
 
     return sorted
       .map((c) => {

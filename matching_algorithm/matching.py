@@ -225,7 +225,7 @@ class MatchingEngine:
             self.weights.interests * interest_ratio
         )
         
-        logger.info(f"[CALC] Project {project_id}: semantic={semantic_score:.3f}, skills={skill_ratio:.3f}, interest={interest_ratio:.3f} -> total={total_score:.3f}")
+        logger.debug(f"[CALC] Project {project_id}: semantic={semantic_score:.3f}, skills={skill_ratio:.3f}, interest={interest_ratio:.3f} -> total={total_score:.3f}")
         logger.debug(f"[CALC] Project {project_id}: tags={project_tags}, user_interests={user_interests}")
         
         return MatchScore(

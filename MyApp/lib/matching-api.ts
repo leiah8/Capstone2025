@@ -25,6 +25,7 @@ export interface MatchRequestProject {
     description: string;
     skills?: string[];
     interests?: string[];
+    tags?: string[];
   }>;
 }
 
@@ -156,11 +157,13 @@ export async function getMatchedProjects(
           ].filter(Boolean).join('. ')
         : undefined);
 
-    console.log(`[API] Sending ${apiProjects.length} projects to matching API`);
-    console.log(`[API] First 3 project IDs:`, apiProjects.slice(0, 3).map(p => p.id));
-    console.log(`[API] Sample project tags:`, apiProjects.slice(0, 2).map(p => ({ id: p.id, tags: p.tags })));
-    console.log(`[API] User interests:`, userProfile.interests);
-    console.log(`[API] Effective bio (raw/proxy):`, effectiveBio?.slice(0, 80));
+    if (__DEV__) {
+      console.log(`[API] Sending ${apiProjects.length} projects to matching API`);
+      console.log(`[API] First 3 project IDs:`, apiProjects.slice(0, 3).map(p => p.id));
+      console.log(`[API] Sample project tags:`, apiProjects.slice(0, 2).map(p => ({ id: p.id, tags: p.tags })));
+      console.log(`[API] User interests:`, userProfile.interests);
+      console.log(`[API] Effective bio (raw/proxy):`, effectiveBio?.slice(0, 80));
+    }
 
     const requestBody: MatchRequestProject = {
       user_profile: {
@@ -195,9 +198,11 @@ export async function getMatchedProjects(
     }
 
     const data: MatchResponseProject = await response.json();
-    console.log(`[API] Received ${data.ranked_projects.length} ranked projects from API`);
-    console.log(`[API] First 3 project_ids in response:`, data.ranked_projects.slice(0, 3).map(r => r.project_id));
-    console.log(`[API] Response sample scores:`, data.ranked_projects.slice(0, 3).map(r => ({ id: r.project_id, overall_score: r.overall_score, total_score: r.total_score })));
+    if (__DEV__) {
+      console.log(`[API] Received ${data.ranked_projects.length} ranked projects from API`);
+      console.log(`[API] First 3 project_ids in response:`, data.ranked_projects.slice(0, 3).map(r => r.project_id));
+      console.log(`[API] Response sample scores:`, data.ranked_projects.slice(0, 3).map(r => ({ id: r.project_id, overall_score: r.overall_score, total_score: r.total_score })));
+    }
     
     return data.ranked_projects.map((r: any) => ({
       project_id: r.project_id,
@@ -265,8 +270,10 @@ export async function getMatchedCandidates(
 
     }));
 
-    console.log(`[API] Sending ${apiCandidates.length} candidates to matching API for project '${user_project.title}' (id=${user_project.id})`);
-    console.log(`[API] Project skills:`, user_project.skills_needed, `tags:`, user_project.tags);
+    if (__DEV__) {
+      console.log(`[API] Sending ${apiCandidates.length} candidates to matching API for project '${user_project.title}' (id=${user_project.id})`);
+      console.log(`[API] Project skills:`, user_project.skills_needed, `tags:`, user_project.tags);
+    }
 
     const requestBody: MatchRequestCandidate = {
       project : {
@@ -303,11 +310,13 @@ export async function getMatchedCandidates(
     }
 
     const data : MatchResponseCandidate = await response.json();
-    console.log(`[API] Received ${data.ranked_candidates.length} ranked candidates from API`);
-    console.log(`[API] Top 3 candidates:`, data.ranked_candidates.slice(0, 3).map((r: any) => ({ id: r.candidate_id, name: r.candidate_name, score: r.overall_score ?? r.total_score })));
-    const scores = data.ranked_candidates.map((r: any) => r.overall_score ?? r.total_score ?? 0);
-    if (scores.length > 0) {
-      console.log(`[API] Score distribution — min: ${Math.min(...scores).toFixed(3)}, max: ${Math.max(...scores).toFixed(3)}, mean: ${(scores.reduce((a: number, b: number) => a + b, 0) / scores.length).toFixed(3)}`);
+    if (__DEV__) {
+      console.log(`[API] Received ${data.ranked_candidates.length} ranked candidates from API`);
+      console.log(`[API] Top 3 candidates:`, data.ranked_candidates.slice(0, 3).map((r: any) => ({ id: r.candidate_id, name: r.candidate_name, score: r.overall_score ?? r.total_score })));
+      const scores = data.ranked_candidates.map((r: any) => r.overall_score ?? r.total_score ?? 0);
+      if (scores.length > 0) {
+        console.log(`[API] Score distribution — min: ${Math.min(...scores).toFixed(3)}, max: ${Math.max(...scores).toFixed(3)}, mean: ${(scores.reduce((a: number, b: number) => a + b, 0) / scores.length).toFixed(3)}`);
+      }
     }
 
     return data.ranked_candidates.map((r: any) => ({

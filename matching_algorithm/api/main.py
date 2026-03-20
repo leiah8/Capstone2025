@@ -99,7 +99,9 @@ async def score_matches(request: MatchRequest):
     try:
         logger.info(f"[SCORE] Received {len(request.projects)} projects from client")
         logger.info(f"[SCORE] First 3 project IDs: {[p.get('id', 'MISSING') for p in request.projects[:3]]}")
-        logger.info(f"[SCORE] User profile - skills: {request.user_profile.get('skills', [])}, interests: {request.user_profile.get('interests', [])}")
+        _skills = request.user_profile.get('skills', []) or []
+        _interests = request.user_profile.get('interests', []) or []
+        logger.debug(f"[SCORE] User profile stats - skills_count: {len(_skills)}, interests_count: {len(_interests)}")
         
         weights = None
         if request.weights:
@@ -112,6 +114,9 @@ async def score_matches(request: MatchRequest):
         )
 
         logger.info(f"[SCORE] Ranked {len(match_scores)} projects")
+        if not match_scores:
+            logger.info("[SCORE] No projects to score; returning empty result")
+            return MatchResponse(ranked_projects=[], count=0)
         logger.info(f"[SCORE] Score distribution: min={min(s.total_score for s in match_scores):.3f}, max={max(s.total_score for s in match_scores):.3f}, mean={sum(s.total_score for s in match_scores) / len(match_scores):.3f}")
         logger.info(f"[SCORE] First 3 result IDs and scores: {[(s.project_id, s.total_score) for s in match_scores[:3]]}")
 
@@ -267,7 +272,8 @@ async def match_health_check():
 
         return {
             "status": "healthy",
-            "model": "all-MiniLM-L6-v2",
+            "semantic_enabled": engine.enable_semantic,
+            "model": "all-MiniLM-L6-v2" if engine.enable_semantic else "disabled",
             "weights": {
                 "semantic": engine.weights.semantic,
                 "skills": engine.weights.skills,
