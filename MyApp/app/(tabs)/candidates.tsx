@@ -42,7 +42,7 @@ import { useAuth } from "../../contexts/AuthContext";
 
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const MAX_DISTANCE = 10000;
+const MAX_DISTANCE = 5000;
 const SWIPE_THRESHOLD = 120;
 const DECK_CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 430);
 const DECK_CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.68, 620);
@@ -61,6 +61,8 @@ const deckCardShell = {
 const PREFETCH_THRESHOLD = 3;    // fetch more when this many cards remain
 const BATCH_SIZE = 20;            // candidates per incremental fetch
 const INITIAL_BATCH_SIZE = 50;   // candidates fetched on first load
+
+let persistedProjectId: string | null = null; 
 
 /* =========================
    Types (make skills optional & flexible)
@@ -125,7 +127,7 @@ const LocationSlider = ({
 
   return (
     <View style={sliderStyles.wrapper}>
-      <View
+      {/* <View
         style={sliderStyles.track}
         onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
         {...sliderPanResponder.panHandlers}
@@ -137,6 +139,17 @@ const LocationSlider = ({
             sliderStyles.thumb,
             { left: `${fillRatio * 100}%` as any },
           ]}
+          pointerEvents="none"
+        />
+      </View> */}
+      <View
+        style={sliderStyles.track}
+        onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
+        {...sliderPanResponder.panHandlers}
+      >
+        <View style={[sliderStyles.fill, { width: `${fillRatio * 100}%` }]} />
+        <View
+          style={[sliderStyles.thumb, { left: `${fillRatio * 100}%` as any }]}
           pointerEvents="none"
         />
       </View>
@@ -154,13 +167,20 @@ const sliderStyles = StyleSheet.create({
     height: 4,
     backgroundColor: "#E1E8F5",
     borderRadius: 2,
-    flexDirection: "row",
+    // flexDirection: "row", ///
     position: "relative",
   },
   fill: {
+    // height: 4,
+    // backgroundColor: "#79BE58",
+    // borderRadius: 2,
     height: 4,
-    backgroundColor: "#79BE58",
-    borderRadius: 2,
+  backgroundColor: "#79BE58",
+  borderRadius: 2,
+  position: "absolute",
+  left: 0,
+  top: 0,
+
   },
   thumb: {
     position: "absolute",
@@ -552,28 +572,33 @@ async function rankCandidatesBatch(
 
     const bestMatchMap = new Map<string, (typeof results)[number][number]>();
     for (const match of results.flat()) {
-      const existing = bestMatchMap.get(match.candidate_id);
-      if (!existing || match.overall_score > existing.overall_score) {
-        bestMatchMap.set(match.candidate_id, match);
-      }
+      // const existing = bestMatchMap.get(match.candidate_id);
+      // if (!existing || match.overall_score > existing.overall_score) {
+        bestMatchMap.set((match.candidate_id, match.project_id), match);
+      // }
     }
 
     const scoreMap = new Map(
-      Array.from(bestMatchMap.values()).map((m) => [m.candidate_id, m.overall_score]),
+      // Array.from(bestMatchMap.values()).map((m) => [m.candidate_id, m.overall_score]),
+      Array.from(bestMatchMap.values()).map((m) => [(m.candidate_id, m.project_id), m.overall_score]),
     );
 
-    const sorted = [...batch].sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0));
-    if (__DEV__) {
-      console.log(`[CANDIDATES] Final ranking — top 3:`);
-      sorted.slice(0, 3).forEach(c => console.log(`  - ${c.id}: ${c.name}, score: ${scoreMap.get(c.id) ?? 0}`));
-    }
+    // const batch2 = 
 
-    return sorted
+    let batch2 : Candidate[] = []
+
+    activeProjects.forEach(p => {
+      batch2.push(...fallback(String(p.id), p.title));
+    });
+
+    // return [...batch]
+    return [...batch2]
+      .sort((a, b) => (scoreMap.get((b.id, b.project_id)) || 0) - (scoreMap.get((a.id, a.project_id)) || 0))
       .map((c) => {
-        const match = bestMatchMap.get(c.id);
+        const match = bestMatchMap.get((c.id, c.project_id));
         const pid = match?.project_id ?? "";
-        const project = activeProjects.find((p) => String(p.id) === pid);
-        return { ...c, project_id: pid, project_name: project?.title ?? "" };
+        // const project = activeProjects.find((p) => String(p.id) === pid);
+        return { ...c, project_id: pid, project_name: c.project_name};
       }) as Candidate[];
   } catch (matchError) {
     console.warn("[CANDIDATES] Failed to rank candidates, using default order:", matchError);
@@ -662,7 +687,8 @@ export default function CandidateFeed() {
           setLoading(true);
 
           const userProjects = await fetchMyProjects(session?.user?.id);
-          setMyProjects(userProjects.map((p) => ({ ...p, included: true })));
+          setMyProjects(userProjects.map((p) => ({ ...p, included: persistedProjectId ? String(p.id) === persistedProjectId : false })));
+          // setMyFilterProject(userProjects[0]); //TODO: CHANGE TO ADD POP UP 
 
 
           const coords = await fetchMyCoords(session?.user?.id);
@@ -692,10 +718,21 @@ export default function CandidateFeed() {
             );
 
             const ranked = await rankCandidatesBatch(allCandidates, userProjects, matchingAvailable);
+            // console.log("HERE HI")
+            // console.log(ranked);
+
             if (!alive) return;
 
+            // Apply persisted project filter immediately if one is selected
+            if (persistedProjectId) {
+              setCandidates(ranked.filter(c => c.project_id === persistedProjectId));
+            } else {
+              setCandidates(ranked);
+            }
+
+
             setAllCandidates(ranked);
-            setCandidates(ranked);
+            // setCandidates(ranked);
             setCurrentIndex(0);
 
             if (allCandidates.length < INITIAL_BATCH_SIZE) {
@@ -840,7 +877,10 @@ export default function CandidateFeed() {
             style={styles.closeDropDownButton}
             onPress={() => {
               setDropdownOpen(false);
-              filterFetchedCandidates();
+              // filterFetchedCandidates();
+
+              //TODO HERE: add a new const for each of the skills, projects, dist to differentiate between UI and acc filtering
+              //also in filtering, and on close, set all UI elements back to actual value
             }}
           >
             <Ionicons name="close" size={35} color="000" />
@@ -861,7 +901,7 @@ export default function CandidateFeed() {
                 onValueChange={setMaxFilterDist}
               />
               <Text style={{ textAlign: "center", color: "#888", fontSize: 13 }}>
-                {maxFilterDist >= MAX_DISTANCE ? MAX_DISTANCE + "km+" : maxFilterDist + "km"}
+                {maxFilterDist >= MAX_DISTANCE ? "Worldwide" : maxFilterDist + "km"}
               </Text>
             </View>
           )
@@ -876,13 +916,23 @@ export default function CandidateFeed() {
                 <TouchableOpacity
                   key={p.id}
                   style={styles.filterRow}
-                  onPress={() =>
-                    setMyProjects((prev) =>
-                      prev.map((proj, j) =>
-                        j === i ? { ...proj, included: !proj.included } : proj,
-                      ),
-                    )
-                  }
+                  // onPress={() => {
+                  //   setMyProjects((prev) =>
+                  //     prev.map((proj, j) =>
+                  //       j === i ? { ...proj, included: !proj.included } : { ...proj, included: false }, //changed here
+                  //     ),
+                  //   );
+                  //   persistedProjectId = p.id ? String(p.id) : null;
+                  // }
+                  // }
+                  onPress={() => {
+                    const newProjects = myProjects.map((proj, j) =>
+                      j === i ? { ...proj, included: !proj.included } : { ...proj, included: false }
+                    );
+                    setMyProjects(newProjects);
+                    const selected = newProjects.find(p => p.included);
+                    persistedProjectId = selected ? String(selected.id) : null; 
+                  }}
                 >
                   <Ionicons
                     name={p.included ? "checkmark-circle" : "ellipse-outline"}
@@ -929,7 +979,7 @@ export default function CandidateFeed() {
                   }}
                 >
                   <Ionicons
-                    name={s.included ? "checkmark-circle" : "ellipse-outline"}
+                    name={s.included ? "checkbox" : "square-outline"}
                     size={20}
                     color={showAllSkills ? "#ddd" : "#333"}
                   />
@@ -946,8 +996,19 @@ export default function CandidateFeed() {
             </View>
           )}
         </View>
+          <View style={styles.center}>
+        <TouchableOpacity
+                      style={[styles.center, styles.resetButton, {width : SCREEN_WIDTH * 0.5}]}
+                      onPress={() => {
+                        setDropdownOpen(false);
+                        filterFetchedCandidates();
+                      }} //TODO HERE hi hello
+                    >
+                      <Text style={styles.resetButtonText}>Apply</Text>
+                </TouchableOpacity>
+                </View>
       </ScrollView>
-    ) : (
+    ) : ( 
       <View
         style={[
           styles.container,
@@ -1022,6 +1083,37 @@ export default function CandidateFeed() {
           surfaceColor="#E8F5E2"
           visible={matchCelebrationTarget !== null}
         />
+
+        {/* Project picker modal */}
+        {persistedProjectId == null && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.pageHeader}>Choose a Project</Text>
+              <Text style={{ color: "#888", textAlign: "center", marginBottom: 16, fontSize: 14 }}>
+                Select a project to browse candidates for
+              </Text>
+              {myProjects.map((p, i) => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={styles.filterRow}
+                  onPress={() => {
+                  
+                  const newProjects = myProjects.map((proj, j) =>
+                    j === i ? { ...proj, included: true } : { ...proj, included: false }
+                  );
+                  setMyProjects(newProjects);
+                  persistedProjectId = String(p.id);
+                  setCandidates(overallCandidates.filter(c => c.project_id === String(p.id)));
+                  }}
+                  
+                >
+                  <Ionicons name="ellipse-outline" size={20} color="#333" />
+                  <Text style={styles.filterLabel}>{p.title}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
       </View>
     )
   ) : (
@@ -1376,4 +1468,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   filterLabel: { fontSize: 14, color: "#333" },
+
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 24,
+    width: "80%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
 });
