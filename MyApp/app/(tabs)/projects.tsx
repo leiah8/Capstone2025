@@ -31,7 +31,7 @@ import {
   checkMatchingAPIHealth,
   getMatchedProjects,
 } from "../../lib/matching-api";
-import { fetchProjects, fetchMatchedProjectIds, likeProject, ProjectUI } from "../../lib/projects";
+import { fetchProjects, fetchSwipedProjectIds, deleteNonMatchedProjectLikes, likeProject, ProjectUI } from "../../lib/projects";
 import { supabase } from "../../lib/supabase";
 import { getUserProfile } from "../../lib/user-profile";
 
@@ -454,27 +454,29 @@ export default function ProjectFeed() {
     setProjects(filteredProjects);
   };
 
-  const loadBrowseProjects = useCallback(async () => {
-    let alive = true;
+  const loadBrowseProjects = useCallback(async (isActive: () => boolean = () => true) => {
     try {
       setLoading(true);
 
-      // Fetch matched project IDs first so we can exclude them at the DB level.
-      // Only projects the user has already *matched* with are hidden — liked-but-unmatched
-      // projects, and projects owned by someone the user matched with elsewhere, remain visible.
-      const matchedIds = session?.user?.id
-        ? await fetchMatchedProjectIds(session.user.id)
+      // Fetch swiped project IDs first so we can exclude them at the DB level.
+      // Both liked and passed projects are hidden — only matched projects are
+      // preserved in the Matches tab and are NOT in project_likes after Start Over.
+      const swipedIds = session?.user?.id
+        ? await fetchSwipedProjectIds(session.user.id)
         : ([] as string[]);
-      const allProjects = await fetchProjects(50, session?.user?.id, matchedIds);
-      if (!alive) return;
+      const allProjects = await fetchProjects(50, session?.user?.id, swipedIds);
+      if (!isActive()) return;
 
       const coords = await fetchMyCoords(session?.user?.id);
+      if (!isActive()) return;
       setMyCoords(coords);
 
       // Check if matching API is available
       const matchingAvailable = await checkMatchingAPIHealth();
+      if (!isActive()) return;
 
       const userProfile = await getUserProfile();
+      if (!isActive()) return;
       setFilterSkills(
         userProfile.skills.map((s) => ({ name: s, included: true })),
       );
@@ -517,6 +519,7 @@ export default function ProjectFeed() {
             rankedProjects.slice(0, 3).forEach(p => console.log(`  - ${p.id}: ${p.name}, score: ${scoreMap.get(p.id)}`));
           }
 
+          if (!isActive()) return;
           setAllProjects(rankedProjects as Project[]);
           setProjects(rankedProjects as Project[]);
           if (__DEV__) {
@@ -529,6 +532,7 @@ export default function ProjectFeed() {
             "Failed to rank projects, using default order:",
             matchError,
           );
+          if (!isActive()) return;
           setAllProjects(allProjects as Project[]);
           setProjects(allProjects as Project[]);
         }
@@ -538,20 +542,19 @@ export default function ProjectFeed() {
             "Matching API not available - showing projects in default order",
           );
         }
+        if (!isActive()) return;
         setAllProjects(allProjects as Project[]);
         setProjects(allProjects as Project[]);
       }
 
+      if (!isActive()) return;
       setCurrentIndex(0);
     } catch (e: any) {
-      if (!alive) return;
+      if (!isActive()) return;
       setErr(e.message ?? String(e));
     } finally {
-      if (alive) setLoading(false);
+      if (isActive()) setLoading(false);
     }
-    return () => {
-      alive = false;
-    };
   }, [session?.user?.id]);
 
   const advance = () => {
@@ -561,13 +564,13 @@ export default function ProjectFeed() {
   const handleSwipe = async (direction: "left" | "right") => {
     const project = projects[currentIndex];
     advance();
-    if (direction !== "right" || !session?.user?.id || !project) return;
+    if (!session?.user?.id || !project) return;
     try {
       const matchResult = await likeProject(
         session.user.id,
         project.owner_id,
         project.id,
-        "like",
+        direction === "right" ? "like" : "pass",
       );
       if (matchResult?.match) {
         setMatchCelebrationTarget(project.name);
@@ -597,18 +600,33 @@ export default function ProjectFeed() {
     }
   }, [session?.user?.id]);
 
-  // Refresh both project lists when the screen regains focus,
-  // but don't re-run just because the local segmented tab changed.
+  // Refresh both project lists when the screen regains focus.
+  // The browse feed re-runs the algorithm each time so already-swiped
+  // projects are excluded based on the latest project_likes data.
   useFocusEffect(
     useCallback(() => {
-      loadBrowseProjects();
+      let isActive = true;
+
+      void loadBrowseProjects(() => isActive);
       fetchMyProjects();
+
+      return () => {
+        isActive = false;
+      };
     }, [loadBrowseProjects, fetchMyProjects]),
   );
 
   useEffect(() => {
     if (tab === "mine") fetchMyProjects();
   }, [tab, fetchMyProjects]);
+
+  // When the logged-in user changes, reset feed state so a fresh load runs.
+  useEffect(() => {
+    setProjects([]);
+    setAllProjects([]);
+    setCurrentIndex(0);
+    setErr(null);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1002,7 +1020,16 @@ export default function ProjectFeed() {
                   <Text style={styles.endText}>No more projects!</Text>
                   <TouchableOpacity
                     style={styles.resetButton}
-                    onPress={() => setCurrentIndex(0)}
+                    onPress={async () => {
+                      try {
+                        if (session?.user?.id) {
+                          await deleteNonMatchedProjectLikes(session.user.id);
+                        }
+                        await loadBrowseProjects();
+                      } catch (e: any) {
+                        console.warn('Failed to reset projects feed:', e.message ?? e);
+                      }
+                    }}
                   >
                     <Text style={styles.resetButtonText}>Start Over</Text>
                   </TouchableOpacity>

@@ -1,5 +1,9 @@
 import pytest
+from fastapi.testclient import TestClient
 from matching import MatchingEngine, MatchWeights, MatchScore
+from api.main import app
+
+client = TestClient(app)
 
 
 @pytest.fixture
@@ -202,6 +206,200 @@ class TestCustomWeights:
                 skills=0.5,
                 interests=0.5
             )
+
+
+# ---------------------------------------------------------------------------
+# Edge-case unit tests: empty inputs must never raise
+# ---------------------------------------------------------------------------
+
+class TestEmptyInputEdgeCases:
+    """Ensure engine methods return safe defaults for empty/minimal inputs."""
+
+    def test_rank_projects_empty_list(self, engine, sample_user_profile):
+        """rank_projects([]) must return an empty list, not raise."""
+        result = engine.rank_projects(sample_user_profile, [])
+        assert result == []
+
+    def test_rank_projects_empty_profile(self, engine, sample_projects):
+        """rank_projects with a bare profile (no skills/interests/bio) must not raise."""
+        result = engine.rank_projects({}, sample_projects)
+        assert len(result) == len(sample_projects)
+        # All scores should be valid floats in [0, 1]
+        for score in result:
+            assert 0.0 <= score.total_score <= 1.0
+
+    def test_calculate_match_score_empty_project(self, engine, sample_user_profile):
+        """calculate_match_score with an empty project dict must not raise."""
+        score = engine.calculate_match_score(sample_user_profile, {})
+        assert isinstance(score, MatchScore)
+        assert 0.0 <= score.total_score <= 1.0
+
+    def test_skill_match_empty_required(self, engine):
+        ratio, matched, missing = engine.calculate_skill_match(["Python"], [])
+        assert ratio == 0.0
+        assert matched == []
+        assert missing == []
+
+    def test_skill_match_empty_user(self, engine):
+        ratio, matched, missing = engine.calculate_skill_match([], ["Python", "React"])
+        assert ratio == 0.0
+        assert len(missing) == 2
+
+    def test_interest_match_empty_tags(self, engine):
+        ratio, matched = engine.calculate_interest_match(["AI"], [])
+        assert ratio == 0.0
+
+    def test_interest_match_empty_user(self, engine):
+        ratio, matched = engine.calculate_interest_match([], ["AI"])
+        assert ratio == 0.0
+
+    def test_semantic_similarity_both_empty(self, engine):
+        result = engine.calculate_semantic_similarity("", "")
+        assert result == 0.0
+
+
+# ---------------------------------------------------------------------------
+# API endpoint tests — run via TestClient (no live server required)
+# ---------------------------------------------------------------------------
+
+GOOD_PROFILE = {
+    "skills": ["Python", "React"],
+    "interests": ["AI"],
+    "bio": "Full-stack developer",
+}
+
+GOOD_PROJECT = {
+    "id": "p1",
+    "description": "AI web app with Python and React",
+    "skills": ["Python", "React"],
+    "tags": ["AI"],
+}
+
+GOOD_CANDIDATE = {
+    "id": "c1",
+    "name": "Alice",
+    "bio": "Python developer interested in AI",
+    "skills": ["Python", "React"],
+    "interests": ["AI"],
+}
+
+GOOD_CANDIDATE_PROJECT = {
+    "title": "AI Web App",
+    "description": "Building an AI web application",
+    "skills": ["Python", "React"],
+    "tags": ["AI"],
+}
+
+
+class TestScoreEndpointEmptyGuards:
+    """POST /match/score must return 200 + empty list, never 500, for empty inputs."""
+
+    def test_empty_projects_list_returns_200(self):
+        resp = client.post("/match/score", json={
+            "user_profile": GOOD_PROFILE,
+            "projects": [],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ranked_projects"] == []
+        assert data["count"] == 0
+
+    def test_exclude_all_projects_returns_empty(self):
+        """When exclude_project_ids covers every project the response must be empty, not 500."""
+        resp = client.post("/match/score", json={
+            "user_profile": GOOD_PROFILE,
+            "projects": [GOOD_PROJECT],
+            "exclude_project_ids": ["p1"],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ranked_projects"] == []
+        assert data["count"] == 0
+
+    def test_normal_scoring_still_works(self):
+        resp = client.post("/match/score", json={
+            "user_profile": GOOD_PROFILE,
+            "projects": [GOOD_PROJECT],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 1
+        assert data["ranked_projects"][0]["project_id"] == "p1"
+
+    def test_exclude_subset_leaves_rest(self):
+        project2 = {**GOOD_PROJECT, "id": "p2", "description": "Game dev with Unity"}
+        resp = client.post("/match/score", json={
+            "user_profile": GOOD_PROFILE,
+            "projects": [GOOD_PROJECT, project2],
+            "exclude_project_ids": ["p1"],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 1
+        assert data["ranked_projects"][0]["project_id"] == "p2"
+
+    def test_empty_user_profile_does_not_crash(self):
+        resp = client.post("/match/score", json={
+            "user_profile": {},
+            "projects": [GOOD_PROJECT],
+        })
+        assert resp.status_code == 200
+
+
+class TestCandidatesEndpointEmptyGuards:
+    """POST /match/candidates must return 200 + empty list, never 500, for empty inputs."""
+
+    def test_empty_candidates_list_returns_200(self):
+        resp = client.post("/match/candidates", json={
+            "project": GOOD_CANDIDATE_PROJECT,
+            "candidates": [],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ranked_candidates"] == []
+        assert data["count"] == 0
+
+    def test_exclude_all_candidates_returns_empty(self):
+        """When exclude_candidate_ids covers every candidate the response must be empty, not 500."""
+        resp = client.post("/match/candidates", json={
+            "project": GOOD_CANDIDATE_PROJECT,
+            "candidates": [GOOD_CANDIDATE],
+            "exclude_candidate_ids": ["c1"],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ranked_candidates"] == []
+        assert data["count"] == 0
+
+    def test_normal_candidate_scoring_still_works(self):
+        resp = client.post("/match/candidates", json={
+            "project": GOOD_CANDIDATE_PROJECT,
+            "candidates": [GOOD_CANDIDATE],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 1
+        assert data["ranked_candidates"][0]["candidate_id"] == "c1"
+
+    def test_exclude_subset_leaves_rest(self):
+        candidate2 = {**GOOD_CANDIDATE, "id": "c2", "name": "Bob",
+                      "skills": ["C#", "Unity"], "interests": ["Gaming"]}
+        resp = client.post("/match/candidates", json={
+            "project": GOOD_CANDIDATE_PROJECT,
+            "candidates": [GOOD_CANDIDATE, candidate2],
+            "exclude_candidate_ids": ["c1"],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 1
+        assert data["ranked_candidates"][0]["candidate_id"] == "c2"
+
+    def test_empty_project_description_does_not_crash(self):
+        resp = client.post("/match/candidates", json={
+            "project": {"title": "", "description": "", "skills": [], "tags": []},
+            "candidates": [GOOD_CANDIDATE],
+        })
+        assert resp.status_code == 200
 
 
 if __name__ == "__main__":

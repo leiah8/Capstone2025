@@ -125,7 +125,8 @@ async def score_matches(request: MatchRequest):
         if not match_scores:
             logger.info("[SCORE] No projects to score; returning empty result")
             return MatchResponse(ranked_projects=[], count=0)
-        logger.info(f"[SCORE] Score distribution: min={min(s.total_score for s in match_scores):.3f}, max={max(s.total_score for s in match_scores):.3f}, mean={sum(s.total_score for s in match_scores) / len(match_scores):.3f}")
+        scores = [s.total_score for s in match_scores]
+        logger.info(f"[SCORE] Score distribution: min={min(scores):.3f}, max={max(scores):.3f}, mean={sum(scores)/len(scores):.3f}")
         logger.info(f"[SCORE] First 3 result IDs and scores: {[(s.project_id, s.total_score) for s in match_scores[:3]]}")
 
         ranked = [score.to_dict() for score in match_scores]
