@@ -544,23 +544,33 @@ async function rankCandidatesBatch(
 
     const bestMatchMap = new Map<string, (typeof results)[number][number]>();
     for (const match of results.flat()) {
-      const existing = bestMatchMap.get(match.candidate_id);
-      if (!existing || match.overall_score > existing.overall_score) {
-        bestMatchMap.set(match.candidate_id, match);
-      }
+      // const existing = bestMatchMap.get(match.candidate_id);
+      // if (!existing || match.overall_score > existing.overall_score) {
+        bestMatchMap.set((match.candidate_id, match.project_id), match);
+      // }
     }
 
     const scoreMap = new Map(
-      Array.from(bestMatchMap.values()).map((m) => [m.candidate_id, m.overall_score]),
+      // Array.from(bestMatchMap.values()).map((m) => [m.candidate_id, m.overall_score]),
+      Array.from(bestMatchMap.values()).map((m) => [(m.candidate_id, m.project_id), m.overall_score]),
     );
 
-    return [...batch]
-      .sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0))
+    // const batch2 = 
+
+    let batch2 : Candidate[] = []
+
+    activeProjects.forEach(p => {
+      batch2.push(...fallback(String(p.id), p.title));
+    });
+
+    // return [...batch]
+    return [...batch2]
+      .sort((a, b) => (scoreMap.get((b.id, b.project_id)) || 0) - (scoreMap.get((a.id, a.project_id)) || 0))
       .map((c) => {
-        const match = bestMatchMap.get(c.id);
+        const match = bestMatchMap.get((c.id, c.project_id));
         const pid = match?.project_id ?? "";
-        const project = activeProjects.find((p) => String(p.id) === pid);
-        return { ...c, project_id: pid, project_name: project?.title ?? "" };
+        // const project = activeProjects.find((p) => String(p.id) === pid);
+        return { ...c, project_id: pid, project_name: c.project_name};
       }) as Candidate[];
   } catch (matchError) {
     console.warn("Failed to rank candidates, using default order:", matchError);
@@ -649,7 +659,8 @@ export default function CandidateFeed() {
           setLoading(true);
 
           const userProjects = await fetchMyProjects(session?.user?.id);
-          setMyProjects(userProjects.map((p) => ({ ...p, included: true })));
+          setMyProjects(userProjects.map((p) => ({ ...p, included: false })));
+          // setMyFilterProject(userProjects[0]); //TODO: CHANGE TO ADD POP UP 
 
 
           const coords = await fetchMyCoords(session?.user?.id);
@@ -866,7 +877,7 @@ export default function CandidateFeed() {
                   onPress={() =>
                     setMyProjects((prev) =>
                       prev.map((proj, j) =>
-                        j === i ? { ...proj, included: !proj.included } : proj,
+                        j === i ? { ...proj, included: !proj.included } : { ...proj, included: false }, //changed here
                       ),
                     )
                   }
@@ -916,7 +927,7 @@ export default function CandidateFeed() {
                   }}
                 >
                   <Ionicons
-                    name={s.included ? "checkmark-circle" : "ellipse-outline"}
+                    name={s.included ? "checkbox" : "square-outline"}
                     size={20}
                     color={showAllSkills ? "#ddd" : "#333"}
                   />
