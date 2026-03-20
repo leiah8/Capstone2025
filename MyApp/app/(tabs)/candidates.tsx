@@ -311,7 +311,7 @@ const CandidateCard = ({
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, g) => {
         const { dx, dy } = g;
         // Only hijack the gesture if horizontal movement is dominant
