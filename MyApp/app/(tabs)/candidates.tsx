@@ -28,9 +28,9 @@ import {
   CandidateUI,
   deleteNonMatchedCandidateLikes,
   fetchCandidates,
-  fetchSwipedCandidateIds,
   fetchMyCoords,
   fetchMyProjects,
+  fetchSwipedCandidateIds,
   likeCandidate,
   MyProject,
 } from "../../lib/candidates";
@@ -333,7 +333,7 @@ const CandidateCard = ({
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false, //true,
       onMoveShouldSetPanResponder: (_, g) => {
         const { dx, dy } = g;
         // Only hijack the gesture if horizontal movement is dominant
@@ -688,6 +688,9 @@ export default function CandidateFeed() {
 
       const userProjects = await fetchMyProjects(session?.user?.id);
       setMyProjects(userProjects.map((p) => ({ ...p, included: persistedProjectId ? String(p.id) === persistedProjectId : false })));
+      if (userProjects.length == 1) {
+        persistedProjectId = String(userProjects[0].id);
+      }
 
       const coords = await fetchMyCoords(session?.user?.id);
       setMyCoords(coords);
@@ -790,7 +793,19 @@ export default function CandidateFeed() {
   const handleSwipe = async (direction: "left" | "right") => {
     const candidate = candidates[currentIndex];
     const nextIndex = currentIndex + 1;
-    advance();
+    // advance();
+
+    const nextCandidate = candidates[currentIndex + 1]
+
+    //remove candidates from fetched 
+    setAllCandidates((prev) => {
+      return prev.filter((c) => c.id !== candidate.id);
+    });
+    setCandidates((prev) => {
+      return prev.filter((c) => c.id !== candidate.id);
+    });
+
+    // setCurrentIndex(candidates.indexOf(nextCandidate))
 
     // Proactively fetch the next batch when the queue is running low.
     if (candidates.length - nextIndex <= PREFETCH_THRESHOLD) {
@@ -1077,7 +1092,7 @@ export default function CandidateFeed() {
         />
 
         {/* Project picker modal */}
-        {persistedProjectId == null && (
+        {persistedProjectId == null && myProjects.length > 1 &&  (
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
               <Text style={styles.pageHeader}>Choose a Project</Text>
