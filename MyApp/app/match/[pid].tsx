@@ -6,10 +6,12 @@ import { supabase } from '../../lib/supabase';
 
 import { Message, DbMatch } from '../../lib/match';
 
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 
 import { useLocalSearchParams } from 'expo-router';
 import {
+  Image,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -20,7 +22,9 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PersonUI } from '../../lib/profile';
+import { Ionicons } from '@expo/vector-icons';
+import { PersonUI, resolveProfileImageUrl } from '../../lib/profile';
+import { formatMessageTime } from '../../lib/format-time';
 
 /* ── Module-level cache (survives navigation, cleared on app restart) ── */
 type CacheEntry = {
@@ -28,6 +32,7 @@ type CacheEntry = {
   messages: Message[];
   person: PersonUI;
   projectName: string;
+  projectImage: string;
 };
 const chatCache = new Map<string, CacheEntry>();
 
@@ -46,6 +51,7 @@ export default function MatchesPage() {
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
     const [projectName, setProjectName] = useState<string>(cached?.projectName ?? '');
+    const [projectImage, setProjectImage] = useState<string>(cached?.projectImage ?? '');
 
     const insets = useSafeAreaInsets();
     const scrollRef = useRef<ScrollView>(null);
@@ -73,10 +79,13 @@ export default function MatchesPage() {
             // Load the project name
             const { data: projectData } = await supabase
               .from('projects')
-              .select('title')
+              .select('title, image')
               .eq('id', match.project_id)
               .single();
-            if (projectData) setProjectName(projectData.title);
+            if (projectData) {
+              setProjectName(projectData.title);
+              setProjectImage(projectData.image ?? '');
+            }
 
             // Determine the other person
             const otherPersonId = match.owner_id === session?.user?.id
@@ -93,7 +102,11 @@ export default function MatchesPage() {
             if (profileError && profileError.code !== 'PGRST116') {
               console.error('Error loading profile:', profileError);
             } else if (profileData) {
-              setPerson(profileData as PersonUI);
+              setPerson({
+                id: profileData.id,
+                name: profileData.name,
+                image: resolveProfileImageUrl(profileData.profile_image ?? null, profileData.id),
+              });
             }
 
             // Find the conversation shared between both participants
@@ -147,8 +160,13 @@ export default function MatchesPage() {
               chatCache.set(String(pid), {
                 conversationId: convData.id,
                 messages: freshMessages,
-                person: profileData as PersonUI ?? person,
+                person: profileData ? {
+                  id: profileData.id,
+                  name: profileData.name,
+                  image: resolveProfileImageUrl(profileData.profile_image ?? null, profileData.id),
+                } : person,
                 projectName: projectData?.title ?? projectName,
+                projectImage: projectData?.image ?? projectImage,
               });
             }
 
@@ -241,49 +259,72 @@ export default function MatchesPage() {
       <>
       <Stack.Screen options={{
           headerShown: true,
-          headerBackTitle: 'Back',
-          headerTitle: () => (
-              <View>
-                    <Text style={styles.headerTitle}>{person?.name || ''}</Text>
-                    {projectName ? <Text style={styles.sectionTitle}>{projectName}</Text> : null}
-                </View>
+          contentStyle: { backgroundColor: '#fff' },
+          header: () => (
+            <View style={styles.customHeader}>
+              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <Ionicons name="chevron-back" size={32} color="#79BE58" />
+              </TouchableOpacity>
+              <View style={styles.headerRow}>
+                {person?.image ? (
+                  <Image source={{ uri: person.image }} style={styles.headerAvatar} />
+                ) : (
+                  <View style={styles.headerAvatarPlaceholder}>
+                    <Ionicons name="person" size={18} color="#999" />
+                  </View>
+                )}
+                <Text style={styles.headerName} numberOfLines={1}>{person?.name || ''}</Text>
+              </View>
+            </View>
           ),
         }}/>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.container}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 130 : 0}
         >
 
-            <ScrollView
-              ref={scrollRef}
-              contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}
-              style={styles.scrollView}
-              showsVerticalScrollIndicator={false}
-              onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+            <ImageBackground
+              source={projectImage ? { uri: projectImage } : undefined}
+              style={{ flex: 1 }}
+              imageStyle={{ opacity: 0.06 }}
+              resizeMode="cover"
             >
-                {/* Messages */}
-                <View style={styles.messagesContainer}>
-                  <View style={styles.list}>
-                      {messages.map((m, index) => (
-                          <View
-                            key={m.id ?? index}
-                            style={[
-                              styles.bubble,
-                              m.sender_id === session?.user?.id ? styles.sentBubble : styles.receivedBubble,
-                            ]}
-                          >
-                              <Text style={m.sender_id === session?.user?.id ? styles.sentText : styles.receivedText}>
-                                {m.body}
+              <ScrollView
+                ref={scrollRef}
+                contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}
+                style={styles.scrollView}
+                showsVerticalScrollIndicator={false}
+                onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+              >
+                  {projectName ? (
+                    <Text style={styles.projectBanner}>{projectName}</Text>
+                  ) : null}
+                  {/* Messages */}
+                  <View style={styles.messagesContainer}>
+                    <View style={styles.list}>
+                        {messages.map((m, index) => {
+                          const isSent = m.sender_id === session?.user?.id;
+                          return (
+                            <View key={m.id ?? index} style={{ alignSelf: isSent ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
+                              <View style={[styles.bubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
+                                <Text style={isSent ? styles.sentText : styles.receivedText}>
+                                  {m.body}
+                                </Text>
+                              </View>
+                              <Text style={[styles.timestamp, { alignSelf: isSent ? 'flex-end' : 'flex-start' }]}>
+                                {formatMessageTime(m.created_at)}
                               </Text>
-                          </View>
-                      ))}
+                            </View>
+                          );
+                        })}
+                    </View>
                   </View>
-                </View>
-            </ScrollView>
+              </ScrollView>
+            </ImageBackground>
 
             {/* Input bar */}
-            <View style={[styles.inputBar, { paddingBottom: (insets.bottom || 0) + 8 }]}>
+            <View style={[styles.inputBar, { paddingBottom: (insets.bottom || 0) + 20 }]}>
               <TextInput
                 style={styles.textInput}
                 placeholder="Message..."
@@ -317,11 +358,62 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
   scrollView: { flex: 1, paddingHorizontal: 20 },
 
+  customHeader: {
+    backgroundColor: '#fff',
+    paddingTop: 54,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e8e8e8',
+    alignItems: 'center',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 8,
+    top: 54,
+    bottom: 0,
+    justifyContent: 'center',
+    padding: 8,
+  },
+  backText: {
+    color: '#007AFF',
+    fontSize: 17,
+  },
+  headerRow: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#79BE58',
+  },
+  headerAvatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#e8e8e8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333',
+    marginTop: 4,
+  },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#333' },
+  projectBanner: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#999',
+    paddingVertical: 10,
+  },
 
   section: { marginBottom: 25 },
   label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
-  sectionTitle: { fontSize: 14, fontWeight: 'normal', color: '#333' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
 
   profileImage: { width: 120, height: 120, borderRadius: 60 },
@@ -339,18 +431,15 @@ const styles = StyleSheet.create({
 
   bubble: {
     padding: 10,
-    marginVertical: 4,
+    marginTop: 4,
     borderRadius: 16,
-    maxWidth: '75%',
   },
   sentBubble: {
     backgroundColor: '#1A1A1A',
-    alignSelf: 'flex-end',
     borderBottomRightRadius: 4,
   },
   receivedBubble: {
     backgroundColor: '#e8e8e8',
-    alignSelf: 'flex-start',
     borderBottomLeftRadius: 4,
   },
   sentText: {
@@ -361,12 +450,19 @@ const styles = StyleSheet.create({
     color: '#333',
     fontSize: 15,
   },
+  timestamp: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 2,
+    marginBottom: 4,
+    marginHorizontal: 4,
+  },
 
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: 12,
-    paddingTop: 8,
+    paddingTop: 14,
     paddingBottom: 8,
     borderTopWidth: 1,
     borderTopColor: '#e8e8e8',
@@ -385,7 +481,7 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     marginLeft: 8,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#79BE58',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,

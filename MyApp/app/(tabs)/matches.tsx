@@ -3,8 +3,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { MatchUI } from "../../lib/match";
 import { fetchAllMatchesOptimized } from "../../lib/match-queries";
+import { formatRelativeDate } from "../../lib/format-time";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 
 import { router, useFocusEffect } from "expo-router";
@@ -31,6 +32,15 @@ const MATCHES_TABS = [
   { key: "candidates", label: "Candidates", icon: "people-outline" },
 ] as const;
 
+const SORT_OPTIONS = [
+  { key: 'latest_message', label: 'Latest Message' },
+  { key: 'earliest_message', label: 'Earliest Message' },
+  { key: 'newest_match', label: 'Newest Match' },
+  { key: 'oldest_match', label: 'Oldest Match' },
+  { key: 'alpha_asc', label: 'A → Z' },
+  { key: 'alpha_desc', label: 'Z → A' },
+] as const;
+
 export default function MatchesPage() {
   const { session } = useAuth();
   const { matchNotifs, newMatchIds } = useNotifications();
@@ -41,7 +51,11 @@ export default function MatchesPage() {
   const [projectMatchesUI, setProjectMatchesUI] = useState<MatchUI[]>([]);
   const [candidateMatchesUI, setCandidateMatchesUI] = useState<MatchUI[]>([]);
 
-  const [projectsPage, setPage] = useState(true);
+  const [projectsPage, setPageRaw] = useState(true);
+  const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [showProjectFilter, setShowProjectFilter] = useState(false);
+  const [sortBy, setSortBy] = useState<string>('latest_message');
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const [headerTrackWidth, setHeaderTrackWidth] = useState(0);
   const headerIndicatorX = useRef(new Animated.Value(0)).current;
 
@@ -62,7 +76,54 @@ export default function MatchesPage() {
           0,
         )
       : 0;
+  const setPage = (val: boolean) => {
+    setPageRaw(val);
+    setSelectedProject('all');
+    setShowProjectFilter(false);
+    setSortBy('latest_message');
+    setShowSortMenu(false);
+  };
   const activeMatches = projectsPage ? projectMatchesUI : candidateMatchesUI;
+
+  const uniqueProjects = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const m of activeMatches) {
+      if (m.project_id && m.project_name) seen.set(m.project_id, m.project_name);
+    }
+    return Array.from(seen, ([id, name]) => ({ id, name }));
+  }, [activeMatches]);
+
+  const filteredMatches = selectedProject === 'all'
+    ? activeMatches
+    : activeMatches.filter(m => m.project_id === selectedProject);
+
+  const sortedMatches = useMemo(() => {
+    const sorted = [...filteredMatches];
+    switch (sortBy) {
+      case 'latest_message':
+        return sorted.sort((a, b) => {
+          const aTime = a.last_message_at ?? a.created_at;
+          const bTime = b.last_message_at ?? b.created_at;
+          return new Date(bTime).getTime() - new Date(aTime).getTime();
+        });
+      case 'earliest_message':
+        return sorted.sort((a, b) => {
+          const aTime = a.last_message_at ?? a.created_at;
+          const bTime = b.last_message_at ?? b.created_at;
+          return new Date(aTime).getTime() - new Date(bTime).getTime();
+        });
+      case 'newest_match':
+        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      case 'oldest_match':
+        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      case 'alpha_asc':
+        return sorted.sort((a, b) => (a.candidate_name ?? '').localeCompare(b.candidate_name ?? ''));
+      case 'alpha_desc':
+        return sorted.sort((a, b) => (b.candidate_name ?? '').localeCompare(a.candidate_name ?? ''));
+      default:
+        return sorted;
+    }
+  }, [filteredMatches, sortBy]);
 
   const gotoMatch = (pid: string | number) => {
     router.push(`/match/${pid}`);
@@ -225,12 +286,63 @@ export default function MatchesPage() {
             })}
           </View>
 
+          <View style={{ zIndex: 10 }}>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              {!projectsPage && uniqueProjects.length >= 1 && (
+                <TouchableOpacity
+                  onPress={() => { setShowProjectFilter(!showProjectFilter); setShowSortMenu(false); }}
+                  style={styles.filterButton}
+                >
+                  <Ionicons name="filter" size={18} color={showProjectFilter ? "#79BE58" : "#333"} />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => { setShowSortMenu(!showSortMenu); setShowProjectFilter(false); }}
+                style={styles.filterButton}
+              >
+                <Ionicons name="swap-vertical" size={18} color={showSortMenu ? "#79BE58" : "#333"} />
+              </TouchableOpacity>
+            </View>
+            {showProjectFilter && (
+              <View style={styles.filterDropdown}>
+                <TouchableOpacity
+                  style={[styles.filterOption, selectedProject === 'all' && styles.filterOptionActive]}
+                  onPress={() => { setSelectedProject('all'); setShowProjectFilter(false); }}
+                >
+                  <Text style={styles.filterOptionText}>All Projects</Text>
+                </TouchableOpacity>
+                {uniqueProjects.map(p => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[styles.filterOption, selectedProject === p.id && styles.filterOptionActive]}
+                    onPress={() => { setSelectedProject(p.id); setShowProjectFilter(false); }}
+                  >
+                    <Text style={styles.filterOptionText}>{p.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {showSortMenu && (
+              <View style={styles.filterDropdown}>
+                {SORT_OPTIONS.map(opt => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.filterOption, sortBy === opt.key && styles.filterOptionActive]}
+                    onPress={() => { setSortBy(opt.key); setShowSortMenu(false); }}
+                  >
+                    <Text style={styles.filterOptionText}>{opt.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
           <View style={styles.list}>
-            {activeMatches.map((match, index) => {
+            {sortedMatches.map((match, index) => {
               const notifCount = matchNotifs.get(String(match.match_id)) ?? 0;
               const isNewMatch = newMatchIds.has(String(match.match_id));
               const displayName = projectsPage
-                ? match.project_name
+                ? match.candidate_name
                 : match.candidate_name;
 
               return (
@@ -245,17 +357,38 @@ export default function MatchesPage() {
                       source={{ uri: match.project_image }}
                       style={styles.profileImage}
                     />
-                    <Text>{displayName}</Text>
-                    {isNewMatch && (
-                      <View style={styles.newMatchPill}>
-                        <Text style={styles.newMatchPillText}>new</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.matchName}>{displayName}</Text>
+                      <Text style={styles.matchProject} numberOfLines={1}>{match.project_name}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                      {(match.last_message_body || match.last_message_at) ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: 140 }}>
+                          {match.last_message_body && (
+                            <Text style={styles.lastMessage} numberOfLines={1}>
+                              {match.last_message_body}
+                            </Text>
+                          )}
+                          {match.last_message_at && (
+                            <Text style={styles.lastMessageTime}>
+                              {formatRelativeDate(match.last_message_at)}
+                            </Text>
+                          )}
+                        </View>
+                      ) : null}
+                      <View style={{ flexDirection: 'row', gap: 4 }}>
+                        {isNewMatch && (
+                          <View style={styles.newMatchPill}>
+                            <Text style={styles.newMatchPillText}>new</Text>
+                          </View>
+                        )}
+                        {notifCount > 0 && (
+                          <View style={styles.newBadge}>
+                            <Text style={styles.newBadgeText}>{notifCount}</Text>
+                          </View>
+                        )}
                       </View>
-                    )}
-                    {notifCount > 0 && (
-                      <View style={styles.newBadge}>
-                        <Text style={styles.newBadgeText}>{notifCount}</Text>
-                      </View>
-                    )}
+                    </View>
                   </View>
                 </TouchableOpacity>
               );
@@ -384,6 +517,27 @@ const styles = StyleSheet.create({
   },
 
   profileImage: { width: 60, height: 60, borderRadius: 60 },
+  matchName: { fontSize: 15, fontWeight: '600', color: '#333' },
+  matchProject: { fontSize: 12, color: '#999', marginTop: 2 },
+  lastMessage: { fontSize: 12, color: '#999', flex: 1 },
+  lastMessageTime: { fontSize: 11, color: '#aaa' },
+  filterButton: {
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#C8E4BC',
+    borderRadius: 20,
+  },
+  filterDropdown: {
+    marginTop: 4,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  filterOption: { paddingVertical: 10, paddingHorizontal: 14 },
+  filterOptionActive: { backgroundColor: '#E8F5E2' },
+  filterOptionText: { fontSize: 14, color: '#333' },
 
   placeholderImage: {
     width: 60,
