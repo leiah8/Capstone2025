@@ -38,7 +38,7 @@ import { getUserProfile } from "../../lib/user-profile";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 120;
-const MAX_DISTANCE = 10000;
+const MAX_DISTANCE = 5000;
 
 const HEADER_TRACK_PADDING = 6;
 const DECK_CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 430);
@@ -791,7 +791,7 @@ export default function ProjectFeed() {
                         onValueChange={setMaxFilterDist}
                       />
                       <Text style={{ textAlign: "center", color: "#888", fontSize: 13 }}>
-                        {maxFilterDist >= MAX_DISTANCE ? MAX_DISTANCE + "km+" : maxFilterDist + "km"}
+                        {maxFilterDist >= MAX_DISTANCE ? "Worldwide" : maxFilterDist + "km"}
                       </Text>
                     </View>
                   )

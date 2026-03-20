@@ -42,7 +42,7 @@ import { useAuth } from "../../contexts/AuthContext";
 
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const MAX_DISTANCE = 10000;
+const MAX_DISTANCE = 5000;
 const SWIPE_THRESHOLD = 120;
 const DECK_CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 430);
 const DECK_CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.68, 620);
@@ -872,7 +872,7 @@ export default function CandidateFeed() {
                 onValueChange={setMaxFilterDist}
               />
               <Text style={{ textAlign: "center", color: "#888", fontSize: 13 }}>
-                {maxFilterDist >= MAX_DISTANCE ? MAX_DISTANCE + "km+" : maxFilterDist + "km"}
+                {maxFilterDist >= MAX_DISTANCE ? "Worldwide" : maxFilterDist + "km"}
               </Text>
             </View>
           )
