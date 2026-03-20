@@ -246,7 +246,6 @@ const ProjectCard = ({
       useNativeDriver: false,
     }).start(() => {
       onSwipeRef.current("right");
-      position.setValue({ x: 0, y: 0 });
     });
   };
   const swipeLeft = () => {
@@ -256,7 +255,6 @@ const ProjectCard = ({
       useNativeDriver: false,
     }).start(() => {
       onSwipeRef.current("left");
-      position.setValue({ x: 0, y: 0 });
     });
   };
   const resetPosition = () =>

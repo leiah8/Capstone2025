@@ -54,6 +54,7 @@ export async function fetchProjectMatchesOptimized(userId: string): Promise<Matc
       owner_name: match.owner_profile?.name || '0',
       owner_id: match.owner_id,
       candidate_id: match.candidate_id,
+      project_id: match.project_id,
       created_at: match.created_at,
       project_image: match.projects?.image || '0',
       candidate_image: match.candidate_profile?.profile_image || '0',
@@ -118,6 +119,7 @@ export async function fetchCandidateMatchesOptimized(userId: string): Promise<Ma
       owner_name: match.owner_profile?.name || '0',
       owner_id: match.owner_id,
       candidate_id: match.candidate_id,
+      project_id: match.project_id,
       created_at: match.created_at,
       project_image: match.projects?.image || '0',
       candidate_image: match.candidate_profile?.profile_image || '0',
@@ -128,6 +130,81 @@ export async function fetchCandidateMatchesOptimized(userId: string): Promise<Ma
   } catch (error) {
     console.error('Error in fetchCandidateMatchesOptimized:', error);
     return [];
+  }
+}
+
+/**
+ * Enrich matches with last message data.
+ * Finds conversations between match participants and gets the latest message.
+ */
+async function enrichMatchesWithLastMessage(
+  matches: MatchUI[],
+  userId: string
+): Promise<MatchUI[]> {
+  if (matches.length === 0) return matches;
+
+  try {
+    // Step 1: Get all conversations the current user participates in
+    const { data: myParts } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id, user_id')
+      .eq('user_id', userId);
+    if (!myParts || myParts.length === 0) return matches;
+
+    const myConvIds = myParts.map((r) => r.conversation_id);
+
+    // Step 2: Get all participants for those conversations to map conv → participants
+    const { data: allParts } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id, user_id')
+      .in('conversation_id', myConvIds);
+    if (!allParts) return matches;
+
+    // Build map: conversation_id → Set of participant user_ids
+    const convParticipants = new Map<string, Set<string>>();
+    for (const p of allParts) {
+      const key = String(p.conversation_id);
+      if (!convParticipants.has(key)) convParticipants.set(key, new Set());
+      convParticipants.get(key)!.add(p.user_id);
+    }
+
+    // Step 3: Fetch latest messages for all conversations (ordered desc, pick first per conv in JS)
+    const { data: recentMessages } = await supabase
+      .from('messages')
+      .select('conversation_id, body, created_at')
+      .in('conversation_id', myConvIds)
+      .order('created_at', { ascending: false });
+    if (!recentMessages) return matches;
+
+    // Pick latest message per conversation
+    const latestPerConv = new Map<string, { body: string; created_at: string }>();
+    for (const msg of recentMessages) {
+      const key = String(msg.conversation_id);
+      if (!latestPerConv.has(key)) {
+        latestPerConv.set(key, { body: msg.body, created_at: msg.created_at });
+      }
+    }
+
+    // Step 4: Map conversations back to matches
+    // For each match, find the conversation where both owner_id and candidate_id participate
+    return matches.map((match) => {
+      for (const [convId, participants] of convParticipants) {
+        if (participants.has(match.owner_id) && participants.has(match.candidate_id)) {
+          const latest = latestPerConv.get(convId);
+          if (latest) {
+            return {
+              ...match,
+              last_message_body: latest.body,
+              last_message_at: latest.created_at,
+            };
+          }
+        }
+      }
+      return match;
+    });
+  } catch (e) {
+    console.error('Error enriching matches with last message:', e);
+    return matches;
   }
 }
 
@@ -144,5 +221,13 @@ export async function fetchAllMatchesOptimized(
     fetchCandidateMatchesOptimized(userId),
   ]);
 
-  return { projectMatches, candidateMatches };
+  // Enrich all matches with last message data in one batch
+  const allMatches = [...projectMatches, ...candidateMatches];
+  const enriched = await enrichMatchesWithLastMessage(allMatches, userId);
+
+  // Split back into project and candidate matches
+  const enrichedProject = enriched.slice(0, projectMatches.length);
+  const enrichedCandidate = enriched.slice(projectMatches.length);
+
+  return { projectMatches: enrichedProject, candidateMatches: enrichedCandidate };
 }

@@ -8,11 +8,15 @@ export type MatchUI = {
 
     owner_id : string;
     candidate_id : string;
-    
+    project_id: string;
+
     project_image: string;
-    candidate_image : string; 
+    candidate_image : string;
     owner_image : string;
     created_at: string;
+
+    last_message_body?: string;
+    last_message_at?: string;
 };
 
 export type DbMatch = {
