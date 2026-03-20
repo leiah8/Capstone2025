@@ -836,12 +836,12 @@ export default function CandidateFeed() {
     const nextCandidate = candidates[currentIndex + 1]
 
     //remove candidates from fetched 
-    setAllCandidates((prev) => {
-      return prev.filter((c) => c.id !== candidate.id);
-    });
-    setCandidates((prev) => {
-      return prev.filter((c) => c.id !== candidate.id);
-    });
+    // setAllCandidates((prev) => {
+    //   return prev.filter((c) => c.id !== candidate.id);
+    // });
+    // setCandidates((prev) => {
+    //   return prev.filter((c) => c.id !== candidate.id);
+    // });
 
     // setCurrentIndex(candidates.indexOf(nextCandidate))
 
