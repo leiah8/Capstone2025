@@ -119,25 +119,55 @@ const LocationSlider = ({
 
   const fillRatio = (value - min) / (max - min);
 
+  // return (
+  //   <View style={sliderStyles.wrapper}>
+  //     <View
+  //       style={sliderStyles.track}
+  //       onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
+  //       {...sliderPanResponder.panHandlers}
+  //     >
+  //       <View style={[sliderStyles.fill, { flex: fillRatio }]} />
+  //       <View style={{ flex: 1 - fillRatio }} />
+  //       <View
+  //         style={[
+  //           sliderStyles.thumb,
+  //           { left: `${fillRatio * 100}%` as any },
+  //         ]}
+  //         pointerEvents="none"
+  //       />
+  //     </View>
+  //   </View>
+  // );
   return (
-    <View style={sliderStyles.wrapper}>
-      <View
-        style={sliderStyles.track}
-        onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
-        {...sliderPanResponder.panHandlers}
-      >
-        <View style={[sliderStyles.fill, { flex: fillRatio }]} />
-        <View style={{ flex: 1 - fillRatio }} />
+      <View style={sliderStyles.wrapper}>
+        {/* <View
+          style={sliderStyles.track}
+          onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
+          {...sliderPanResponder.panHandlers}
+        >
+          <View style={[sliderStyles.fill, { flex: fillRatio }]} />
+          <View style={{ flex: 1 - fillRatio }} />
+          <View
+            style={[
+              sliderStyles.thumb,
+              { left: `${fillRatio * 100}%` as any },
+            ]}
+            pointerEvents="none"
+          />
+        </View> */}
         <View
-          style={[
-            sliderStyles.thumb,
-            { left: `${fillRatio * 100}%` as any },
-          ]}
-          pointerEvents="none"
-        />
+          style={sliderStyles.track}
+          onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
+          {...sliderPanResponder.panHandlers}
+        >
+          <View style={[sliderStyles.fill, { width: `${fillRatio * 100}%` }]} />
+          <View
+            style={[sliderStyles.thumb, { left: `${fillRatio * 100}%` as any }]}
+            pointerEvents="none"
+          />
+        </View>
       </View>
-    </View>
-  );
+    );
 };
 
 const sliderStyles = StyleSheet.create({
@@ -150,13 +180,19 @@ const sliderStyles = StyleSheet.create({
     height: 4,
     backgroundColor: "#E1E8F5",
     borderRadius: 2,
-    flexDirection: "row",
+    // flexDirection: "row", ///
     position: "relative",
   },
   fill: {
+    // height: 4,
+    // backgroundColor: "#79BE58",
+    // borderRadius: 2,
     height: 4,
-    backgroundColor: "#79BE58",
-    borderRadius: 2,
+  backgroundColor: "#79BE58",
+  borderRadius: 2,
+  position: "absolute",
+  left: 0,
+  top: 0,
   },
   thumb: {
     position: "absolute",

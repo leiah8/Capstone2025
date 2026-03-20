@@ -127,7 +127,7 @@ const LocationSlider = ({
 
   return (
     <View style={sliderStyles.wrapper}>
-      <View
+      {/* <View
         style={sliderStyles.track}
         onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
         {...sliderPanResponder.panHandlers}
@@ -139,6 +139,17 @@ const LocationSlider = ({
             sliderStyles.thumb,
             { left: `${fillRatio * 100}%` as any },
           ]}
+          pointerEvents="none"
+        />
+      </View> */}
+      <View
+        style={sliderStyles.track}
+        onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
+        {...sliderPanResponder.panHandlers}
+      >
+        <View style={[sliderStyles.fill, { width: `${fillRatio * 100}%` }]} />
+        <View
+          style={[sliderStyles.thumb, { left: `${fillRatio * 100}%` as any }]}
           pointerEvents="none"
         />
       </View>
@@ -156,13 +167,20 @@ const sliderStyles = StyleSheet.create({
     height: 4,
     backgroundColor: "#E1E8F5",
     borderRadius: 2,
-    flexDirection: "row",
+    // flexDirection: "row", ///
     position: "relative",
   },
   fill: {
+    // height: 4,
+    // backgroundColor: "#79BE58",
+    // borderRadius: 2,
     height: 4,
-    backgroundColor: "#79BE58",
-    borderRadius: 2,
+  backgroundColor: "#79BE58",
+  borderRadius: 2,
+  position: "absolute",
+  left: 0,
+  top: 0,
+
   },
   thumb: {
     position: "absolute",
@@ -851,7 +869,10 @@ export default function CandidateFeed() {
             style={styles.closeDropDownButton}
             onPress={() => {
               setDropdownOpen(false);
-              filterFetchedCandidates();
+              // filterFetchedCandidates();
+
+              //TODO HERE: add a new const for each of the skills, projects, dist to differentiate between UI and acc filtering
+              //also in filtering, and on close, set all UI elements back to actual value
             }}
           >
             <Ionicons name="close" size={35} color="000" />
@@ -967,6 +988,17 @@ export default function CandidateFeed() {
             </View>
           )}
         </View>
+          <View style={styles.center}>
+        <TouchableOpacity
+                      style={[styles.center, styles.resetButton, {width : SCREEN_WIDTH * 0.5}]}
+                      onPress={() => {
+                        setDropdownOpen(false);
+                        filterFetchedCandidates();
+                      }} //TODO HERE hi hello
+                    >
+                      <Text style={styles.resetButtonText}>Apply</Text>
+                </TouchableOpacity>
+                </View>
       </ScrollView>
     ) : ( 
       <View
