@@ -692,10 +692,21 @@ export default function CandidateFeed() {
             );
 
             const ranked = await rankCandidatesBatch(allCandidates, userProjects, matchingAvailable);
+            // console.log("HERE HI")
+            // console.log(ranked);
+
             if (!alive) return;
 
+            // Apply persisted project filter immediately if one is selected
+            if (persistedProjectId) {
+              setCandidates(ranked.filter(c => c.project_id === persistedProjectId));
+            } else {
+              setCandidates(ranked);
+            }
+
+
             setAllCandidates(ranked);
-            setCandidates(ranked);
+            // setCandidates(ranked);
             setCurrentIndex(0);
 
             if (allCandidates.length < INITIAL_BATCH_SIZE) {
@@ -891,7 +902,7 @@ export default function CandidateFeed() {
                     );
                     setMyProjects(newProjects);
                     const selected = newProjects.find(p => p.included);
-                    persistedProjectId = selected ? String(selected.id) : null; // 👈 use newProjects, not p
+                    persistedProjectId = selected ? String(selected.id) : null; 
                   }}
                 >
                   <Ionicons
@@ -1046,13 +1057,15 @@ export default function CandidateFeed() {
                   key={p.id}
                   style={styles.filterRow}
                   onPress={() => {
-                    const newProjects = myProjects.map((proj, j) =>
-                      j === i ? { ...proj, included: true } : { ...proj, included: false }
-                    );
-                    setMyProjects(newProjects);
-                    persistedProjectId = String(p.id);
-                    filterFetchedCandidates();
+                  
+                  const newProjects = myProjects.map((proj, j) =>
+                    j === i ? { ...proj, included: true } : { ...proj, included: false }
+                  );
+                  setMyProjects(newProjects);
+                  persistedProjectId = String(p.id);
+                  setCandidates(overallCandidates.filter(c => c.project_id === String(p.id)));
                   }}
+                  
                 >
                   <Ionicons name="ellipse-outline" size={20} color="#333" />
                   <Text style={styles.filterLabel}>{p.title}</Text>
