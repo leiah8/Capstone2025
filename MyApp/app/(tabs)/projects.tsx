@@ -16,7 +16,6 @@ import {
   Dimensions,
   Image,
   LayoutChangeEvent,
-  Modal,
   PanResponder,
   Platform,
   ScrollView,
@@ -179,29 +178,24 @@ const sliderStyles = StyleSheet.create({
 /* =========================
    Swipeable Card
    ========================= */
-const TAP_THRESHOLD = 5;
 
 const ProjectCard = ({
   project,
   isTop,
   onSwipe,
-  onTap,
   onOpenHelp,
 }: {
   project: Project;
   isTop: boolean;
   onSwipe: (d: "left" | "right") => void;
-  onTap: () => void;
   onOpenHelp: () => void;
 }) => {
   const position = useRef(new Animated.ValueXY()).current;
   const onSwipeRef = useRef(onSwipe);
-  const onTapRef = useRef(onTap);
 
   useEffect(() => {
     onSwipeRef.current = onSwipe;
-    onTapRef.current = onTap;
-  }, [onSwipe, onTap]);
+  }, [onSwipe]);
 
   const rotate = position.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
@@ -228,13 +222,7 @@ const ProjectCard = ({
       onPanResponderRelease: (_, g) => {
         if (g.dx > SWIPE_THRESHOLD) swipeRight();
         else if (g.dx < -SWIPE_THRESHOLD) swipeLeft();
-        else if (
-          Math.abs(g.dx) < TAP_THRESHOLD &&
-          Math.abs(g.dy) < TAP_THRESHOLD
-        ) {
-          resetPosition();
-          onTapRef.current();
-        } else resetPosition();
+        else resetPosition();
       },
     }),
   ).current;
@@ -374,7 +362,6 @@ export default function ProjectFeed() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [detailProject, setDetailProject] = useState<Project | null>(null);
   const [myProjects, setMyProjects] = useState<MyProject[]>([]);
   const [myLoading, setMyLoading] = useState(false);
   const [headerTrackWidth, setHeaderTrackWidth] = useState(0);
@@ -943,7 +930,6 @@ export default function ProjectFeed() {
                     isTop={i === arr.length - 1}
                     onSwipe={handleSwipe}
                     onOpenHelp={showSwipeHint}
-                    onTap={() => setDetailProject(p)}
                   />
                 ))}
 
@@ -1151,83 +1137,6 @@ export default function ProjectFeed() {
         visible={matchCelebrationTarget !== null}
       />
 
-      {/* Project Detail Modal */}
-      <Modal visible={!!detailProject} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity
-              style={styles.modalClose}
-              onPress={() => setDetailProject(null)}
-            >
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
-
-            {detailProject && (
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 30 }}
-              >
-                {/* Creator avatar */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: 16,
-                  }}
-                >
-                  <Image
-                    source={{ uri: detailProject.creatorImage }}
-                    style={styles.modalAvatar}
-                  />
-                  <View style={{ marginLeft: 12 }}>
-                    <Text style={styles.modalTitle}>{detailProject.name}</Text>
-                    <Text style={styles.modalLocation}>
-                      {detailProject.location}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Project image */}
-                <View style={styles.modalImageContainer}>
-                  <Image
-                    source={{ uri: detailProject.image }}
-                    style={styles.modalImage}
-                  />
-                </View>
-
-                {/* Description */}
-                <Text style={styles.modalSectionTitle}>
-                  Project Description
-                </Text>
-                <Text style={styles.modalDescription}>
-                  {detailProject.description}
-                </Text>
-
-                {/* Skills */}
-                {(() => {
-                  const skills = detailProject.skillsNeeded?.length
-                    ? detailProject.skillsNeeded
-                    : (detailProject.skills?.map((s) => s.name) ?? []);
-                  return skills.length > 0 ? (
-                    <>
-                      <Text style={styles.modalSectionTitle}>
-                        Skills Needed
-                      </Text>
-                      <View style={styles.chipsWrap}>
-                        {skills.map((s, i) => (
-                          <View key={`${s}-${i}`} style={styles.chip}>
-                            <Text style={styles.chipText}>{s}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </>
-                  ) : null;
-                })()}
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -1653,48 +1562,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   chipText: { fontSize: 13, color: "#333" },
-
-  // modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: SCREEN_HEIGHT * 0.85,
-    padding: 24,
-    paddingTop: 16,
-  },
-  modalClose: { alignSelf: "flex-end", padding: 4, marginBottom: 8 },
-  modalAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: "#eee",
-  },
-  modalTitle: { fontSize: 22, fontWeight: "bold", color: "#333" },
-  modalLocation: { fontSize: 14, color: "#666", marginTop: 2 },
-  modalImageContainer: {
-    width: "100%",
-    height: 200,
-    borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 20,
-    backgroundColor: "#8FBC8F",
-  },
-  modalImage: { width: "100%", height: "100%" },
-  modalSectionTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  modalDescription: { fontSize: 15, color: "#444", lineHeight: 22 },
 
   // my projects
   myProjectCard: {
