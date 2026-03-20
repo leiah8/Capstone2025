@@ -341,9 +341,8 @@ export default function MatchesPage() {
             {sortedMatches.map((match, index) => {
               const notifCount = matchNotifs.get(String(match.match_id)) ?? 0;
               const isNewMatch = newMatchIds.has(String(match.match_id));
-              const displayName = projectsPage
-                ? match.candidate_name
-                : match.candidate_name;
+              const displayName = projectsPage ? match.project_name : match.candidate_name;
+              const subtitle = projectsPage ? match.owner_name : match.project_name;
 
               return (
                 <TouchableOpacity
@@ -359,7 +358,7 @@ export default function MatchesPage() {
                     />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.matchName}>{displayName}</Text>
-                      <Text style={styles.matchProject} numberOfLines={1}>{match.project_name}</Text>
+                      <Text style={styles.matchProject} numberOfLines={1}>{subtitle}</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end', gap: 4 }}>
                       {(match.last_message_body || match.last_message_at) ? (
