@@ -26,6 +26,7 @@ import MatchCelebrationOverlay from "../../components/MatchCelebrationOverlay";
 import {
   calcDist,
   CandidateUI,
+  deleteNonMatchedCandidateLikes,
   fetchCandidates,
   fetchMatchedCandidateIds,
   fetchMyCoords,
@@ -677,90 +678,74 @@ export default function CandidateFeed() {
     setCandidates(filteredCandidates);
   };
 
+  const loadCandidates = useCallback(async () => {
+    try {
+      setLoading(true);
+      setAllCandidates([]);
+      setCandidates([]);
+      setCurrentIndex(0);
+      setAllFetched(false);
+      isFetchingMoreRef.current = false;
+
+      const userProjects = await fetchMyProjects(session?.user?.id);
+      setMyProjects(userProjects.map((p) => ({ ...p, included: persistedProjectId ? String(p.id) === persistedProjectId : false })));
+
+      const coords = await fetchMyCoords(session?.user?.id);
+      setMyCoords(coords);
+
+      const one_active = userProjects.length > 0;
+      setHasProjects(one_active);
+
+      if (one_active) {
+        let allSkills = new Set<string>();
+        userProjects.forEach((p) => {
+          (p.skills_needed ?? []).forEach((s) => allSkills.add(s));
+        });
+        setFilterSkills([...allSkills].map((s) => ({ name: s, included: true })));
+
+        matchedCandidateIdsRef.current = session?.user?.id
+          ? await fetchMatchedCandidateIds(session.user.id)
+          : [];
+
+        const allCandidates = await fetchCandidates(INITIAL_BATCH_SIZE, session?.user?.id, matchedCandidateIdsRef.current);
+
+        const matchingAvailable = await checkMatchingAPIHealth();
+        console.log(
+          matchingAvailable
+            ? "Matching API available - ranking candidates by match score..."
+            : "Matching API not available - showing candidates in default order",
+        );
+
+        const ranked = await rankCandidatesBatch(allCandidates, userProjects, matchingAvailable, matchedCandidateIdsRef.current);
+
+        if (persistedProjectId) {
+          setCandidates(ranked.filter(c => c.project_id === persistedProjectId));
+        } else {
+          setCandidates(ranked);
+        }
+
+        setAllCandidates(ranked);
+        setCurrentIndex(0);
+
+        if (allCandidates.length < INITIAL_BATCH_SIZE) {
+          setAllFetched(true);
+        }
+      }
+    } catch (e: any) {
+      setErr(e.message ?? String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [session?.user?.id]);
+
   useFocusEffect(
     useCallback(() => {
-      // Only run the initial load once per session — re-focusing the tab
-      // should not reset the feed or show the same candidates again.
-      if (hasLoadedRef.current) return;
-      hasLoadedRef.current = true;
-
-      let alive = true;
-      (async () => {
-        try {
-          setLoading(true);
-
-          const userProjects = await fetchMyProjects(session?.user?.id);
-          setMyProjects(userProjects.map((p) => ({ ...p, included: persistedProjectId ? String(p.id) === persistedProjectId : false })));
-          // setMyFilterProject(userProjects[0]); //TODO: CHANGE TO ADD POP UP 
-
-
-          const coords = await fetchMyCoords(session?.user?.id);
-          setMyCoords(coords);
-
-
-          
-
-          let one_active = userProjects.length > 0;
-          setHasProjects(one_active);
-
-          if (one_active) {
-            let allSkills = new Set<string>();
-            userProjects.forEach((p) => {
-              (p.skills_needed ?? []).forEach((s) => allSkills.add(s));
-            });
-            setFilterSkills([...allSkills].map((s) => ({ name: s, included: true })));
-
-            matchedCandidateIdsRef.current = session?.user?.id
-              ? await fetchMatchedCandidateIds(session.user.id)
-              : [];
-
-            const allCandidates = await fetchCandidates(INITIAL_BATCH_SIZE, session?.user?.id, matchedCandidateIdsRef.current);
-            if (!alive) return;
-
-            const matchingAvailable = await checkMatchingAPIHealth();
-            console.log(
-              matchingAvailable
-                ? "Matching API available - ranking candidates by match score..."
-                : "Matching API not available - showing candidates in default order",
-            );
-
-            const ranked = await rankCandidatesBatch(allCandidates, userProjects, matchingAvailable, matchedCandidateIdsRef.current);
-            if (!alive) return;
-
-            // Apply persisted project filter immediately if one is selected
-            if (persistedProjectId) {
-              setCandidates(ranked.filter(c => c.project_id === persistedProjectId));
-            } else {
-              setCandidates(ranked);
-            }
-
-
-            setAllCandidates(ranked);
-            // setCandidates(ranked);
-            setCurrentIndex(0);
-
-            if (allCandidates.length < INITIAL_BATCH_SIZE) {
-              setAllFetched(true);
-            }
-          }
-        } catch (e: any) {
-          if (!alive) return;
-          hasLoadedRef.current = false;
-          setErr(e.message ?? String(e));
-        } finally {
-          if (alive) setLoading(false);
-        }
-      })();
-      return () => {
-        alive = false;
-      };
-      //}, []);
-    }, [session?.user?.id]),
+      loadCandidates();
+    }, [loadCandidates]),
   );
 
   // When the logged-in user changes, reset feed state so a fresh load runs.
   useEffect(() => {
-    hasLoadedRef.current = false;
     isFetchingMoreRef.current = false;
     matchedCandidateIdsRef.current = [];
     setCandidates([]);
@@ -1069,7 +1054,16 @@ export default function CandidateFeed() {
                     <Text style={styles.endText}>{"You've seen everyone!"}</Text>
                     <TouchableOpacity
                       style={styles.resetButton}
-                      onPress={() => setCurrentIndex(0)}
+                      onPress={async () => {
+                        try {
+                          if (session?.user?.id) {
+                            await deleteNonMatchedCandidateLikes(session.user.id);
+                          }
+                          await loadCandidates();
+                        } catch (e: any) {
+                          console.warn('Failed to reset candidates feed:', e.message ?? e);
+                        }
+                      }}
                     >
                       <Text style={styles.resetButtonText}>Start Over</Text>
                     </TouchableOpacity>

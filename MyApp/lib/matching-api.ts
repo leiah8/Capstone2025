@@ -138,6 +138,7 @@ export async function getMatchedProjects(
   }>,
   excludeProjectIds?: string[]
 ): Promise<MatchScoreProject[]> {
+  if (projects.length === 0) return [];
   try {
     const REQUEST_TIMEOUT_MS = 7000;
     // Transform projects to match API format
@@ -260,7 +261,7 @@ export async function getMatchedCandidates(
     experience : job[];}>,
   excludeCandidateIds?: string[]
 ): Promise<MatchScoreCandidate[]> {
-  
+  if (candidates.length === 0) return [];
   try {
     // Transform projects to match API format
     const apiCandidates = candidates.map(c => ({

@@ -112,20 +112,39 @@ export async function fetchCoords(ownerId : string) : Promise<{lat : number | nu
 };
 
 /**
- * Fetch project IDs the user has already matched with (as a candidate).
- * Only the specific matched project is excluded — not other projects from
- * the same owner, and not projects the user merely liked without matching.
+ * Fetch project IDs the user has already swiped on (like or pass).
+ * Used to exclude already-seen projects from the feed on each load.
  */
-export async function fetchMatchedProjectIds(userId: string): Promise<string[]> {
+export async function fetchSwipedProjectIds(userId: string): Promise<string[]> {
   const { data, error } = await supabase
+    .from('project_likes')
+    .select('project_id')
+    .eq('user_id', userId);
+  if (error) {
+    console.error('Error fetching swiped project IDs:', error);
+    return [];
+  }
+  return Array.from(new Set((data ?? []).map((r) => String(r.project_id))));
+}
+
+/**
+ * Delete all project swipes (likes + passes) that have not resulted in a match.
+ * Called by Start Over — preserves matches so they stay in the Matches tab.
+ */
+export async function deleteNonMatchedProjectLikes(userId: string): Promise<void> {
+  const { data: matchData, error: matchError } = await supabase
     .from('matches')
     .select('project_id')
     .eq('candidate_id', userId);
-  if (error) {
-    console.error('Error fetching matched project IDs:', error);
-    return [];
+  if (matchError) throw matchError;
+
+  const matchedIds = (matchData ?? []).map((r) => String(r.project_id));
+  let query = supabase.from('project_likes').delete().eq('user_id', userId);
+  if (matchedIds.length > 0) {
+    query = query.not('project_id', 'in', `(${matchedIds.join(',')})`);
   }
-  return (data ?? []).map((r) => String(r.project_id));
+  const { error } = await query;
+  if (error) throw error;
 }
 
 export async function fetchProjects(
