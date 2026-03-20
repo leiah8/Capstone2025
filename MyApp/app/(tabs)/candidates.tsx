@@ -62,6 +62,8 @@ const PREFETCH_THRESHOLD = 3;    // fetch more when this many cards remain
 const BATCH_SIZE = 20;            // candidates per incremental fetch
 const INITIAL_BATCH_SIZE = 50;   // candidates fetched on first load
 
+let persistedProjectId: string | null = null; 
+
 /* =========================
    Types (make skills optional & flexible)
    ========================= */
@@ -659,7 +661,7 @@ export default function CandidateFeed() {
           setLoading(true);
 
           const userProjects = await fetchMyProjects(session?.user?.id);
-          setMyProjects(userProjects.map((p) => ({ ...p, included: false })));
+          setMyProjects(userProjects.map((p) => ({ ...p, included: persistedProjectId ? String(p.id) === persistedProjectId : false })));
           // setMyFilterProject(userProjects[0]); //TODO: CHANGE TO ADD POP UP 
 
 
@@ -874,13 +876,23 @@ export default function CandidateFeed() {
                 <TouchableOpacity
                   key={p.id}
                   style={styles.filterRow}
-                  onPress={() =>
-                    setMyProjects((prev) =>
-                      prev.map((proj, j) =>
-                        j === i ? { ...proj, included: !proj.included } : { ...proj, included: false }, //changed here
-                      ),
-                    )
-                  }
+                  // onPress={() => {
+                  //   setMyProjects((prev) =>
+                  //     prev.map((proj, j) =>
+                  //       j === i ? { ...proj, included: !proj.included } : { ...proj, included: false }, //changed here
+                  //     ),
+                  //   );
+                  //   persistedProjectId = p.id ? String(p.id) : null;
+                  // }
+                  // }
+                  onPress={() => {
+                    const newProjects = myProjects.map((proj, j) =>
+                      j === i ? { ...proj, included: !proj.included } : { ...proj, included: false }
+                    );
+                    setMyProjects(newProjects);
+                    const selected = newProjects.find(p => p.included);
+                    persistedProjectId = selected ? String(selected.id) : null; // 👈 use newProjects, not p
+                  }}
                 >
                   <Ionicons
                     name={p.included ? "checkmark-circle" : "ellipse-outline"}
@@ -945,7 +957,7 @@ export default function CandidateFeed() {
           )}
         </View>
       </ScrollView>
-    ) : (
+    ) : ( 
       <View
         style={[
           styles.container,
@@ -1020,6 +1032,35 @@ export default function CandidateFeed() {
           surfaceColor="#E8F5E2"
           visible={matchCelebrationTarget !== null}
         />
+
+        {/* Project picker modal */}
+        {persistedProjectId == null && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.pageHeader}>Choose a Project</Text>
+              <Text style={{ color: "#888", textAlign: "center", marginBottom: 16, fontSize: 14 }}>
+                Select a project to browse candidates for
+              </Text>
+              {myProjects.map((p, i) => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={styles.filterRow}
+                  onPress={() => {
+                    const newProjects = myProjects.map((proj, j) =>
+                      j === i ? { ...proj, included: true } : { ...proj, included: false }
+                    );
+                    setMyProjects(newProjects);
+                    persistedProjectId = String(p.id);
+                    filterFetchedCandidates();
+                  }}
+                >
+                  <Ionicons name="ellipse-outline" size={20} color="#333" />
+                  <Text style={styles.filterLabel}>{p.title}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
       </View>
     )
   ) : (
@@ -1374,4 +1415,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   filterLabel: { fontSize: 14, color: "#333" },
+
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 24,
+    width: "80%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
 });
