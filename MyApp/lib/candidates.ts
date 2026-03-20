@@ -159,6 +159,18 @@ export async function fetchMyCoords(userId : string | undefined) : Promise<{lat 
 
 }
 
+export async function fetchMatchedCandidateIds(ownerId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('matches')
+    .select('candidate_id')
+    .eq('owner_id', ownerId);
+  if (error) {
+    console.error('[candidates] fetchMatchedCandidateIds error:', error);
+    return [];
+  }
+  return (data ?? []).map((row) => row.candidate_id as string);
+}
+
 export async function fetchCandidates(limit = 50, userId : string | undefined, excludeIds: string[] = []): Promise<CandidateUI[]> {
   let query = supabase
     .from('profiles')
