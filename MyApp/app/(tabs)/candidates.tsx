@@ -78,6 +78,7 @@ type Candidate = CandidateUI & {
 
 type FilterProject = MyProject & {
   included: boolean;
+  currentIndex : number;
 };
 
 type FilterSkill = {
@@ -582,13 +583,22 @@ async function rankCandidatesBatch(
     );
 
     // For each candidate pick the project where they scored highest
-    const bestByCandidateId = new Map<string, { projectId: string; projectName: string; score: number }>();
+    // const bestByCandidateId = new Map<string, { projectId: string; projectName: string; score: number }>();
+    // for (const { projectId, projectName, ranked } of perProjectResults) {
+    //   for (const score of ranked) {
+    //     // const prev = bestByCandidateId.get(score.candidate_id);
+    //     // if (!prev || score.overall_score > prev.score) {
+    //       bestByCandidateId.set(score.candidate_id, { projectId, projectName, score: score.overall_score });
+    //     // }
+    //   }
+    // }
+
+    const allRanked = new Map<string, { candidateId : string, projectId: string; projectName: string; score: number }>();
+
     for (const { projectId, projectName, ranked } of perProjectResults) {
       for (const score of ranked) {
-        const prev = bestByCandidateId.get(score.candidate_id);
-        if (!prev || score.overall_score > prev.score) {
-          bestByCandidateId.set(score.candidate_id, { projectId, projectName, score: score.overall_score });
-        }
+        const key = `${score.candidate_id}::${projectId}`;
+        allRanked.set(key, { candidateId : score.candidate_id, projectId, projectName, score: score.overall_score });
       }
     }
 
@@ -596,31 +606,69 @@ async function rankCandidatesBatch(
       console.log(`[CANDIDATES] Ranked candidates across ${perProjectResults.length} project(s)`);
     }
 
-    return batch
-      .map((candidate, index) => {
-        const best = bestByCandidateId.get(candidate.id);
-        const fallbackProject = activeProjects[0] ?? userProjects[0];
-        const projectId = best?.projectId ?? String(fallbackProject?.id ?? "");
-        const projectName = best?.projectName ?? String(fallbackProject?.title ?? "");
-        const overallScore = best?.score ?? -1;
+    const outTemp : {candidate : Candidate, index : number, overallScore : number}[] = [];
 
-        return {
+    allRanked.forEach((v, index) => {
+      const candidateId = v.candidateId;
+      const best = {projectId : v.projectId, projectName : v.projectName, score : v.score};
+      const fallbackProject = activeProjects[0] ?? userProjects[0];
+      const projectId = best?.projectId ?? String(fallbackProject?.id ?? "");
+      const projectName = best?.projectName ?? String(fallbackProject?.title ?? "");
+      const overallScore = best?.score ?? -1;
+
+
+      // const candidate = batch.get(candidate with candidateID)
+      const candidate = batch.find(c => c.id === candidateId)
+
+
+      outTemp.push({
           candidate: {
             ...candidate,
             project_id: projectId,
             project_name: projectName,
           } as Candidate,
-          index,
+          index : Number(index),
           overallScore,
-        };
+        });
       })
-      .sort((left, right) => {
+
+      return outTemp.sort((left, right) => {
         if (right.overallScore !== left.overallScore) {
           return right.overallScore - left.overallScore;
         }
         return left.index - right.index;
       })
       .map(({ candidate }) => candidate);
+
+  //}
+
+
+
+    // return batch
+    //   .map((candidate, index) => {
+    //     // const best = bestByCandidateId.get(candidate.id); //not gonna work TODO HERE
+    //     const fallbackProject = activeProjects[0] ?? userProjects[0];
+    //     const projectId = best?.projectId ?? String(fallbackProject?.id ?? "");
+    //     const projectName = best?.projectName ?? String(fallbackProject?.title ?? "");
+    //     const overallScore = best?.score ?? -1;
+
+    //     return {
+    //       candidate: {
+    //         ...candidate,
+    //         project_id: projectId,
+    //         project_name: projectName,
+    //       } as Candidate,
+    //       index,
+    //       overallScore,
+    //     };
+    //   })
+    //   .sort((left, right) => {
+    //     if (right.overallScore !== left.overallScore) {
+    //       return right.overallScore - left.overallScore;
+    //     }
+    //     return left.index - right.index;
+    //   })
+    //   .map(({ candidate }) => candidate);
   } catch (matchError) {
     console.warn("[CANDIDATES] Failed to rank candidates, using default order:", matchError);
     const p = activeProjects[0] ?? userProjects[0];
@@ -637,7 +685,7 @@ export default function CandidateFeed() {
   const browseBottomPadding = Math.max(tabBarHeight, 88) + 12;
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [overallCandidates, setAllCandidates] = useState<Candidate[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState<{project : String | null, index : number}>({project : persistedProjectId, index : 0});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [deckHeight, setDeckHeight] = useState(DECK_CARD_HEIGHT);
@@ -670,18 +718,54 @@ export default function CandidateFeed() {
   const filterFetchedCandidates = () => {
 
     let filteredCandidates : Candidate[] = [];
-    const pids = myProjectsUI.filter(p => p.included).map(p => p.id);
+
+    const pids : String[] = []
+
+    const tempProjects : FilterProject[] = [];
+    // let nextIndex = 0;
+
+    // myProjectsUI.forEach(p => {
+    //   if (p.included) {
+    //     pids.push(String(p.id));
+    //     // nextIndex = p.currentIndex;
+    //   }
+    //   if (String(p.id) == currentIndex.project) {
+    //     p.currentIndex = currentIndex.index;
+    //   }
+    //   tempProjects.push(p)
+    // });
+
+    myProjectsUI.forEach(p => {
+      const updatedP = String(p.id) === currentIndex.project
+        ? { ...p, currentIndex: currentIndex.index }  // new object with saved index
+        : { ...p };                                     // new object unchanged
+
+      if (updatedP.included) {
+        pids.push(String(updatedP.id));
+      }
+
+      tempProjects.push(updatedP);
+    });  
+
+    //jereakdasldcnaslkn
+
+    
+
+
+
+    // const pids = myProjectsUI.filter(p => p.included).map(p => p.id);
 
     setMaxFilterDist(maxFilterDistUI);
     setFilterSkills(filterSkillsUI);
-    setMyProjects(myProjectsUI);
+    setMyProjects(tempProjects);
+    setMyProjectsUI(tempProjects);
     setShowAllSkills(showAllSkillsUI);
 
     let maxDist = maxFilterDistUI < MAX_DISTANCE ? maxFilterDistUI : Infinity;
 
     if (showAllSkillsUI) {
       overallCandidates.forEach((c) => {
-        if (pids.includes(Number(c.project_id))) {
+        if (pids.includes(c.project_id)) {
           if (calcDist(myCoords.lat, myCoords?.lng, c.lat, c.lng) <= maxDist) {
             filteredCandidates.push(c);
           }
@@ -691,7 +775,7 @@ export default function CandidateFeed() {
       const skills = filterSkillsUI.filter((s) => s.included).map((s) => s.name);
 
       overallCandidates.forEach((c) => {
-        if (pids.includes(Number(c.project_id))) {
+        if (pids.includes((c.project_id))) {
             const intersection = c.skills.filter(x => skills.includes(x)); 
             if (intersection.length > 0) {
               if (calcDist(myCoords.lat, myCoords?.lng, c.lat, c.lng) <= maxDist) {
@@ -704,6 +788,15 @@ export default function CandidateFeed() {
     }
 
     setCandidates(filteredCandidates);
+    // setCurrentIndex({project : String(pids[0]), index : nextIndex})
+    const selectedProject = tempProjects.find(p => p.included);
+    setCurrentIndex({
+      project: selectedProject ? String(selectedProject.id) : null,
+      index: selectedProject?.currentIndex ?? 0,
+    });
+    
+    
+    
   };
 
   const loadCandidates = useCallback(async () => {
@@ -711,17 +804,18 @@ export default function CandidateFeed() {
       setLoading(true);
       setAllCandidates([]);
       setCandidates([]);
-      setCurrentIndex(0);
+      // setCurrentIndex(0);
       setAllFetched(false);
       isFetchingMoreRef.current = false;
 
+
+
       const userProjects = await fetchMyProjects(session?.user?.id);
-      const tempProjects = userProjects.map((p) => ({ ...p, included: persistedProjectId ? String(p.id) === persistedProjectId : false }))
-      setMyProjects(tempProjects);
-      setMyProjectsUI(tempProjects)
+
       if (userProjects.length == 1) {
         persistedProjectId = String(userProjects[0].id);
       }
+      
 
       const coords = await fetchMyCoords(session?.user?.id);
       setMyCoords(coords);
@@ -755,12 +849,19 @@ export default function CandidateFeed() {
 
         if (persistedProjectId) {
           setCandidates(ranked.filter(c => c.project_id === persistedProjectId));
+          setCurrentIndex({project : persistedProjectId, index : 0})
         } else {
           setCandidates(ranked);
+          setCurrentIndex({project : null, index : 0})
         }
 
+
+        const tempProjects = userProjects.map((p) => ({ ...p, currentIndex : 0, included: persistedProjectId ? String(p.id) === persistedProjectId : false }))
+        setMyProjects(tempProjects);
+        setMyProjectsUI(tempProjects)
+
         setAllCandidates(ranked);
-        setCurrentIndex(0);
+        // setCurrentIndex(0);
 
         if (allCandidates.length < INITIAL_BATCH_SIZE) {
           setAllFetched(true);
@@ -790,7 +891,9 @@ export default function CandidateFeed() {
     swipedCandidateIdsRef.current = [];
     setCandidates([]);
     setAllCandidates([]);
-    setCurrentIndex(0);
+    // setCurrentIndex(0);
+    setCurrentIndex({project : null, index : 0})
+    persistedProjectId = null
     setAllFetched(false);
     setErr(null);
   }, [session?.user?.id]);
@@ -825,15 +928,17 @@ export default function CandidateFeed() {
   };
 
   const advance = () => {
-    if (currentIndex < candidates.length) setCurrentIndex((i) => i + 1);
+    if (currentIndex.index < candidates.length) setCurrentIndex((prev) => {
+      return {project : prev.project, index : prev.index + 1};
+    });
   };
 
   const handleSwipe = async (direction: "left" | "right") => {
-    const candidate = candidates[currentIndex];
-    const nextIndex = currentIndex + 1;
+    const candidate = candidates[currentIndex.index];
+    const nextIndex = currentIndex.index + 1;
     advance();
 
-    const nextCandidate = candidates[currentIndex + 1]
+    // const nextCandidate = candidates[currentIndex.index + 1]
 
     //remove candidates from fetched 
     // setAllCandidates((prev) => {
@@ -1079,21 +1184,22 @@ export default function CandidateFeed() {
           <View style={styles.cardContainer} onLayout={handleDeckLayout}>
             <View style={[styles.deckSlot, { height: deckHeight }]}>
               {candidates
-                .slice(currentIndex, currentIndex + 2)
+                .slice(currentIndex.index, currentIndex.index + 2)
                 .reverse()
                 .map((p, i, arr) => (
                   <CandidateCard
-                    key={p.id}
+                    // key={(p.id, p.project_id)}
+                    key={`${p.id}-${p.project_id}`}
                     candidate={p}
                     isTop={i === arr.length - 1}
                     onSwipe={handleSwipe}
                   />
                 ))}
 
-              {currentIndex >= candidates.length && (
+              {currentIndex.index >= candidates.length && (
                 isFetchingMore ? (
                   <View style={styles.endCard}>
-                    <ActivityIndicator size="large" color="#007AFF" />
+                    <ActivityIndicator size="large" color="#79BE58" />
                     <Text style={{ marginTop: 16, color: "#999" }}>
                       Finding more candidates...
                     </Text>
@@ -1106,7 +1212,7 @@ export default function CandidateFeed() {
                       onPress={async () => {
                         try {
                           if (session?.user?.id) {
-                            await deleteNonMatchedCandidateLikes(session.user.id);
+                            await deleteNonMatchedCandidateLikes(session.user.id, Number(persistedProjectId));
                           }
                           await loadCandidates();
                         } catch (e: any) {

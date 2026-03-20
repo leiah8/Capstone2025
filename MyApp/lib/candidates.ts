@@ -180,18 +180,20 @@ export async function fetchSwipedCandidateIds(ownerId: string): Promise<string[]
  * Delete all candidate swipes (likes + passes) that have not resulted in a match.
  * Called by Start Over — preserves matches so they stay in the Matches tab.
  */
-export async function deleteNonMatchedCandidateLikes(userId: string): Promise<void> {
+export async function deleteNonMatchedCandidateLikes(userId: string, projectId : number): Promise<void> {
   const { data: likeData, error: likeError } = await supabase
     .from('candidate_likes')
     .select('id, project_id, candidate_id')
-    .eq('owner_id', userId);
+    .eq('owner_id', userId)
+    .eq('project_id', Number(projectId));
   if (likeError) throw likeError;
   if (!likeData || likeData.length === 0) return;
 
   const { data: matchData, error: matchError } = await supabase
     .from('matches')
     .select('project_id, candidate_id')
-    .eq('owner_id', userId);
+    .eq('owner_id', userId)
+    .eq('project_id', Number(projectId));
   if (matchError) throw matchError;
 
   const matchedPairs = new Set(
@@ -208,7 +210,7 @@ export async function deleteNonMatchedCandidateLikes(userId: string): Promise<vo
   const { error } = await supabase
     .from('candidate_likes')
     .delete()
-    .in('id', likeIdsToDelete);
+    .in('id', likeIdsToDelete)
   if (error) throw error;
 }
 
