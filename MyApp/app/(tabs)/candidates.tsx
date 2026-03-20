@@ -28,7 +28,7 @@ import {
   CandidateUI,
   deleteNonMatchedCandidateLikes,
   fetchCandidates,
-  fetchMatchedCandidateIds,
+  fetchSwipedCandidateIds,
   fetchMyCoords,
   fetchMyProjects,
   likeCandidate,
@@ -640,8 +640,7 @@ export default function CandidateFeed() {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [allFetched, setAllFetched] = useState(false);
   const isFetchingMoreRef = useRef(false);
-  const hasLoadedRef = useRef(false);
-  const matchedCandidateIdsRef = useRef<string[]>([]);
+  const swipedCandidateIdsRef = useRef<string[]>([]);
 
 
   const filterFetchedCandidates = () => {
@@ -703,11 +702,11 @@ export default function CandidateFeed() {
         });
         setFilterSkills([...allSkills].map((s) => ({ name: s, included: true })));
 
-        matchedCandidateIdsRef.current = session?.user?.id
-          ? await fetchMatchedCandidateIds(session.user.id)
+        swipedCandidateIdsRef.current = session?.user?.id
+          ? await fetchSwipedCandidateIds(session.user.id)
           : [];
 
-        const allCandidates = await fetchCandidates(INITIAL_BATCH_SIZE, session?.user?.id, matchedCandidateIdsRef.current);
+        const allCandidates = await fetchCandidates(INITIAL_BATCH_SIZE, session?.user?.id, swipedCandidateIdsRef.current);
 
         const matchingAvailable = await checkMatchingAPIHealth();
         console.log(
@@ -716,7 +715,7 @@ export default function CandidateFeed() {
             : "Matching API not available - showing candidates in default order",
         );
 
-        const ranked = await rankCandidatesBatch(allCandidates, userProjects, matchingAvailable, matchedCandidateIdsRef.current);
+        const ranked = await rankCandidatesBatch(allCandidates, userProjects, matchingAvailable, swipedCandidateIdsRef.current);
 
         if (persistedProjectId) {
           setCandidates(ranked.filter(c => c.project_id === persistedProjectId));
@@ -747,7 +746,7 @@ export default function CandidateFeed() {
   // When the logged-in user changes, reset feed state so a fresh load runs.
   useEffect(() => {
     isFetchingMoreRef.current = false;
-    matchedCandidateIdsRef.current = [];
+    swipedCandidateIdsRef.current = [];
     setCandidates([]);
     setAllCandidates([]);
     setCurrentIndex(0);
@@ -755,21 +754,13 @@ export default function CandidateFeed() {
     setErr(null);
   }, [session?.user?.id]);
 
-  // Re-allow loading when user has no projects yet, so returning
-  // from project creation triggers a fresh check.
-  useEffect(() => {
-    if (!hasProjects) {
-      hasLoadedRef.current = false;
-    }
-  }, [hasProjects]);
-
   const fetchMore = async () => {
     if (isFetchingMoreRef.current || allFetched || !session?.user?.id || !hasProjects) return;
     isFetchingMoreRef.current = true;
     setIsFetchingMore(true);
     try {
       const excludeList = Array.from(
-        new Set([...overallCandidates.map((c) => c.id), ...matchedCandidateIdsRef.current])
+        new Set([...overallCandidates.map((c) => c.id), ...swipedCandidateIdsRef.current])
       );
       const newBatch = await fetchCandidates(BATCH_SIZE, session.user.id, excludeList);
       if (newBatch.length === 0) {
@@ -780,7 +771,7 @@ export default function CandidateFeed() {
 
       const matchingAvailable = await checkMatchingAPIHealth();
       const includedProjects = myProjects.filter((p) => p.included);
-      const ranked = await rankCandidatesBatch(newBatch, includedProjects, matchingAvailable, matchedCandidateIdsRef.current);
+  const ranked = await rankCandidatesBatch(newBatch, includedProjects, matchingAvailable, swipedCandidateIdsRef.current);
 
       setAllCandidates((prev) => [...prev, ...ranked]);
       setCandidates((prev) => [...prev, ...ranked]);

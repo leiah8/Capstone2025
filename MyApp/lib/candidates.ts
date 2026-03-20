@@ -159,13 +159,17 @@ export async function fetchMyCoords(userId : string | undefined) : Promise<{lat 
 
 }
 
-export async function fetchMatchedCandidateIds(ownerId: string): Promise<string[]> {
+/**
+ * Fetch candidate IDs the owner has already swiped on (like or pass).
+ * Used to exclude already-seen candidates from the feed on each load.
+ */
+export async function fetchSwipedCandidateIds(ownerId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from('candidate_likes')
     .select('candidate_id')
     .eq('owner_id', ownerId);
   if (error) {
-    console.error('[candidates] fetchMatchedCandidateIds error:', error);
+    console.error('[candidates] fetchSwipedCandidateIds error:', error);
     return [];
   }
   // Deduplicate candidate IDs in case the same candidate appears across multiple projects
@@ -177,18 +181,34 @@ export async function fetchMatchedCandidateIds(ownerId: string): Promise<string[
  * Called by Start Over — preserves matches so they stay in the Matches tab.
  */
 export async function deleteNonMatchedCandidateLikes(userId: string): Promise<void> {
+  const { data: likeData, error: likeError } = await supabase
+    .from('candidate_likes')
+    .select('id, project_id, candidate_id')
+    .eq('owner_id', userId);
+  if (likeError) throw likeError;
+  if (!likeData || likeData.length === 0) return;
+
   const { data: matchData, error: matchError } = await supabase
     .from('matches')
-    .select('candidate_id')
+    .select('project_id, candidate_id')
     .eq('owner_id', userId);
   if (matchError) throw matchError;
 
-  const matchedIds = (matchData ?? []).map((r) => r.candidate_id as string);
-  let query = supabase.from('candidate_likes').delete().eq('owner_id', userId);
-  if (matchedIds.length > 0) {
-    query = query.not('candidate_id', 'in', `(${matchedIds.join(',')})`);
-  }
-  const { error } = await query;
+  const matchedPairs = new Set(
+    (matchData ?? []).map((row) => `${String(row.project_id)}:${String(row.candidate_id)}`),
+  );
+  const likeIdsToDelete = likeData
+    .filter(
+      (row) => !matchedPairs.has(`${String(row.project_id)}:${String(row.candidate_id)}`),
+    )
+    .map((row) => row.id as string);
+
+  if (likeIdsToDelete.length === 0) return;
+
+  const { error } = await supabase
+    .from('candidate_likes')
+    .delete()
+    .in('id', likeIdsToDelete);
   if (error) throw error;
 }
 

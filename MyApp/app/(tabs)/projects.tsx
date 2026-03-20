@@ -454,8 +454,7 @@ export default function ProjectFeed() {
     setProjects(filteredProjects);
   };
 
-  const loadBrowseProjects = useCallback(async () => {
-    let alive = true;
+  const loadBrowseProjects = useCallback(async (isActive: () => boolean = () => true) => {
     try {
       setLoading(true);
 
@@ -466,15 +465,18 @@ export default function ProjectFeed() {
         ? await fetchSwipedProjectIds(session.user.id)
         : ([] as string[]);
       const allProjects = await fetchProjects(50, session?.user?.id, swipedIds);
-      if (!alive) return;
+      if (!isActive()) return;
 
       const coords = await fetchMyCoords(session?.user?.id);
+      if (!isActive()) return;
       setMyCoords(coords);
 
       // Check if matching API is available
       const matchingAvailable = await checkMatchingAPIHealth();
+      if (!isActive()) return;
 
       const userProfile = await getUserProfile();
+      if (!isActive()) return;
       setFilterSkills(
         userProfile.skills.map((s) => ({ name: s, included: true })),
       );
@@ -517,6 +519,7 @@ export default function ProjectFeed() {
             rankedProjects.slice(0, 3).forEach(p => console.log(`  - ${p.id}: ${p.name}, score: ${scoreMap.get(p.id)}`));
           }
 
+          if (!isActive()) return;
           setAllProjects(rankedProjects as Project[]);
           setProjects(rankedProjects as Project[]);
           if (__DEV__) {
@@ -529,6 +532,7 @@ export default function ProjectFeed() {
             "Failed to rank projects, using default order:",
             matchError,
           );
+          if (!isActive()) return;
           setAllProjects(allProjects as Project[]);
           setProjects(allProjects as Project[]);
         }
@@ -538,20 +542,19 @@ export default function ProjectFeed() {
             "Matching API not available - showing projects in default order",
           );
         }
+        if (!isActive()) return;
         setAllProjects(allProjects as Project[]);
         setProjects(allProjects as Project[]);
       }
 
+      if (!isActive()) return;
       setCurrentIndex(0);
     } catch (e: any) {
-      if (!alive) return;
+      if (!isActive()) return;
       setErr(e.message ?? String(e));
     } finally {
-      if (alive) setLoading(false);
+      if (isActive()) setLoading(false);
     }
-    return () => {
-      alive = false;
-    };
   }, [session?.user?.id]);
 
   const advance = () => {
@@ -602,8 +605,14 @@ export default function ProjectFeed() {
   // projects are excluded based on the latest project_likes data.
   useFocusEffect(
     useCallback(() => {
-      loadBrowseProjects();
+      let isActive = true;
+
+      void loadBrowseProjects(() => isActive);
       fetchMyProjects();
+
+      return () => {
+        isActive = false;
+      };
     }, [loadBrowseProjects, fetchMyProjects]),
   );
 
