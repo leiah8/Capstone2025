@@ -831,7 +831,7 @@ export default function CandidateFeed() {
   const handleSwipe = async (direction: "left" | "right") => {
     const candidate = candidates[currentIndex];
     const nextIndex = currentIndex + 1;
-    // advance();
+    advance();
 
     const nextCandidate = candidates[currentIndex + 1]
 
