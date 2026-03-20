@@ -29,7 +29,12 @@ import ParseReviewModal, {
   type ParsedData,
 } from "../../components/ParseReviewModal";
 import { useAuth } from "../../contexts/AuthContext";
-import { getResumeParserUrl } from "../../lib/resume-parser";
+import {
+  createEmptyParsedData,
+  getResumeParserUrl,
+  hasParsedResumeData,
+  normalizeParsedResumePayload,
+} from "../../lib/resume-parser";
 import { supabase } from "../../lib/supabase";
 
 /* =========================
@@ -80,6 +85,8 @@ export default function ProfilePage() {
   const [linkedin, setLinkedin] = useState("");
   const [instagram, setInstagram] = useState("");
   const [twitter, setTwitter] = useState("");
+  const [portfolio, setPortfolio] = useState("");
+  const [otherLink, setOtherLink] = useState("");
 
   const [education, setEducation] = useState<
     { id: string; school: string; degree: string; year: string }[]
@@ -177,15 +184,8 @@ export default function ProfilePage() {
 
   /* Review-modal state (shown after parsing) */
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
-  const emptyParsed: ParsedData = {
-    skills: [],
-    interests: [],
-    education: [],
-    experience: [],
-    personal_projects: [],
-  };
   const [parsedResumeData, setParsedResumeData] =
-    useState<ParsedData>(emptyParsed);
+    useState<ParsedData>(createEmptyParsedData());
 
   /* =========================
      Load profile
@@ -215,6 +215,8 @@ export default function ProfilePage() {
             setLinkedin(data.links.linkedin || "");
             setInstagram(data.links.instagram || "");
             setTwitter(data.links.twitter || "");
+            setPortfolio(data.links.portfolio || "");
+            setOtherLink(data.links.other || "");
           }
           // Filter out completely blank placeholder entries
           setEducation(
@@ -260,7 +262,14 @@ export default function ProfilePage() {
         profile_image: profileImage,
         skills,
         interests,
-        links: { github, linkedin, instagram, twitter },
+        links: {
+          github,
+          linkedin,
+          instagram,
+          twitter,
+          portfolio,
+          other: otherLink,
+        },
         education,
         experience,
         personal_projects: projects,
@@ -434,42 +443,9 @@ export default function ProfilePage() {
           );
           if (!resp.ok) throw new Error(`Parser HTTP ${resp.status}`);
           const parsed = await resp.json();
+          const reviewData = normalizeParsedResumePayload(parsed);
 
-          // Build review data from API response
-          const reviewData: ParsedData = {
-            skills: parsed?.skills ?? [],
-            interests: parsed?.interests ?? [],
-            education: (parsed?.education ?? []).map((e: any, i: number) => ({
-              id: e.id ?? `edu-${Date.now()}-${i}`,
-              school: e.school ?? "",
-              degree: e.degree ?? "",
-              year: e.year ?? "",
-            })),
-            experience: (parsed?.experience ?? []).map((e: any, i: number) => ({
-              id: e.id ?? `exp-${Date.now()}-${i}`,
-              company: e.company ?? "",
-              position: e.position ?? "",
-              duration: e.duration ?? "",
-              description: e.description ?? "",
-            })),
-            personal_projects: (parsed?.personal_projects ?? []).map(
-              (e: any, i: number) => ({
-                id: e.id ?? `proj-${Date.now()}-${i}`,
-                name: e.name ?? "",
-                description: e.description ?? "",
-                link: e.link ?? "",
-              }),
-            ),
-          };
-
-          const hasAnything =
-            reviewData.skills.length > 0 ||
-            reviewData.interests.length > 0 ||
-            reviewData.education.length > 0 ||
-            reviewData.experience.length > 0 ||
-            reviewData.personal_projects.length > 0;
-
-          if (hasAnything) {
+          if (hasParsedResumeData(reviewData)) {
             setParsedResumeData(reviewData);
             setReviewModalVisible(true);
           } else {
@@ -552,42 +528,9 @@ export default function ProfilePage() {
       });
       if (!resp.ok) throw new Error(`Parser HTTP ${resp.status}`);
       const parsed = await resp.json();
+      const reviewData = normalizeParsedResumePayload(parsed);
 
-      // Build review data from API response
-      const reviewData: ParsedData = {
-        skills: parsed?.skills ?? [],
-        interests: parsed?.interests ?? [],
-        education: (parsed?.education ?? []).map((e: any, i: number) => ({
-          id: e.id ?? `edu-${Date.now()}-${i}`,
-          school: e.school ?? "",
-          degree: e.degree ?? "",
-          year: e.year ?? "",
-        })),
-        experience: (parsed?.experience ?? []).map((e: any, i: number) => ({
-          id: e.id ?? `exp-${Date.now()}-${i}`,
-          company: e.company ?? "",
-          position: e.position ?? "",
-          duration: e.duration ?? "",
-          description: e.description ?? "",
-        })),
-        personal_projects: (parsed?.personal_projects ?? []).map(
-          (e: any, i: number) => ({
-            id: e.id ?? `proj-${Date.now()}-${i}`,
-            name: e.name ?? "",
-            description: e.description ?? "",
-            link: e.link ?? "",
-          }),
-        ),
-      };
-
-      const hasAnything =
-        reviewData.skills.length > 0 ||
-        reviewData.interests.length > 0 ||
-        reviewData.education.length > 0 ||
-        reviewData.experience.length > 0 ||
-        reviewData.personal_projects.length > 0;
-
-      if (hasAnything) {
+      if (hasParsedResumeData(reviewData)) {
         setParsedResumeData(reviewData);
         setReviewModalVisible(true);
       } else {
@@ -606,6 +549,33 @@ export default function ProfilePage() {
      ========================= */
   const handleReviewConfirm = async (selected: ConfirmedData) => {
     setReviewModalVisible(false);
+
+    let mergedBio = bio;
+    if (selected.bio) {
+      mergedBio = selected.bio;
+      setBio(mergedBio);
+    }
+
+    let mergedLocation = location;
+    if (selected.location) {
+      mergedLocation = selected.location;
+      setLocation(mergedLocation);
+    }
+
+    const mergedLinks = {
+      github: selected.links.github || github,
+      linkedin: selected.links.linkedin || linkedin,
+      instagram: selected.links.instagram || instagram,
+      twitter: selected.links.twitter || twitter,
+      portfolio: selected.links.portfolio || portfolio,
+      other: selected.links.other || otherLink,
+    };
+    setGithub(mergedLinks.github);
+    setLinkedin(mergedLinks.linkedin);
+    setInstagram(mergedLinks.instagram);
+    setTwitter(mergedLinks.twitter);
+    setPortfolio(mergedLinks.portfolio);
+    setOtherLink(mergedLinks.other);
 
     // ---- Skills: merge unique (case-insensitive) ----
     let mergedSkills = [...skills];
@@ -667,6 +637,9 @@ export default function ProfilePage() {
       const { error: err } = await supabase
         .from("profiles")
         .update({
+          bio: mergedBio,
+          location: mergedLocation,
+          links: mergedLinks,
           skills: mergedSkills,
           interests: mergedInterests,
           education: mergedEdu,
@@ -956,6 +929,87 @@ export default function ProfilePage() {
               multiline
               numberOfLines={4}
               textAlignVertical="top"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <Ionicons name="link-outline" size={20} color="#79BE58" />
+                <Text style={styles.sectionTitle}>Links</Text>
+              </View>
+            </View>
+
+            <Text style={styles.fieldLabel}>GitHub</Text>
+            <TextInput
+              style={styles.input}
+              value={github}
+              onChangeText={setGithub}
+              onBlur={saveProfile}
+              placeholder="https://github.com/username"
+              autoCapitalize="none"
+              keyboardType="url"
+              placeholderTextColor="#999"
+            />
+
+            <Text style={styles.fieldLabel}>LinkedIn</Text>
+            <TextInput
+              style={styles.input}
+              value={linkedin}
+              onChangeText={setLinkedin}
+              onBlur={saveProfile}
+              placeholder="https://linkedin.com/in/username"
+              autoCapitalize="none"
+              keyboardType="url"
+              placeholderTextColor="#999"
+            />
+
+            <Text style={styles.fieldLabel}>Portfolio</Text>
+            <TextInput
+              style={styles.input}
+              value={portfolio}
+              onChangeText={setPortfolio}
+              onBlur={saveProfile}
+              placeholder="https://your-site.com"
+              autoCapitalize="none"
+              keyboardType="url"
+              placeholderTextColor="#999"
+            />
+
+            <Text style={styles.fieldLabel}>Twitter / X</Text>
+            <TextInput
+              style={styles.input}
+              value={twitter}
+              onChangeText={setTwitter}
+              onBlur={saveProfile}
+              placeholder="https://x.com/username"
+              autoCapitalize="none"
+              keyboardType="url"
+              placeholderTextColor="#999"
+            />
+
+            <Text style={styles.fieldLabel}>Instagram</Text>
+            <TextInput
+              style={styles.input}
+              value={instagram}
+              onChangeText={setInstagram}
+              onBlur={saveProfile}
+              placeholder="https://instagram.com/username"
+              autoCapitalize="none"
+              keyboardType="url"
+              placeholderTextColor="#999"
+            />
+
+            <Text style={styles.fieldLabel}>Other Link</Text>
+            <TextInput
+              style={styles.input}
+              value={otherLink}
+              onChangeText={setOtherLink}
+              onBlur={saveProfile}
+              placeholder="https://example.com"
+              autoCapitalize="none"
+              keyboardType="url"
               placeholderTextColor="#999"
             />
           </View>

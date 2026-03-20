@@ -2,12 +2,10 @@
  * ParseReviewModal
  *
  * Full-screen modal that shows every field the resume parser extracted.
- * The user can toggle individual sections (Skills, Interests, Education,
- * Experience, Projects) and even deselect individual items before
- * confirming.  On confirm the selected data is returned via `onConfirm`.
+ * The user can toggle individual sections before saving them into the app.
  */
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Modal,
   View,
@@ -19,47 +17,32 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
+import type {
+  ConfirmedData,
+  ParsedData,
+  ParsedLinks,
+} from "../lib/resume-parser";
+import { EMPTY_PARSED_LINKS } from "../lib/resume-parser";
 
-export interface EducationItem {
-  id: string;
-  school: string;
-  degree: string;
-  year: string;
-}
+export type { ConfirmedData, ParsedData } from "../lib/resume-parser";
 
-export interface ExperienceItem {
-  id: string;
-  company: string;
-  position: string;
-  duration: string;
-  description: string;
-}
+const LINK_KEYS: Array<keyof ParsedLinks> = [
+  "github",
+  "linkedin",
+  "instagram",
+  "twitter",
+  "portfolio",
+  "other",
+];
 
-export interface ProjectItem {
-  id: string;
-  name: string;
-  description: string;
-  link: string;
-}
-
-export interface ParsedData {
-  skills: string[];
-  interests: string[];
-  education: EducationItem[];
-  experience: ExperienceItem[];
-  personal_projects: ProjectItem[];
-}
-
-export interface ConfirmedData {
-  skills: string[];
-  interests: string[];
-  education: EducationItem[];
-  experience: ExperienceItem[];
-  personal_projects: ProjectItem[];
-}
+const LINK_LABELS: Record<keyof ParsedLinks, string> = {
+  github: "GitHub",
+  linkedin: "LinkedIn",
+  instagram: "Instagram",
+  twitter: "Twitter",
+  portfolio: "Portfolio",
+  other: "Other Link",
+};
 
 interface Props {
   visible: boolean;
@@ -68,9 +51,28 @@ interface Props {
   onCancel: () => void;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Component                                                          */
-/* ------------------------------------------------------------------ */
+function toggleItem<T extends number | string>(
+  selected: Set<T>,
+  setter: React.Dispatch<React.SetStateAction<Set<T>>>,
+  value: T,
+) {
+  const next = new Set(selected);
+  if (next.has(value)) next.delete(value);
+  else next.add(value);
+  setter(next);
+}
+
+function toggleAllItems<T extends number | string>(
+  allValues: T[],
+  selected: Set<T>,
+  setter: React.Dispatch<React.SetStateAction<Set<T>>>,
+) {
+  if (selected.size === allValues.length) {
+    setter(new Set());
+  } else {
+    setter(new Set(allValues));
+  }
+}
 
 export default function ParseReviewModal({
   visible,
@@ -78,114 +80,152 @@ export default function ParseReviewModal({
   onConfirm,
   onCancel,
 }: Props) {
-  /* — per-item selection state — */
+  const linkEntries = useMemo(
+    () =>
+      LINK_KEYS.filter((key) => Boolean(data.links[key])).map((key) => ({
+        key,
+        label: LINK_LABELS[key],
+        value: data.links[key],
+      })),
+    [data.links],
+  );
+
+  const [selBio, setSelBio] = useState(Boolean(data.bio));
+  const [selLocation, setSelLocation] = useState(Boolean(data.location));
+  const [selLinks, setSelLinks] = useState<Set<keyof ParsedLinks>>(
+    new Set(linkEntries.map((entry) => entry.key)),
+  );
   const [selSkills, setSelSkills] = useState<Set<number>>(
-    new Set(data.skills.map((_, i) => i)),
+    new Set(data.skills.map((_, index) => index)),
   );
   const [selInterests, setSelInterests] = useState<Set<number>>(
-    new Set(data.interests.map((_, i) => i)),
+    new Set(data.interests.map((_, index) => index)),
   );
   const [selEdu, setSelEdu] = useState<Set<number>>(
-    new Set(data.education.map((_, i) => i)),
+    new Set(data.education.map((_, index) => index)),
   );
   const [selExp, setSelExp] = useState<Set<number>>(
-    new Set(data.experience.map((_, i) => i)),
+    new Set(data.experience.map((_, index) => index)),
   );
   const [selProj, setSelProj] = useState<Set<number>>(
-    new Set(data.personal_projects.map((_, i) => i)),
+    new Set(data.personal_projects.map((_, index) => index)),
   );
 
-  /* re-sync when data changes (e.g. new parse) */
   React.useEffect(() => {
-    setSelSkills(new Set(data.skills.map((_, i) => i)));
-    setSelInterests(new Set(data.interests.map((_, i) => i)));
-    setSelEdu(new Set(data.education.map((_, i) => i)));
-    setSelExp(new Set(data.experience.map((_, i) => i)));
-    setSelProj(new Set(data.personal_projects.map((_, i) => i)));
-  }, [data]);
-
-  const toggle = (
-    set: Set<number>,
-    setter: React.Dispatch<React.SetStateAction<Set<number>>>,
-    idx: number,
-  ) => {
-    const next = new Set(set);
-    if (next.has(idx)) next.delete(idx);
-    else next.add(idx);
-    setter(next);
-  };
-
-  const toggleAll = (
-    allIndices: number[],
-    set: Set<number>,
-    setter: React.Dispatch<React.SetStateAction<Set<number>>>,
-  ) => {
-    if (set.size === allIndices.length) {
-      setter(new Set());
-    } else {
-      setter(new Set(allIndices));
-    }
-  };
+    setSelBio(Boolean(data.bio));
+    setSelLocation(Boolean(data.location));
+    setSelLinks(new Set(linkEntries.map((entry) => entry.key)));
+    setSelSkills(new Set(data.skills.map((_, index) => index)));
+    setSelInterests(new Set(data.interests.map((_, index) => index)));
+    setSelEdu(new Set(data.education.map((_, index) => index)));
+    setSelExp(new Set(data.experience.map((_, index) => index)));
+    setSelProj(new Set(data.personal_projects.map((_, index) => index)));
+  }, [data, linkEntries]);
 
   const handleConfirm = () => {
+    const selectedLinks = { ...EMPTY_PARSED_LINKS };
+    for (const entry of linkEntries) {
+      if (selLinks.has(entry.key)) {
+        selectedLinks[entry.key] = entry.value;
+      }
+    }
+
     onConfirm({
-      skills: data.skills.filter((_, i) => selSkills.has(i)),
-      interests: data.interests.filter((_, i) => selInterests.has(i)),
-      education: data.education.filter((_, i) => selEdu.has(i)),
-      experience: data.experience.filter((_, i) => selExp.has(i)),
-      personal_projects: data.personal_projects.filter((_, i) =>
-        selProj.has(i),
+      bio: selBio ? data.bio : "",
+      location: selLocation ? data.location : "",
+      links: selectedLinks,
+      skills: data.skills.filter((_, index) => selSkills.has(index)),
+      interests: data.interests.filter((_, index) => selInterests.has(index)),
+      education: data.education.filter((_, index) => selEdu.has(index)),
+      experience: data.experience.filter((_, index) => selExp.has(index)),
+      personal_projects: data.personal_projects.filter((_, index) =>
+        selProj.has(index),
       ),
     });
   };
 
   const totalSelected =
+    (selBio ? 1 : 0) +
+    (selLocation ? 1 : 0) +
+    selLinks.size +
     selSkills.size +
     selInterests.size +
     selEdu.size +
     selExp.size +
     selProj.size;
 
-  /* ---------------------------------------------------------------- */
-  /*  Sub-renderers                                                    */
-  /* ---------------------------------------------------------------- */
+  const hasAnything =
+    Boolean(data.bio) ||
+    Boolean(data.location) ||
+    linkEntries.length > 0 ||
+    data.skills.length > 0 ||
+    data.interests.length > 0 ||
+    data.education.length > 0 ||
+    data.experience.length > 0 ||
+    data.personal_projects.length > 0;
 
-  const renderCheck = (on: boolean) => (
+  const renderCheck = (checked: boolean) => (
     <Ionicons
-      name={on ? "checkbox" : "square-outline"}
+      name={checked ? "checkbox" : "square-outline"}
       size={22}
-      color={on ? "#79BE58" : "#9ca3af"}
+      color={checked ? "#79BE58" : "#9ca3af"}
     />
   );
 
-  const SectionHeader = ({
+  const SectionHeader = <T extends number | string,>({
     title,
-    count,
     selected,
-    allIndices,
+    allValues,
+    current,
     setter,
-    set,
   }: {
     title: string;
-    count: number;
     selected: number;
-    allIndices: number[];
-    setter: React.Dispatch<React.SetStateAction<Set<number>>>;
-    set: Set<number>;
+    allValues: T[];
+    current: Set<T>;
+    setter: React.Dispatch<React.SetStateAction<Set<T>>>;
   }) => (
     <TouchableOpacity
       style={s.sectionHeader}
-      onPress={() => toggleAll(allIndices, set, setter)}
+      onPress={() => toggleAllItems(allValues, current, setter)}
       activeOpacity={0.7}
     >
-      {renderCheck(selected === count && count > 0)}
+      {renderCheck(selected === allValues.length && allValues.length > 0)}
       <Text style={s.sectionTitle}>
         {title}{" "}
         <Text style={s.sectionCount}>
-          ({selected}/{count})
+          ({selected}/{allValues.length})
         </Text>
       </Text>
     </TouchableOpacity>
+  );
+
+  const SingleField = ({
+    title,
+    value,
+    selected,
+    onPress,
+    numberOfLines,
+  }: {
+    title: string;
+    value: string;
+    selected: boolean;
+    onPress: () => void;
+    numberOfLines?: number;
+  }) => (
+    <View style={s.sectionBlock}>
+      <TouchableOpacity style={s.sectionHeader} onPress={onPress} activeOpacity={0.7}>
+        {renderCheck(selected)}
+        <Text style={s.sectionTitle}>{title}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={s.cardRow} onPress={onPress} activeOpacity={0.7}>
+        <View style={s.cardBody}>
+          <Text style={s.cardDesc} numberOfLines={numberOfLines ?? 4}>
+            {value}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -196,7 +236,6 @@ export default function ParseReviewModal({
       onRequestClose={onCancel}
     >
       <SafeAreaView style={s.root}>
-        {/* Top bar */}
         <View style={s.topBar}>
           <TouchableOpacity onPress={onCancel} hitSlop={12}>
             <Text style={s.cancelText}>Cancel</Text>
@@ -218,27 +257,74 @@ export default function ParseReviewModal({
             Select the fields you want to add to your profile.
           </Text>
 
-          {/* ---- SKILLS ---- */}
+          {!!data.bio && (
+            <SingleField
+              title="Bio"
+              value={data.bio}
+              selected={selBio}
+              onPress={() => setSelBio((current) => !current)}
+            />
+          )}
+
+          {!!data.location && (
+            <SingleField
+              title="Location"
+              value={data.location}
+              selected={selLocation}
+              onPress={() => setSelLocation((current) => !current)}
+              numberOfLines={2}
+            />
+          )}
+
+          {linkEntries.length > 0 && (
+            <View style={s.sectionBlock}>
+              <SectionHeader
+                title="Links"
+                selected={selLinks.size}
+                allValues={linkEntries.map((entry) => entry.key)}
+                current={selLinks}
+                setter={setSelLinks}
+              />
+              {linkEntries.map((entry) => (
+                <TouchableOpacity
+                  key={entry.key}
+                  style={s.cardRow}
+                  onPress={() => toggleItem(selLinks, setSelLinks, entry.key)}
+                  activeOpacity={0.7}
+                >
+                  {renderCheck(selLinks.has(entry.key))}
+                  <View style={s.cardBody}>
+                    <Text style={s.cardPrimary}>{entry.label}</Text>
+                    <Text style={s.cardLink} numberOfLines={1}>
+                      {entry.value}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
           {data.skills.length > 0 && (
             <View style={s.sectionBlock}>
               <SectionHeader
                 title="Skills"
-                count={data.skills.length}
                 selected={selSkills.size}
-                allIndices={data.skills.map((_, i) => i)}
-                set={selSkills}
+                allValues={data.skills.map((_, index) => index)}
+                current={selSkills}
                 setter={setSelSkills}
               />
               <View style={s.tagWrap}>
-                {data.skills.map((sk, i) => (
+                {data.skills.map((skill, index) => (
                   <TouchableOpacity
-                    key={i}
-                    style={[s.tag, selSkills.has(i) && s.tagOn]}
-                    onPress={() => toggle(selSkills, setSelSkills, i)}
+                    key={`${skill}-${index}`}
+                    style={[s.tag, selSkills.has(index) && s.tagOn]}
+                    onPress={() => toggleItem(selSkills, setSelSkills, index)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[s.tagText, selSkills.has(i) && s.tagTextOn]}>
-                      {sk}
+                    <Text
+                      style={[s.tagText, selSkills.has(index) && s.tagTextOn]}
+                    >
+                      {skill}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -246,29 +332,32 @@ export default function ParseReviewModal({
             </View>
           )}
 
-          {/* ---- INTERESTS ---- */}
           {data.interests.length > 0 && (
             <View style={s.sectionBlock}>
               <SectionHeader
                 title="Interests"
-                count={data.interests.length}
                 selected={selInterests.size}
-                allIndices={data.interests.map((_, i) => i)}
-                set={selInterests}
+                allValues={data.interests.map((_, index) => index)}
+                current={selInterests}
                 setter={setSelInterests}
               />
               <View style={s.tagWrap}>
-                {data.interests.map((it, i) => (
+                {data.interests.map((interest, index) => (
                   <TouchableOpacity
-                    key={i}
-                    style={[s.tag, selInterests.has(i) && s.tagOn]}
-                    onPress={() => toggle(selInterests, setSelInterests, i)}
+                    key={`${interest}-${index}`}
+                    style={[s.tag, selInterests.has(index) && s.tagOn]}
+                    onPress={() =>
+                      toggleItem(selInterests, setSelInterests, index)
+                    }
                     activeOpacity={0.7}
                   >
                     <Text
-                      style={[s.tagText, selInterests.has(i) && s.tagTextOn]}
+                      style={[
+                        s.tagText,
+                        selInterests.has(index) && s.tagTextOn,
+                      ]}
                     >
-                      {it}
+                      {interest}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -276,71 +365,69 @@ export default function ParseReviewModal({
             </View>
           )}
 
-          {/* ---- EDUCATION ---- */}
           {data.education.length > 0 && (
             <View style={s.sectionBlock}>
               <SectionHeader
                 title="Education"
-                count={data.education.length}
                 selected={selEdu.size}
-                allIndices={data.education.map((_, i) => i)}
-                set={selEdu}
+                allValues={data.education.map((_, index) => index)}
+                current={selEdu}
                 setter={setSelEdu}
               />
-              {data.education.map((edu, i) => (
+              {data.education.map((education, index) => (
                 <TouchableOpacity
-                  key={edu.id}
+                  key={education.id}
                   style={s.cardRow}
-                  onPress={() => toggle(selEdu, setSelEdu, i)}
+                  onPress={() => toggleItem(selEdu, setSelEdu, index)}
                   activeOpacity={0.7}
                 >
-                  {renderCheck(selEdu.has(i))}
+                  {renderCheck(selEdu.has(index))}
                   <View style={s.cardBody}>
-                    {!!edu.school && (
-                      <Text style={s.cardPrimary}>{edu.school}</Text>
+                    {!!education.school && (
+                      <Text style={s.cardPrimary}>{education.school}</Text>
                     )}
-                    {!!edu.degree && (
-                      <Text style={s.cardSecondary}>{edu.degree}</Text>
+                    {!!education.degree && (
+                      <Text style={s.cardSecondary}>{education.degree}</Text>
                     )}
-                    {!!edu.year && <Text style={s.cardMeta}>{edu.year}</Text>}
+                    {!!education.year && (
+                      <Text style={s.cardMeta}>{education.year}</Text>
+                    )}
                   </View>
                 </TouchableOpacity>
               ))}
             </View>
           )}
 
-          {/* ---- EXPERIENCE ---- */}
           {data.experience.length > 0 && (
             <View style={s.sectionBlock}>
               <SectionHeader
                 title="Experience"
-                count={data.experience.length}
                 selected={selExp.size}
-                allIndices={data.experience.map((_, i) => i)}
-                set={selExp}
+                allValues={data.experience.map((_, index) => index)}
+                current={selExp}
                 setter={setSelExp}
               />
-              {data.experience.map((exp, i) => (
+              {data.experience.map((experience, index) => (
                 <TouchableOpacity
-                  key={exp.id}
+                  key={experience.id}
                   style={s.cardRow}
-                  onPress={() => toggle(selExp, setSelExp, i)}
+                  onPress={() => toggleItem(selExp, setSelExp, index)}
                   activeOpacity={0.7}
                 >
-                  {renderCheck(selExp.has(i))}
+                  {renderCheck(selExp.has(index))}
                   <View style={s.cardBody}>
-                    {!!exp.company && (
-                      <Text style={s.cardPrimary}>{exp.company}</Text>
+                    {!!experience.company && (
+                      <Text style={s.cardPrimary}>{experience.company}</Text>
                     )}
-                    {!!exp.position && (
-                      <Text style={s.cardSecondary}>{exp.position}</Text>
+                    {!!experience.position && (
+                      <Text style={s.cardSecondary}>{experience.position}</Text>
                     )}
-                    {!!exp.duration && (
-                      <Text style={s.cardMeta}>{exp.duration}</Text>
+                    {!!experience.duration && (
+                      <Text style={s.cardMeta}>{experience.duration}</Text>
                     )}
-                    {!!exp.description && (
+                    {!!experience.description && (
                       <Text style={s.cardDesc} numberOfLines={3}>
-                        {exp.description}
+                        {experience.description}
                       </Text>
                     )}
                   </View>
@@ -349,37 +436,35 @@ export default function ParseReviewModal({
             </View>
           )}
 
-          {/* ---- PROJECTS ---- */}
           {data.personal_projects.length > 0 && (
             <View style={s.sectionBlock}>
               <SectionHeader
                 title="Projects"
-                count={data.personal_projects.length}
                 selected={selProj.size}
-                allIndices={data.personal_projects.map((_, i) => i)}
-                set={selProj}
+                allValues={data.personal_projects.map((_, index) => index)}
+                current={selProj}
                 setter={setSelProj}
               />
-              {data.personal_projects.map((proj, i) => (
+              {data.personal_projects.map((project, index) => (
                 <TouchableOpacity
-                  key={proj.id}
+                  key={project.id}
                   style={s.cardRow}
-                  onPress={() => toggle(selProj, setSelProj, i)}
+                  onPress={() => toggleItem(selProj, setSelProj, index)}
                   activeOpacity={0.7}
                 >
-                  {renderCheck(selProj.has(i))}
+                  {renderCheck(selProj.has(index))}
                   <View style={s.cardBody}>
-                    {!!proj.name && (
-                      <Text style={s.cardPrimary}>{proj.name}</Text>
+                    {!!project.name && (
+                      <Text style={s.cardPrimary}>{project.name}</Text>
                     )}
-                    {!!proj.description && (
+                    {!!project.description && (
                       <Text style={s.cardDesc} numberOfLines={3}>
-                        {proj.description}
+                        {project.description}
                       </Text>
                     )}
-                    {!!proj.link && (
+                    {!!project.link && (
                       <Text style={s.cardLink} numberOfLines={1}>
-                        {proj.link}
+                        {project.link}
                       </Text>
                     )}
                   </View>
@@ -388,38 +473,28 @@ export default function ParseReviewModal({
             </View>
           )}
 
-          {/* empty state */}
-          {data.skills.length === 0 &&
-            data.interests.length === 0 &&
-            data.education.length === 0 &&
-            data.experience.length === 0 &&
-            data.personal_projects.length === 0 && (
-              <View style={s.emptyWrap}>
-                <Ionicons
-                  name="document-text-outline"
-                  size={48}
-                  color="#d1d5db"
-                />
-                <Text style={s.emptyText}>
-                  No structured data could be extracted from this resume.
-                </Text>
-              </View>
-            )}
+          {!hasAnything && (
+            <View style={s.emptyWrap}>
+              <Ionicons
+                name="document-text-outline"
+                size={48}
+                color="#d1d5db"
+              />
+              <Text style={s.emptyText}>
+                No structured data could be extracted from this resume.
+              </Text>
+            </View>
+          )}
 
-          <View style={{ height: 40 }} />
+          <View style={s.bottomSpacer} />
         </ScrollView>
       </SafeAreaView>
     </Modal>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Styles                                                             */
-/* ------------------------------------------------------------------ */
-
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#fff" },
-
   topBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -432,17 +507,14 @@ const s = StyleSheet.create({
   cancelText: { fontSize: 16, color: "#6b7280" },
   topTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
   doneText: { fontSize: 16, fontWeight: "700", color: "#79BE58" },
-
   scroll: { flex: 1 },
   scrollContent: { padding: 16 },
-
   subtitle: {
     fontSize: 14,
     color: "#6b7280",
     marginBottom: 20,
     lineHeight: 20,
   },
-
   sectionBlock: { marginBottom: 24 },
   sectionHeader: {
     flexDirection: "row",
@@ -452,7 +524,6 @@ const s = StyleSheet.create({
   },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: "#111827" },
   sectionCount: { fontWeight: "400", color: "#6b7280" },
-
   tagWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   tag: {
     paddingVertical: 6,
@@ -468,7 +539,6 @@ const s = StyleSheet.create({
   },
   tagText: { fontSize: 14, color: "#374151" },
   tagTextOn: { color: "#79BE58", fontWeight: "600" },
-
   cardRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -484,9 +554,8 @@ const s = StyleSheet.create({
   cardPrimary: { fontSize: 15, fontWeight: "600", color: "#111827" },
   cardSecondary: { fontSize: 14, color: "#374151" },
   cardMeta: { fontSize: 13, color: "#6b7280" },
-  cardDesc: { fontSize: 13, color: "#4b5563", marginTop: 4 },
+  cardDesc: { fontSize: 13, color: "#4b5563", marginTop: 4, lineHeight: 20 },
   cardLink: { fontSize: 12, color: "#79BE58", marginTop: 2 },
-
   emptyWrap: {
     alignItems: "center",
     justifyContent: "center",
@@ -499,4 +568,5 @@ const s = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
   },
+  bottomSpacer: { height: 40 },
 });
