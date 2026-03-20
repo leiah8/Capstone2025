@@ -563,7 +563,7 @@ async function rankCandidatesBatch(
         if (__DEV__) {
           console.log(`[CANDIDATES] Scoring candidates for project: ${p.title} (id=${p.id})`);
         }
-        const matches = await getMatchedCandidates(p, batch, excludeCandidateIds);
+        const matches = await getMatchedCandidates(p, batch);
         if (__DEV__) {
           console.log(`[CANDIDATES] Got ${matches.length} scores for project ${p.id}`);
           console.log(`[CANDIDATES] Top 3 for project '${p.title}':`, matches.slice(0, 3).map(m => ({ id: m.candidate_id, score: m.overall_score })));
@@ -783,7 +783,9 @@ export default function CandidateFeed() {
     isFetchingMoreRef.current = true;
     setIsFetchingMore(true);
     try {
-      const excludeList = [...overallCandidates.map((c) => c.id), ...matchedCandidateIdsRef.current];
+      const excludeList = Array.from(
+        new Set([...overallCandidates.map((c) => c.id), ...matchedCandidateIdsRef.current])
+      );
       const newBatch = await fetchCandidates(BATCH_SIZE, session.user.id, excludeList);
       if (newBatch.length === 0) {
         setAllFetched(true);

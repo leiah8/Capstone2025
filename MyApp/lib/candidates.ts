@@ -168,7 +168,8 @@ export async function fetchMatchedCandidateIds(ownerId: string): Promise<string[
     console.error('[candidates] fetchMatchedCandidateIds error:', error);
     return [];
   }
-  return (data ?? []).map((row) => row.candidate_id as string);
+  // Deduplicate candidate IDs in case the same candidate appears in multiple matches
+  return Array.from(new Set((data ?? []).map((row) => row.candidate_id as string)));
 }
 
 export async function fetchCandidates(limit = 50, userId : string | undefined, excludeIds: string[] = []): Promise<CandidateUI[]> {

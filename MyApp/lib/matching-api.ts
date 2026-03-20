@@ -207,7 +207,7 @@ export async function getMatchedProjects(
     if (__DEV__) {
       console.log(`[API] Received ${data.ranked_projects.length} ranked projects from API`);
       console.log(`[API] First 3 project_ids in response:`, data.ranked_projects.slice(0, 3).map(r => r.project_id));
-      console.log(`[API] Response sample scores:`, data.ranked_projects.slice(0, 3).map(r => ({ id: r.project_id, overall_score: r.overall_score, total_score: r.total_score })));
+      console.log(`[API] Response sample scores:`, data.ranked_projects.slice(0, 3).map(r => ({ id: r.project_id, overall_score: r.overall_score })));
     }
     
     return data.ranked_projects.map((r: any) => ({

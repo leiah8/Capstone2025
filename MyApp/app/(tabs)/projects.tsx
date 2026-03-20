@@ -487,7 +487,6 @@ export default function ProjectFeed() {
           const matchScores = await getMatchedProjects(
             userProfile,
             allProjects,
-            matchedIds,
           );
           const scoreMap = new Map(
             matchScores.map((m) => [m.project_id, m.overall_score]),
