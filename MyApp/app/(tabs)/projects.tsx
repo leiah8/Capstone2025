@@ -31,7 +31,7 @@ import {
   checkMatchingAPIHealth,
   getMatchedProjects,
 } from "../../lib/matching-api";
-import { fetchProjects, fetchSwipedProjectIds, deleteNonMatchedProjectLikes, likeProject, ProjectUI } from "../../lib/projects";
+import { deleteNonMatchedProjectLikes, fetchProjects, fetchSwipedProjectIds, likeProject, ProjectUI } from "../../lib/projects";
 import { supabase } from "../../lib/supabase";
 import { getUserProfile } from "../../lib/user-profile";
 
@@ -395,6 +395,11 @@ export default function ProjectFeed() {
   const [maxFilterDist, setMaxFilterDist] = useState<number>(MAX_DISTANCE);
   const [myCoords, setMyCoords] = useState<Coord>({lat : null, lng : null});
 
+
+  const [maxFilterDistUI, setMaxFilterDistUI] = useState<number>(MAX_DISTANCE);
+  const [filterSkillsUI, setFilterSkillsUI] = useState<FilterSkill[]>([]);
+  const [showAllSkillsUI, setShowAllSkillsUI] = useState<boolean>(true);
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -427,10 +432,15 @@ export default function ProjectFeed() {
 
 
   const filterFetchedProjects = () => {
-    let maxDist = maxFilterDist < MAX_DISTANCE ? maxFilterDist : Infinity;
+
+    setMaxFilterDist(maxFilterDistUI);
+    setFilterSkills(filterSkillsUI);
+    setShowAllSkills(showAllSkillsUI);
+
+    let maxDist = maxFilterDistUI < MAX_DISTANCE ? maxFilterDistUI : Infinity;
     let filteredProjects: Project[] = [];
 
-    if (showAllSkills) {
+    if (showAllSkillsUI) {
       // setProjects(overallProjects);
       overallProjects.forEach((p) => {
         
@@ -441,7 +451,7 @@ export default function ProjectFeed() {
       setProjects(filteredProjects);
       return;
     }
-    const skills = filterSkills.filter((s) => s.included).map((s) => s.name);
+    const skills = filterSkillsUI.filter((s) => s.included).map((s) => s.name);
     overallProjects.forEach((p) => {
       const intersection = p.skillsNeeded.filter((x) => skills.includes(x));
       if (intersection.length > 0) {
@@ -477,9 +487,10 @@ export default function ProjectFeed() {
 
       const userProfile = await getUserProfile();
       if (!isActive()) return;
-      setFilterSkills(
-        userProfile.skills.map((s) => ({ name: s, included: true })),
-      );
+
+      const tempSkills = userProfile.skills.map((s) => ({ name: s, included: true })); //TODO NOT LOADING PROPERLY ON START OVER
+      setFilterSkills(tempSkills);
+      setFilterSkillsUI(tempSkills);  
 
       if (matchingAvailable) {
         console.log(
@@ -839,7 +850,12 @@ export default function ProjectFeed() {
             style={styles.closeDropDownButton}
             onPress={() => {
               setFilterDropDownOpen(false);
-              filterFetchedProjects();
+
+              setMaxFilterDistUI(maxFilterDist);
+              setFilterSkillsUI(filterSkills);
+              setShowAllSkillsUI(showAllSkills);
+              //TODO ONE MORE HERE??
+              // filterFetchedProjects(); //TODO HERE HI HELLO
             }}
           >
             <Ionicons name="close" size={35} color="000" />
@@ -854,11 +870,11 @@ export default function ProjectFeed() {
                       <LocationSlider
                         min={0}
                         max={MAX_DISTANCE}
-                        value={maxFilterDist}
-                        onValueChange={setMaxFilterDist}
+                        value={maxFilterDistUI}
+                        onValueChange={setMaxFilterDistUI}
                       />
                       <Text style={{ textAlign: "center", color: "#888", fontSize: 13 }}>
-                        {maxFilterDist >= MAX_DISTANCE ? "Worldwide" : maxFilterDist + "km"}
+                        {maxFilterDistUI >= MAX_DISTANCE ? "Worldwide" : maxFilterDistUI + "km"}
                       </Text>
                     </View>
                   )
@@ -872,24 +888,24 @@ export default function ProjectFeed() {
             <TouchableOpacity
               style={styles.filterRow}
               onPress={() => {
-                setShowAllSkills(!showAllSkills);
+                setShowAllSkillsUI(!showAllSkillsUI);
               }}
             >
               <Ionicons
-                name={showAllSkills ? "checkmark-circle" : "ellipse-outline"}
+                name={showAllSkillsUI ? "checkmark-circle" : "ellipse-outline"}
                 size={20}
                 color="#333"
               />
               <Text style={styles.filterLabel}>Show All Skills</Text>
             </TouchableOpacity>
 
-            {[...filterSkills].map((s, i) => (
+            {[...filterSkillsUI].map((s, i) => (
               <TouchableOpacity
                 key={i}
                 style={[styles.filterRow, { paddingHorizontal: 40 }]}
                 onPress={() => {
-                  if (!showAllSkills)
-                    setFilterSkills((prev) =>
+                  if (!showAllSkillsUI)
+                    setFilterSkillsUI((prev) =>
                       prev.map((skill, j) =>
                         j === i
                           ? { ...skill, included: !skill.included }
@@ -899,14 +915,14 @@ export default function ProjectFeed() {
                 }}
               >
                 <Ionicons
-                  name={s.included ? "checkmark-circle" : "ellipse-outline"}
+                  name={s.included ? "checkbox" : "square-outline"}
                   size={20}
-                  color={showAllSkills ? "#ddd" : "#333"}
+                  color={showAllSkillsUI ? "#ddd" : "#333"}
                 />
                 <Text
                   style={[
                     styles.filterLabel,
-                    { color: showAllSkills ? "#ddd" : "#333" },
+                    { color: showAllSkillsUI ? "#ddd" : "#333" },
                   ]}
                 >
                   {s.name}
@@ -915,6 +931,18 @@ export default function ProjectFeed() {
             ))}
           </View>
         )}
+
+        <View style={styles.center}>
+                <TouchableOpacity
+                              style={[styles.center, styles.resetButton, {width : SCREEN_WIDTH * 0.5}]}
+                              onPress={() => {
+                                setFilterDropDownOpen(false);
+                                filterFetchedProjects();
+                              }} 
+                            >
+                              <Text style={styles.resetButtonText}>Apply</Text>
+                        </TouchableOpacity>
+                        </View>
       </ScrollView>
     </SafeAreaView>
   ) : (

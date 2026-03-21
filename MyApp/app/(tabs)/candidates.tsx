@@ -787,6 +787,11 @@ export default function CandidateFeed() {
 
   const loadCandidates = useCallback(async () => {
     try {
+    const projectIndexMap = new Map<string, number>(
+      myProjects.map((p) => [String(p.id), p.currentIndex])
+    );
+
+
       setLoading(true);
       setAllCandidates([]);
       setCandidates([]);
@@ -845,10 +850,28 @@ export default function CandidateFeed() {
         }
 
         
+        // const projectIndexMap = new Map<number, number>(
+        //   myProjects.map((p) => [p.id, p.currentIndex])
+        // );
 
-        const tempProjects = userProjects.map((p) => ({ ...p, currentIndex : 0, included: persistedProjectId ? String(p.id) === persistedProjectId : false }))
+
+        // const tempProjects = userProjects.map((p) => ({ ...p, currentIndex : persistedProjectId == String(p.id) ? 0 : Number(projectIndexMap.get(p.id))
+        //   , included: persistedProjectId ? String(p.id) === persistedProjectId : false }))
+        // setMyProjects(tempProjects);
+        // setMyProjectsUI(tempProjects);
+          
+
+        const tempProjects = userProjects.map((p) => ({
+          ...p,
+          // Only reset index for the project being reloaded; preserve all others
+          currentIndex: String(p.id) === persistedProjectId
+            ? 0
+            : (projectIndexMap.get(String(p.id)) ?? 0),
+          included: persistedProjectId ? String(p.id) === persistedProjectId : false,
+        }));
+
         setMyProjects(tempProjects);
-        setMyProjectsUI(tempProjects)
+        setMyProjectsUI(tempProjects);
 
 
         setAllCandidates(ranked);
