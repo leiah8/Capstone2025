@@ -431,7 +431,7 @@ export default function ProjectFeed() {
       : 0;
 
 
-  const filterFetchedProjects = () => {
+  const filterFetchedProjects = () => { //TODO ADD OVERWRITE FOR SKILLS AND/OR PROJECTS
 
     setMaxFilterDist(maxFilterDistUI);
     setFilterSkills(filterSkillsUI);
@@ -488,10 +488,27 @@ export default function ProjectFeed() {
       const userProfile = await getUserProfile();
       if (!isActive()) return;
 
-      const tempSkills = userProfile.skills.map((s) => ({ name: s, included: true })); //TODO NOT LOADING PROPERLY ON START OVER
-      setFilterSkills(tempSkills);
-      setFilterSkillsUI(tempSkills);  
+      const tempSkills = userProfile.skills.map((s) => ({ name: s, included: true }));
 
+
+      let allPresent = true;
+      const justNames = filterSkills.map(s => s.name);
+      
+      tempSkills.forEach(s => {
+        if (!(justNames.includes(s.name))) {
+          allPresent = false;
+        }
+      })
+
+      
+
+      if(!allPresent) {
+        setFilterSkills(tempSkills);
+        setFilterSkillsUI(tempSkills);
+        setShowAllSkills(true);
+        setShowAllSkillsUI(true);  
+      }
+      
       if (matchingAvailable) {
         console.log(
           "Matching API available - ranking projects by match score...",
@@ -566,6 +583,8 @@ export default function ProjectFeed() {
     } finally {
       if (isActive()) setLoading(false);
     }
+
+    filterFetchedProjects();
   }, [session?.user?.id]);
 
   const advance = () => {
@@ -854,8 +873,6 @@ export default function ProjectFeed() {
               setMaxFilterDistUI(maxFilterDist);
               setFilterSkillsUI(filterSkills);
               setShowAllSkillsUI(showAllSkills);
-              //TODO ONE MORE HERE??
-              // filterFetchedProjects(); //TODO HERE HI HELLO
             }}
           >
             <Ionicons name="close" size={35} color="000" />
@@ -889,6 +906,7 @@ export default function ProjectFeed() {
               style={styles.filterRow}
               onPress={() => {
                 setShowAllSkillsUI(!showAllSkillsUI);
+                
               }}
             >
               <Ionicons
@@ -915,7 +933,7 @@ export default function ProjectFeed() {
                 }}
               >
                 <Ionicons
-                  name={s.included ? "checkbox" : "square-outline"}
+                  name={s.included || showAllSkillsUI ? "checkbox" : "square-outline"}
                   size={20}
                   color={showAllSkillsUI ? "#ddd" : "#333"}
                 />
