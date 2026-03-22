@@ -68,8 +68,8 @@ type Project = ProjectUI & {
   skillsNeeded?: string[];
   // tolerate legacy shape if it exists
   skills?: { name: string; level?: number }[];
-  lat : number | null;
-  lng : number | null;
+  lat: number | null;
+  lng: number | null;
 };
 
 type FilterSkill = {
@@ -78,9 +78,9 @@ type FilterSkill = {
 };
 
 type Coord = {
-  lat : number | null, 
-  lng : number | null
-}
+  lat: number | null;
+  lng: number | null;
+};
 
 /* =========================
    Custom Slider 
@@ -118,55 +118,21 @@ const LocationSlider = ({
 
   const fillRatio = (value - min) / (max - min);
 
-  // return (
-  //   <View style={sliderStyles.wrapper}>
-  //     <View
-  //       style={sliderStyles.track}
-  //       onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
-  //       {...sliderPanResponder.panHandlers}
-  //     >
-  //       <View style={[sliderStyles.fill, { flex: fillRatio }]} />
-  //       <View style={{ flex: 1 - fillRatio }} />
-  //       <View
-  //         style={[
-  //           sliderStyles.thumb,
-  //           { left: `${fillRatio * 100}%` as any },
-  //         ]}
-  //         pointerEvents="none"
-  //       />
-  //     </View>
-  //   </View>
-  // );
   return (
-      <View style={sliderStyles.wrapper}>
-        {/* <View
-          style={sliderStyles.track}
-          onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
-          {...sliderPanResponder.panHandlers}
-        >
-          <View style={[sliderStyles.fill, { flex: fillRatio }]} />
-          <View style={{ flex: 1 - fillRatio }} />
-          <View
-            style={[
-              sliderStyles.thumb,
-              { left: `${fillRatio * 100}%` as any },
-            ]}
-            pointerEvents="none"
-          />
-        </View> */}
+    <View style={sliderStyles.wrapper}>
+      <View
+        style={sliderStyles.track}
+        onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
+        {...sliderPanResponder.panHandlers}
+      >
+        <View style={[sliderStyles.fill, { width: `${fillRatio * 100}%` }]} />
         <View
-          style={sliderStyles.track}
-          onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
-          {...sliderPanResponder.panHandlers}
-        >
-          <View style={[sliderStyles.fill, { width: `${fillRatio * 100}%` }]} />
-          <View
-            style={[sliderStyles.thumb, { left: `${fillRatio * 100}%` as any }]}
-            pointerEvents="none"
-          />
-        </View>
+          style={[sliderStyles.thumb, { left: `${fillRatio * 100}%` as any }]}
+          pointerEvents="none"
+        />
       </View>
-    );
+    </View>
+  );
 };
 
 const sliderStyles = StyleSheet.create({
@@ -179,19 +145,15 @@ const sliderStyles = StyleSheet.create({
     height: 4,
     backgroundColor: "#E1E8F5",
     borderRadius: 2,
-    // flexDirection: "row", ///
     position: "relative",
   },
   fill: {
-    // height: 4,
-    // backgroundColor: "#79BE58",
-    // borderRadius: 2,
     height: 4,
-  backgroundColor: "#79BE58",
-  borderRadius: 2,
-  position: "absolute",
-  left: 0,
-  top: 0,
+    backgroundColor: "#79BE58",
+    borderRadius: 2,
+    position: "absolute",
+    left: 0,
+    top: 0,
   },
   thumb: {
     position: "absolute",
@@ -389,13 +351,35 @@ export default function ProjectFeed() {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [overallProjects, setAllProjects] = useState<Project[]>([]);
+
+  // ── Applied filter state (source of truth for what's currently active) ──
   const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
   const [showAllSkills, setShowAllSkills] = useState<boolean>(true);
-
   const [maxFilterDist, setMaxFilterDist] = useState<number>(MAX_DISTANCE);
-  const [myCoords, setMyCoords] = useState<Coord>({lat : null, lng : null});
 
+  // ── Refs mirror applied state so async callbacks always read current values ──
+  const filterSkillsRef = useRef<FilterSkill[]>([]);
+  const showAllSkillsRef = useRef<boolean>(true);
+  const maxFilterDistRef = useRef<number>(MAX_DISTANCE);
 
+  // Helper setters that keep state and ref in sync
+  const setFilterSkillsSync = (v: FilterSkill[]) => {
+    filterSkillsRef.current = v;
+    setFilterSkills(v);
+  };
+  const setShowAllSkillsSync = (v: boolean) => {
+    showAllSkillsRef.current = v;
+    setShowAllSkills(v);
+  };
+  const setMaxFilterDistSync = (v: number) => {
+    maxFilterDistRef.current = v;
+    setMaxFilterDist(v);
+  };
+
+  const [myCoords, setMyCoords] = useState<Coord>({ lat: null, lng: null });
+  const myCoordsRef = useRef<Coord>({ lat: null, lng: null });
+
+  // ── UI (staging) filter state — only committed on Apply ──
   const [maxFilterDistUI, setMaxFilterDistUI] = useState<number>(MAX_DISTANCE);
   const [filterSkillsUI, setFilterSkillsUI] = useState<FilterSkill[]>([]);
   const [showAllSkillsUI, setShowAllSkillsUI] = useState<boolean>(true);
@@ -430,39 +414,39 @@ export default function ProjectFeed() {
         )
       : 0;
 
+  // ── Filter logic: reads from refs/params so it's never stale ──
+  const filterFetchedProjects = useCallback((
+    projectsToFilter: Project[],
+    coords: Coord,
+    skillsOverride?: FilterSkill[],
+    showAllOverride?: boolean,
+    maxDistOverride?: number,
+  ) => {
+    const showAll = showAllOverride ?? showAllSkillsRef.current;
+    const skills = skillsOverride ?? filterSkillsRef.current;
+    const rawMax = maxDistOverride ?? maxFilterDistRef.current;
+    const maxDist = rawMax < MAX_DISTANCE ? rawMax : Infinity;
 
-  const filterFetchedProjects = () => { //TODO ADD OVERWRITE FOR SKILLS AND/OR PROJECTS
+    const filtered: Project[] = [];
 
-    setMaxFilterDist(maxFilterDistUI);
-    setFilterSkills(filterSkillsUI);
-    setShowAllSkills(showAllSkillsUI);
-
-    let maxDist = maxFilterDistUI < MAX_DISTANCE ? maxFilterDistUI : Infinity;
-    let filteredProjects: Project[] = [];
-
-    if (showAllSkillsUI) {
-      // setProjects(overallProjects);
-      overallProjects.forEach((p) => {
-        
-        if (calcDist(myCoords.lat, myCoords?.lng, p.lat, p.lng) <= maxDist) {
-            filteredProjects.push(p);
-          }
-      })
-      setProjects(filteredProjects);
-      return;
+    if (showAll) {
+      projectsToFilter.forEach((p) => {
+        if (calcDist(coords.lat, coords.lng, p.lat, p.lng) <= maxDist) {
+          filtered.push(p);
+        }
+      });
+    } else {
+      const skillNames = skills.filter((s) => s.included).map((s) => s.name);
+      projectsToFilter.forEach((p) => {
+        const intersection = (p.skillsNeeded ?? []).filter((x) => skillNames.includes(x));
+        if (intersection.length > 0 && calcDist(coords.lat, coords.lng, p.lat, p.lng) <= maxDist) {
+          filtered.push(p);
+        }
+      });
     }
-    const skills = filterSkillsUI.filter((s) => s.included).map((s) => s.name);
-    overallProjects.forEach((p) => {
-      const intersection = p.skillsNeeded.filter((x) => skills.includes(x));
-      if (intersection.length > 0) {
-        if (calcDist(myCoords.lat, myCoords?.lng, p.lat, p.lng) <= maxDist) {
-                filteredProjects.push(p);
-              }
-      }
-    });
 
-    setProjects(filteredProjects);
-  };
+    setProjects(filtered);
+  }, []);
 
   const loadBrowseProjects = useCallback(async (isActive: () => boolean = () => true) => {
     try {
@@ -479,6 +463,7 @@ export default function ProjectFeed() {
 
       const coords = await fetchMyCoords(session?.user?.id);
       if (!isActive()) return;
+      myCoordsRef.current = coords;
       setMyCoords(coords);
 
       // Check if matching API is available
@@ -490,25 +475,30 @@ export default function ProjectFeed() {
 
       const tempSkills = userProfile.skills.map((s) => ({ name: s, included: true }));
 
+      // Compare sorted skill name lists to detect any change (additions or removals)
+      const prevSkillNames = filterSkillsRef.current.map((s) => s.name).sort();
+      const newSkillNames = tempSkills.map((s) => s.name).sort();
+      const skillsChanged =
+        prevSkillNames.length !== newSkillNames.length ||
+        prevSkillNames.some((name, i) => name !== newSkillNames[i]);
 
-      let allPresent = true;
-      const justNames = filterSkills.map(s => s.name);
-      
-      tempSkills.forEach(s => {
-        if (!(justNames.includes(s.name))) {
-          allPresent = false;
-        }
-      })
+      // Track what filter values will actually be used for this load
+      let effectiveShowAll = showAllSkillsRef.current;
+      let effectiveSkills = filterSkillsRef.current;
 
-      
-
-      if(!allPresent) {
-        setFilterSkills(tempSkills);
+      if (skillsChanged) {
+        // Skills changed — reset filter to "show all" with the new skill list
+        setFilterSkillsSync(tempSkills);
         setFilterSkillsUI(tempSkills);
-        setShowAllSkills(true);
-        setShowAllSkillsUI(true);  
+        setShowAllSkillsSync(true);
+        setShowAllSkillsUI(true);
+        effectiveShowAll = true;
+        effectiveSkills = tempSkills;
       }
-      
+      // If skills haven't changed, preserve the user's existing filter selections
+
+      let finalProjects: Project[] = [];
+
       if (matchingAvailable) {
         console.log(
           "Matching API available - ranking projects by match score...",
@@ -525,8 +515,8 @@ export default function ProjectFeed() {
           // DIAGNOSTIC: Log score map population
           if (__DEV__) {
             console.log(`[MATCHING] Got ${matchScores.length} match scores for ${allProjects.length} projects`);
-            console.log(`[MATCHING] First few project IDs from API:`, matchScores.slice(0, 3).map(m => m.project_id));
-            console.log(`[MATCHING] First few project IDs from fetched:`, allProjects.slice(0, 3).map(p => p.id));
+            console.log(`[MATCHING] First few project IDs from API:`, matchScores.slice(0, 3).map((m) => m.project_id));
+            console.log(`[MATCHING] First few project IDs from fetched:`, allProjects.slice(0, 3).map((p) => p.id));
           }
 
           const rankedProjects = [...allProjects]
@@ -542,14 +532,15 @@ export default function ProjectFeed() {
 
           if (__DEV__) {
             console.log(`[MATCHING] Before sort - first 3 projects by created_at (expect oldest first):`);
-            allProjects.slice(0, 3).forEach(p => console.log(`  - ${p.id}: ${p.name}`));
+            allProjects.slice(0, 3).forEach((p) => console.log(`  - ${p.id}: ${p.name}`));
             console.log(`[MATCHING] After sort - first 3 projects (expect highest score first):`);
-            rankedProjects.slice(0, 3).forEach(p => console.log(`  - ${p.id}: ${p.name}, score: ${scoreMap.get(p.id)}`));
+            rankedProjects.slice(0, 3).forEach((p) => console.log(`  - ${p.id}: ${p.name}, score: ${scoreMap.get(p.id)}`));
           }
 
           if (!isActive()) return;
           setAllProjects(rankedProjects as Project[]);
-          setProjects(rankedProjects as Project[]);
+          finalProjects = rankedProjects as Project[];
+
           if (__DEV__) {
             console.log(
               `Projects ranked by match score (top: ${(scoreMap.get(rankedProjects[0].id) || 0) * 100}%)`,
@@ -562,7 +553,7 @@ export default function ProjectFeed() {
           );
           if (!isActive()) return;
           setAllProjects(allProjects as Project[]);
-          setProjects(allProjects as Project[]);
+          finalProjects = allProjects as Project[];
         }
       } else {
         if (__DEV__) {
@@ -572,20 +563,27 @@ export default function ProjectFeed() {
         }
         if (!isActive()) return;
         setAllProjects(allProjects as Project[]);
-        setProjects(allProjects as Project[]);
+        finalProjects = allProjects as Project[];
       }
 
       if (!isActive()) return;
       setCurrentIndex(0);
+
+      // Pass fresh values directly — never rely on state reads inside async callback
+      filterFetchedProjects(
+        finalProjects,
+        coords,
+        effectiveSkills,
+        effectiveShowAll,
+        maxFilterDistRef.current,
+      );
     } catch (e: any) {
       if (!isActive()) return;
       setErr(e.message ?? String(e));
     } finally {
       if (isActive()) setLoading(false);
     }
-
-    filterFetchedProjects();
-  }, [session?.user?.id]);
+  }, [session?.user?.id, filterFetchedProjects]);
 
   const advance = () => {
     if (currentIndex < projects.length) setCurrentIndex((i) => i + 1);
@@ -854,7 +852,6 @@ export default function ProjectFeed() {
   return filterDropDownOpen ? (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: "#FFF" }}>
       <ScrollView style={styles.container}>
-        {/* <View> */}
         <View
           style={{
             marginBottom: 10,
@@ -868,11 +865,11 @@ export default function ProjectFeed() {
           <TouchableOpacity
             style={styles.closeDropDownButton}
             onPress={() => {
+              // Discard any staged UI changes — revert to last applied values
               setFilterDropDownOpen(false);
-
-              setMaxFilterDistUI(maxFilterDist);
-              setFilterSkillsUI(filterSkills);
-              setShowAllSkillsUI(showAllSkills);
+              setMaxFilterDistUI(maxFilterDistRef.current);
+              setFilterSkillsUI(filterSkillsRef.current);
+              setShowAllSkillsUI(showAllSkillsRef.current);
             }}
           >
             <Ionicons name="close" size={35} color="000" />
@@ -880,25 +877,22 @@ export default function ProjectFeed() {
         </View>
 
         {/* Location */}
-                  {myCoords.lat && (
-                    <View>
-                      <Text style={styles.sectionTitle}>Location</Text>
-                      {/* <SliderFilter/> */}
-                      <LocationSlider
-                        min={0}
-                        max={MAX_DISTANCE}
-                        value={maxFilterDistUI}
-                        onValueChange={setMaxFilterDistUI}
-                      />
-                      <Text style={{ textAlign: "center", color: "#888", fontSize: 13 }}>
-                        {maxFilterDistUI >= MAX_DISTANCE ? "Worldwide" : maxFilterDistUI + "km"}
-                      </Text>
-                    </View>
-                  )
-                  
-                  }
+        {myCoords.lat && (
+          <View>
+            <Text style={styles.sectionTitle}>Location</Text>
+            <LocationSlider
+              min={0}
+              max={MAX_DISTANCE}
+              value={maxFilterDistUI}
+              onValueChange={setMaxFilterDistUI}
+            />
+            <Text style={{ textAlign: "center", color: "#888", fontSize: 13 }}>
+              {maxFilterDistUI >= MAX_DISTANCE ? "Worldwide" : maxFilterDistUI + "km"}
+            </Text>
+          </View>
+        )}
 
-        {/* skills to browse on */}
+        {/* Skills to browse on */}
         {filterSkills.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Skills</Text>
@@ -906,7 +900,6 @@ export default function ProjectFeed() {
               style={styles.filterRow}
               onPress={() => {
                 setShowAllSkillsUI(!showAllSkillsUI);
-                
               }}
             >
               <Ionicons
@@ -951,16 +944,27 @@ export default function ProjectFeed() {
         )}
 
         <View style={styles.center}>
-                <TouchableOpacity
-                              style={[styles.center, styles.resetButton, {width : SCREEN_WIDTH * 0.5}]}
-                              onPress={() => {
-                                setFilterDropDownOpen(false);
-                                filterFetchedProjects();
-                              }} 
-                            >
-                              <Text style={styles.resetButtonText}>Apply</Text>
-                        </TouchableOpacity>
-                        </View>
+          <TouchableOpacity
+            style={[styles.center, styles.resetButton, { width: SCREEN_WIDTH * 0.5 }]}
+            onPress={() => {
+              // Commit UI values as the new applied filter state
+              setFilterDropDownOpen(false);
+              setShowAllSkillsSync(showAllSkillsUI);
+              setFilterSkillsSync(filterSkillsUI);
+              setMaxFilterDistSync(maxFilterDistUI);
+              // Pass values directly so filtering is never stale
+              filterFetchedProjects(
+                overallProjects,
+                myCoordsRef.current,
+                filterSkillsUI,
+                showAllSkillsUI,
+                maxFilterDistUI,
+              );
+            }}
+          >
+            <Text style={styles.resetButtonText}>Apply</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   ) : (
@@ -1413,7 +1417,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     alignItems: "center",
     paddingHorizontal: 16,
-    // marginTop: 40,
   },
   deckSlot: {
     width: DECK_CARD_WIDTH,
@@ -1421,9 +1424,6 @@ const styles = StyleSheet.create({
     position: "relative",
     alignSelf: "center",
   },
-
-  //
-
   card: {
     position: "absolute",
     width: SCREEN_WIDTH * 0.9,
