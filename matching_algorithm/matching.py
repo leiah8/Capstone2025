@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MatchWeights:
     """Configurable weights for matching components (must sum to 1.0)"""
-    semantic: float = 0.35
-    skills: float = 0.55
-    interests: float = 0.10
+    semantic: float = 0.50 #TODO: FIX WEIGHTS + INTERESTS
+    skills: float = 0.50
+    interests: float = 0.0
     
     def __post_init__(self):
         total = self.semantic + self.skills + self.interests
@@ -146,7 +146,9 @@ class MatchingEngine:
         required_skills_norm = self.normalize_skills(required_skills)
         
         if not required_skills_norm:
-            return 0.0, [], []
+            # No requirements listed means the project is open to anyone —
+            # treat as neutral rather than penalising with a hard zero.
+            return 0.5, [], []
         
         matched = []
         missing = []
@@ -169,10 +171,11 @@ class MatchingEngine:
         project_tags_norm = set(self.normalize_skills(project_tags))
         
         if not project_tags_norm and not user_interests_norm:
-            return 0.0, []
-        
+            return 0.5, []
+
         if not project_tags_norm or not user_interests_norm:
-            return 0.0, []
+            # No tags/interests to compare — treat as neutral rather than penalising.
+            return 0.5, []
         
         matched = list(user_interests_norm.intersection(project_tags_norm))
         union_size = len(user_interests_norm.union(project_tags_norm))
