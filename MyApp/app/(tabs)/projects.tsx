@@ -439,7 +439,8 @@ export default function ProjectFeed() {
       const skillNames = skills.filter((s) => s.included).map((s) => s.name);
       projectsToFilter.forEach((p) => {
         const intersection = (p.skillsNeeded ?? []).filter((x) => skillNames.includes(x));
-        if (intersection.length > 0 && calcDist(coords.lat, coords.lng, p.lat, p.lng) <= maxDist) {
+        let d = calcDist(coords.lat, coords.lng, p.lat, p.lng);
+        if (intersection.length > 0 && ((d != null && d <= maxDist) || d == null)) {
           filtered.push(p);
         }
       });
