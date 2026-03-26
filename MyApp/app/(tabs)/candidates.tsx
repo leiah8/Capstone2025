@@ -861,6 +861,7 @@ export default function CandidateFeed() {
 
         
         const allCandidates = await fetchCandidates(INITIAL_BATCH_SIZE, session?.user?.id, swipedCandidateIdsRef.current);
+        //TODO fetchCandidates causing issues (could just be supabase)
 
         const matchingAvailable = await checkMatchingAPIHealth();
         console.log(
