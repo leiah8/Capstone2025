@@ -92,7 +92,7 @@ type Coord = {
 
 type CandidateList = {
   fullCandidates : Candidate[],
-  filteredCandidates : Candidate[],
+  filteredCandidates : {c : Candidate, included : boolean}[],
   project : FilterProject,
   index : number, 
 };
@@ -617,14 +617,10 @@ export default function CandidateFeed() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const browseBottomPadding = Math.max(tabBarHeight, 88) + 12;
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidates, setCandidates] = useState<{c : Candidate, included : boolean}[]>([]);
   const [overallCandidates, setAllCandidates] = useState<Candidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0); //useState<{project : String | null, index : number}>({project : persistedProjectId, index : 0});
   
-  const setCurrentIndexDebug = (val: number) => { //TODO REMOVE THIS
-    console.log("[currentIndex]", val);
-    setCurrentIndex(val);
-  };
   
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -664,66 +660,148 @@ export default function CandidateFeed() {
   const swipedCandidateIdsRef = useRef<string[]>([]);
 
 
-  const filterFetchedCandidates = (pid? : number) => {
+  // const filterFetchedCandidates = (pid? : number) => {
 
-    console.log("HELLOOOOO start of filterin");
+  //   console.log("START OF FILTERING");
     
-    let newPid1 = myProjectsUI.find(p => p.included)?.id;
-    if(pid) {
-      newPid1 = pid;
-    }
+  //   let newPid1 = myProjectsUI.find(p => p.included)?.id;
+  //   if(pid) {
+  //     newPid1 = pid;
+  //   }
 
-    if (newPid1){
-      //switch the project if needed 
-      const newPid = String(newPid1);
+  //   if (newPid1){
+  //     //switch the project if needed 
 
-      const oldProject = allCandidateLists.get(String(persistedProjectId));
-      if(oldProject) {
-        oldProject.index = currentIndex;
-      }
-      const newProject = allCandidateLists.get(newPid);
-      persistedProjectId = newPid
+  //     const newPid = String(newPid1);
 
-      if (newProject) {
-        console.log("acc filtering");
-        
-        let maxDist = maxFilterDistUI < MAX_DISTANCE ? maxFilterDistUI : Infinity;
-        const selectedSkills = filterSkillsUI.filter((s) => s.included).map((s) => s.name);
+  //     const oldProject = allCandidateLists.get(String(persistedProjectId));
+  //     const oldIndex = currentIndex;
+  //     // if(oldProject) {
+  //     //   oldProject.index = currentIndex;
+  //     // }
+  //     const newProject = allCandidateLists.get(newPid);
+  //     persistedProjectId = newPid
 
-        const filteredCandidates = newProject.fullCandidates.filter(c => {
 
-          //dist filtering 
-          if (calcDist(myCoords?.lat, myCoords?.lng, c.lat, c.lng) > maxDist) return false;
 
-          //could check project id but not necessary 
+  //     if (newProject) {    
+  //       let maxDist = maxFilterDistUI < MAX_DISTANCE ? maxFilterDistUI : Infinity;
+  //       const selectedSkills = filterSkillsUI.filter((s) => s.included).map((s) => s.name);
 
-          //skill filtering
-          if (!showAllSkillsUI) {
-            const hasSkill = c.skills.some(s => selectedSkills.includes(s));
-            if (!hasSkill) return false;
-          }
+  //       const filteredCandidates = newProject.fullCandidates.map(c => {
+  //         const out = {c : c, included : true}
+  //         //dist filtering 
+  //         if (calcDist(myCoords?.lat, myCoords?.lng, c.lat, c.lng) > maxDist) {
+  //           out.included =  false;
+  //         }
 
-          return true;
+  //         //could check project id but not necessary 
+
+  //         //skill filtering
+  //         if (!showAllSkillsUI) {
+  //           const hasSkill = c.skills.some(s => selectedSkills.includes(s));
+  //           if (!hasSkill) {
+  //           out.included = false;
+  //           }
+  //         }
+
+  //         return out;
           
-        });
-        console.log(filteredCandidates.length);
-        setCandidates(filteredCandidates);
-        setCurrentIndexDebug(0);
-        setAllCandidateLists(prev => new Map(prev).set(newPid, {...newProject, filteredCandidates : filteredCandidates}));
+  //       });
+        
+  //       setCandidates(filteredCandidates);
+  //       setAllCandidateLists(prev => {
+  //         return  new Map(prev).set(newPid, {...newProject, filteredCandidates : filteredCandidates})
+  //         // if (m1 && oldProject) {
+  //         //   const m2 = m1.set(String(persistedProjectId), {...oldProject, index : oldIndex});
+  //         //   return m2;
+  //         // }
+  //         // return m1;
+  //       });
 
-        //set to be saved
-        setMyProjects(myProjectsUI);
-        setFilterSkills(filterSkillsUI);
-        setShowAllSkills(showAllSkillsUI);
-        setMaxFilterDist(maxFilterDistUI);
+  //       // setCurrentIndexDebug(newProject.index);
+  //       setCurrentIndexDebug(0);
 
-      }
+  //       //set to be saved
+  //       setMyProjects(myProjectsUI);
+  //       setFilterSkills(filterSkillsUI);
+  //       setShowAllSkills(showAllSkillsUI);
+  //       setMaxFilterDist(maxFilterDistUI);
+
+  //     }
       
 
 
-    }
+  //   }
+
+  //   console.log("END OF FILTERING");
     
-  };
+  // };
+
+  const filterFetchedCandidates = (pid?: number) => {
+  console.log("START OF FILTERING");
+
+  let newPid1 = myProjectsUI.find(p => p.included)?.id;
+  if (pid) newPid1 = pid;
+
+  if (newPid1) {
+    const newPid = String(newPid1);
+    // const isSwitchingProject = newPid !== String(persistedProjectId);
+    const isSwitchingProject = persistedProjectId !== null && newPid !== String(persistedProjectId);
+
+    const oldProjectId = String(persistedProjectId);
+    const oldProject = allCandidateLists.get(oldProjectId);
+    const newProject = allCandidateLists.get(newPid);
+
+    const currentI = currentIndex
+
+    const updatedOldProject =
+      isSwitchingProject && oldProject
+        ? { ...oldProject, index: currentI }
+        : oldProject;
+
+    persistedProjectId = newPid;
+
+    if (newProject) {
+      let maxDist = maxFilterDistUI < MAX_DISTANCE ? maxFilterDistUI : Infinity;
+      const selectedSkills = filterSkillsUI.filter(s => s.included).map(s => s.name);
+
+      const filteredCandidates = newProject.fullCandidates.map(c => {
+        const out = { c, included: true };
+        if (calcDist(myCoords?.lat, myCoords?.lng, c.lat, c.lng) > maxDist) {
+          out.included = false;
+        }
+        if (!showAllSkillsUI) {
+          if (!c.skills.some(s => selectedSkills.includes(s))) {
+            out.included = false;
+          }
+        }
+        return out;
+      });
+
+      setCandidates(filteredCandidates);
+
+      setAllCandidateLists(prev => {
+        const next = new Map(prev);
+        if (isSwitchingProject && updatedOldProject) {
+          next.set(oldProjectId, updatedOldProject);
+        }
+        next.set(newPid, { ...newProject, filteredCandidates });
+        return next;
+      });
+
+      const restoredIndex = isSwitchingProject ? (newProject.index ?? 0) : 0;
+      setCurrentIndex(restoredIndex);
+
+      setMyProjects(myProjectsUI);
+      setFilterSkills(filterSkillsUI);
+      setShowAllSkills(showAllSkillsUI);
+      setMaxFilterDist(maxFilterDistUI);
+    }
+  }
+
+  console.log("END OF FILTERING");
+};
 
   const loadCandidates = useCallback(async (startingOver? : boolean) => {
     try {
@@ -793,49 +871,50 @@ export default function CandidateFeed() {
 
         const ranked = await rankCandidatesBatch(allCandidates, userProjects, matchingAvailable, swipedCandidateIdsRef.current);
 
-        setCandidates(ranked);
+        setCandidates(ranked.map(c => ({c : c, included : true})));
         setAllCandidates(ranked);
         
-        console.log("hi here");
-        console.log(allCandidateLists)
         if (startingOver) {
           //only pull new for this project 
           const proj = tempProjects.find(p => (String(p.id) == persistedProjectId));
 
           if (proj) {
-            let pCandidates = ranked.filter(c => c.project_id === persistedProjectId);               
+            let pCandidates = ranked.filter(c => c.project_id === persistedProjectId);  
+            let filteredpCandidates = pCandidates.map(c => ({c : c, included : true}))              
 
-            const p2 = { fullCandidates: pCandidates, filteredCandidates : pCandidates, project: proj, index: 0 };
+            const p2 = { fullCandidates: pCandidates, filteredCandidates : filteredpCandidates, project: proj, index: 0 };
 
             setAllCandidateLists(prev => prev.set(String(persistedProjectId), p2));
-            setCandidates(pCandidates);
+            setCandidates(filteredpCandidates);
             setCurrentCandidateList(p2)
-            setCurrentIndexDebug(0); 
+            setCurrentIndex(0); 
             
           } else {
             console.log("ERROR");
           }
+
         
         }
         else {
           //split candidates up by project
           const allLists = new Map<String, CandidateList | undefined>();
           tempProjects.forEach(p => {
-            let pCandidates = ranked.filter(c => c.project_id === String(p.id));               
+            let pCandidates = ranked.filter(c => c.project_id === String(p.id));   
+            let filteredpCandidates = pCandidates.map(c => ({c : c, included : true}));           
             let newIndex = 0;
 
-            const p2 = { fullCandidates: pCandidates, filteredCandidates : pCandidates, project: p, index: newIndex };
+            const p2 = { fullCandidates: pCandidates, filteredCandidates : filteredpCandidates, project: p, index: newIndex };
 
             allLists.set(String(p.id), p2);
 
             if (persistedProjectId == String(p.id)) {
-              setCandidates(pCandidates);
+              setCandidates(filteredpCandidates);
               setCurrentCandidateList(p2)
             }
 
           });
           setAllCandidateLists(allLists);
-          setCurrentIndexDebug(0); //TODO HERE
+          setCurrentIndex(0); 
         }
 
         if (allCandidates.length < INITIAL_BATCH_SIZE) {
@@ -848,10 +927,6 @@ export default function CandidateFeed() {
       setLoading(false);
     }
 
-    //TODO POSSIBLE OTHER IDEA
-    // add included in candidate list
-    // reset index but in advance() add included check
-   
     
 
   }, [session?.user?.id]);
@@ -868,7 +943,7 @@ export default function CandidateFeed() {
     swipedCandidateIdsRef.current = [];
     setCandidates([]);
     setAllCandidates([]);
-    setCurrentIndexDebug(0);
+    setCurrentIndex(0);
     persistedProjectId = null
     setAllFetched(false);
     setErr(null);
@@ -894,7 +969,7 @@ export default function CandidateFeed() {
       const ranked = await rankCandidatesBatch(newBatch, includedProjects, matchingAvailable, swipedCandidateIdsRef.current);
 
       setAllCandidates((prev) => [...prev, ...ranked]);
-      setCandidates((prev) => [...prev, ...ranked]);
+      setCandidates((prev) => [...prev, ...ranked.map(c => ({c : c, included : true}))]);
     } catch (e: any) {
       console.warn("Failed to fetch more candidates:", e.message ?? e);
     } finally {
@@ -907,7 +982,17 @@ export default function CandidateFeed() {
     // if (currentIndex.index < candidates.length) setCurrentIndex((prev) => {
     //   return {project : prev.project, index : prev.index + 1};
     // });
-    if (currentIndex < candidates.length) setCurrentIndexDebug(currentIndex + 1);
+    let i = currentIndex + 1;
+    while (i < candidates.length) {
+      if (candidates[i].included) {
+        if (i <= candidates.length) {
+          setCurrentIndex(i);
+          return
+        }
+      }
+      i += 1;
+    }
+    if (i >= candidates.length) setCurrentIndex(candidates.length);
   };
 
   const handleSwipe = async (direction: "left" | "right") => {
@@ -925,12 +1010,12 @@ export default function CandidateFeed() {
     try {
       const matchResult = await likeCandidate(
         session.user.id,
-        candidate.project_id,
-        candidate.id,
+        candidate.c.project_id,
+        candidate.c.id,
         direction === "right" ? "like" : "pass",
       );
       if (matchResult?.match) {
-        setMatchCelebrationTarget(candidate.name);
+        setMatchCelebrationTarget(candidate.c.name);
       }
     } catch (e: any) {
       console.warn("Failed to record candidate like:", e.message ?? e);
@@ -1148,11 +1233,12 @@ export default function CandidateFeed() {
               {candidates
                 .slice(currentIndex, currentIndex + 2)
                 .reverse()
+                .filter(c => c.included)
                 .map((p, i, arr) => (
                   <CandidateCard
                     // key={(p.id, p.project_id)}
-                    key={`${p.id}-${p.project_id}`}
-                    candidate={p}
+                    key={`${p.c.id}-${p.c.project_id}`}
+                    candidate={p.c}
                     isTop={i === arr.length - 1}
                     onSwipe={handleSwipe}
                   />
@@ -1178,6 +1264,7 @@ export default function CandidateFeed() {
                             await deleteNonMatchedCandidateLikes(session.user.id, Number(persistedProjectId));
                           }
                           await loadCandidates(true);
+                          // await filterFetchedCandidates();
                         } catch (e: any) {
                           console.warn('Failed to reset candidates feed:', e.message ?? e);
                         }
@@ -1227,7 +1314,6 @@ export default function CandidateFeed() {
                   filterFetchedCandidates(p.id);
                   // switchProjects(persistedProjectId);
                   //setCandidates(overallCandidates.filter(c => c.project_id === String(p.id)));
-                  //TODO HERE
                   }}
                   
                 >
