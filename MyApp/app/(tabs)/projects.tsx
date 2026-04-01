@@ -66,6 +66,7 @@ const deckCardShell = {
    ========================= */
 type Project = ProjectUI & {
   skillsNeeded?: string[];
+  interests?: string[];
   // tolerate legacy shape if it exists
   skills?: { name: string; level?: number }[];
   lat: number | null;
@@ -73,6 +74,11 @@ type Project = ProjectUI & {
 };
 
 type FilterSkill = {
+  name: string;
+  included: boolean;
+};
+
+type FilterInterest = {
   name: string;
   included: boolean;
 };
@@ -255,6 +261,8 @@ const ProjectCard = ({
       ? project.skillsNeeded
       : (project.skills?.map((s) => s.name) ?? []);
 
+  const interests = project.interests ?? [];
+
   return (
     <Animated.View
       style={[
@@ -323,6 +331,20 @@ const ProjectCard = ({
               </View>
             </View>
           )}
+
+          {/* Interests chips (if available) */}
+          {interests.length > 0 && (
+            <View style={{ marginTop: 6, marginBottom: 20 }}>
+              <Text style={styles.sectionTitle}>Interests</Text>
+              <View style={styles.chipsWrap}>
+                {interests.map((interest, i) => (
+                  <View key={`${interest}-${i}`} style={styles.chip}>
+                    <Text style={styles.chipText}>{interest}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
         </ScrollView>
       </View>
     </Animated.View>
@@ -355,11 +377,15 @@ export default function ProjectFeed() {
   // ── Applied filter state (source of truth for what's currently active) ──
   const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
   const [showAllSkills, setShowAllSkills] = useState<boolean>(true);
+  const [filterInterests, setFilterInterests] = useState<FilterInterest[]>([]);
+  const [showAllInterests, setShowAllInterests] = useState<boolean>(true);
   const [maxFilterDist, setMaxFilterDist] = useState<number>(MAX_DISTANCE);
 
   // ── Refs mirror applied state so async callbacks always read current values ──
   const filterSkillsRef = useRef<FilterSkill[]>([]);
   const showAllSkillsRef = useRef<boolean>(true);
+  const filterInterestsRef = useRef<FilterInterest[]>([]);
+  const showAllInterestsRef = useRef<boolean>(true);
   const maxFilterDistRef = useRef<number>(MAX_DISTANCE);
 
   // Helper setters that keep state and ref in sync
@@ -370,6 +396,14 @@ export default function ProjectFeed() {
   const setShowAllSkillsSync = (v: boolean) => {
     showAllSkillsRef.current = v;
     setShowAllSkills(v);
+  };
+  const setFilterInterestsSync = (v: FilterInterest[]) => {
+    filterInterestsRef.current = v;
+    setFilterInterests(v);
+  };
+  const setShowAllInterestsSync = (v: boolean) => {
+    showAllInterestsRef.current = v;
+    setShowAllInterests(v);
   };
   const setMaxFilterDistSync = (v: number) => {
     maxFilterDistRef.current = v;
@@ -383,6 +417,8 @@ export default function ProjectFeed() {
   const [maxFilterDistUI, setMaxFilterDistUI] = useState<number>(MAX_DISTANCE);
   const [filterSkillsUI, setFilterSkillsUI] = useState<FilterSkill[]>([]);
   const [showAllSkillsUI, setShowAllSkillsUI] = useState<boolean>(true);
+  const [filterInterestsUI, setFilterInterestsUI] = useState<FilterInterest[]>([]);
+  const [showAllInterestsUI, setShowAllInterestsUI] = useState<boolean>(true);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -419,32 +455,47 @@ export default function ProjectFeed() {
     projectsToFilter: Project[],
     coords: Coord,
     skillsOverride?: FilterSkill[],
-    showAllOverride?: boolean,
+    showAllSkillsOverride?: boolean,
+    interestsOverride?: FilterInterest[],
+    showAllInterestsOverride?: boolean,
     maxDistOverride?: number,
   ) => {
-    const showAll = showAllOverride ?? showAllSkillsRef.current;
+    const showAllSkillsVal = showAllSkillsOverride ?? showAllSkillsRef.current;
     const skills = skillsOverride ?? filterSkillsRef.current;
+    const showAllInterestsVal = showAllInterestsOverride ?? showAllInterestsRef.current;
+    const interests = interestsOverride ?? filterInterestsRef.current;
     const rawMax = maxDistOverride ?? maxFilterDistRef.current;
     const maxDist = rawMax < MAX_DISTANCE ? rawMax : Infinity;
 
     const filtered: Project[] = [];
 
-    if (showAll) {
-      projectsToFilter.forEach((p) => {
-        if (calcDist(coords.lat, coords.lng, p.lat, p.lng) <= maxDist) {
-          filtered.push(p);
-        }
-      });
-    } else {
-      const skillNames = skills.filter((s) => s.included).map((s) => s.name);
-      projectsToFilter.forEach((p) => {
-        const intersection = (p.skillsNeeded ?? []).filter((x) => skillNames.includes(x));
-        let d = calcDist(coords.lat, coords.lng, p.lat, p.lng);
-        if (intersection.length > 0 && ((d != null && d <= maxDist) || d == null)) {
-          filtered.push(p);
-        }
-      });
-    }
+    projectsToFilter.forEach((p) => {
+      const dist = calcDist(coords.lat, coords.lng, p.lat, p.lng);
+      const withinDist = dist == null || dist <= maxDist;
+      if (!withinDist) return;
+
+      // Skills filter
+      const skillsPass = showAllSkillsVal
+        ? true
+        : (() => {
+            const includedSkillNames = skills.filter((s) => s.included).map((s) => s.name);
+            const intersection = (p.skillsNeeded ?? []).filter((x) => includedSkillNames.includes(x));
+            return intersection.length > 0;
+          })();
+
+      // Interests filter
+      const interestsPass = showAllInterestsVal
+        ? true
+        : (() => {
+            const includedInterestNames = interests.filter((i) => i.included).map((i) => i.name);
+            const intersection = (p.interests ?? []).filter((x) => includedInterestNames.includes(x));
+            return intersection.length > 0;
+          })();
+
+      if (skillsPass && interestsPass) {
+        filtered.push(p);
+      }
+    });
 
     setProjects(filtered);
   }, []);
@@ -475,6 +526,7 @@ export default function ProjectFeed() {
       if (!isActive()) return;
 
       const tempSkills = userProfile.skills.map((s) => ({ name: s, included: true }));
+      const tempInterests = (userProfile.interests ?? []).map((i: string) => ({ name: i, included: true }));
 
       // Compare sorted skill name lists to detect any change (additions or removals)
       const prevSkillNames = filterSkillsRef.current.map((s) => s.name).sort();
@@ -483,9 +535,18 @@ export default function ProjectFeed() {
         prevSkillNames.length !== newSkillNames.length ||
         prevSkillNames.some((name, i) => name !== newSkillNames[i]);
 
+      // Compare sorted interest name lists to detect any change (additions or removals)
+      const prevInterestNames = filterInterestsRef.current.map((i) => i.name).sort();
+      const newInterestNames = tempInterests.map((i) => i.name).sort();
+      const interestsChanged =
+        prevInterestNames.length !== newInterestNames.length ||
+        prevInterestNames.some((name, i) => name !== newInterestNames[i]);
+
       // Track what filter values will actually be used for this load
-      let effectiveShowAll = showAllSkillsRef.current;
+      let effectiveShowAllSkills = showAllSkillsRef.current;
       let effectiveSkills = filterSkillsRef.current;
+      let effectiveShowAllInterests = showAllInterestsRef.current;
+      let effectiveInterests = filterInterestsRef.current;
 
       if (skillsChanged) {
         // Skills changed — reset filter to "show all" with the new skill list
@@ -493,10 +554,20 @@ export default function ProjectFeed() {
         setFilterSkillsUI(tempSkills);
         setShowAllSkillsSync(true);
         setShowAllSkillsUI(true);
-        effectiveShowAll = true;
+        effectiveShowAllSkills = true;
         effectiveSkills = tempSkills;
       }
-      // If skills haven't changed, preserve the user's existing filter selections
+
+      if (interestsChanged) {
+        // Interests changed — reset filter to "show all" with the new interest list
+        setFilterInterestsSync(tempInterests);
+        setFilterInterestsUI(tempInterests);
+        setShowAllInterestsSync(true);
+        setShowAllInterestsUI(true);
+        effectiveShowAllInterests = true;
+        effectiveInterests = tempInterests;
+      }
+      // If skills/interests haven't changed, preserve the user's existing filter selections
 
       let finalProjects: Project[] = [];
 
@@ -575,7 +646,9 @@ export default function ProjectFeed() {
         finalProjects,
         coords,
         effectiveSkills,
-        effectiveShowAll,
+        effectiveShowAllSkills,
+        effectiveInterests,
+        effectiveShowAllInterests,
         maxFilterDistRef.current,
       );
     } catch (e: any) {
@@ -630,8 +703,6 @@ export default function ProjectFeed() {
   }, [session?.user?.id]);
 
   // Refresh both project lists when the screen regains focus.
-  // The browse feed re-runs the algorithm each time so already-swiped
-  // projects are excluded based on the latest project_likes data.
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
@@ -871,6 +942,8 @@ export default function ProjectFeed() {
               setMaxFilterDistUI(maxFilterDistRef.current);
               setFilterSkillsUI(filterSkillsRef.current);
               setShowAllSkillsUI(showAllSkillsRef.current);
+              setFilterInterestsUI(filterInterestsRef.current);
+              setShowAllInterestsUI(showAllInterestsRef.current);
             }}
           >
             <Ionicons name="close" size={35} color="000" />
@@ -893,7 +966,7 @@ export default function ProjectFeed() {
           </View>
         )}
 
-        {/* Skills to browse on */}
+        {/* Skills filter */}
         {filterSkills.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Skills</Text>
@@ -944,6 +1017,57 @@ export default function ProjectFeed() {
           </View>
         )}
 
+        {/* Interests filter */}
+        {filterInterests.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Interests</Text>
+            <TouchableOpacity
+              style={styles.filterRow}
+              onPress={() => {
+                setShowAllInterestsUI(!showAllInterestsUI);
+              }}
+            >
+              <Ionicons
+                name={showAllInterestsUI ? "checkmark-circle" : "ellipse-outline"}
+                size={20}
+                color="#333"
+              />
+              <Text style={styles.filterLabel}>Show All Interests</Text>
+            </TouchableOpacity>
+
+            {[...filterInterestsUI].map((interest, i) => (
+              <TouchableOpacity
+                key={i}
+                style={[styles.filterRow, { paddingHorizontal: 40 }]}
+                onPress={() => {
+                  if (!showAllInterestsUI)
+                    setFilterInterestsUI((prev) =>
+                      prev.map((item, j) =>
+                        j === i
+                          ? { ...item, included: !item.included }
+                          : item,
+                      ),
+                    );
+                }}
+              >
+                <Ionicons
+                  name={interest.included || showAllInterestsUI ? "checkbox" : "square-outline"}
+                  size={20}
+                  color={showAllInterestsUI ? "#ddd" : "#333"}
+                />
+                <Text
+                  style={[
+                    styles.filterLabel,
+                    { color: showAllInterestsUI ? "#ddd" : "#333" },
+                  ]}
+                >
+                  {interest.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         <View style={styles.center}>
           <TouchableOpacity
             style={[styles.center, styles.resetButton, { width: SCREEN_WIDTH * 0.5 }]}
@@ -952,6 +1076,8 @@ export default function ProjectFeed() {
               setFilterDropDownOpen(false);
               setShowAllSkillsSync(showAllSkillsUI);
               setFilterSkillsSync(filterSkillsUI);
+              setShowAllInterestsSync(showAllInterestsUI);
+              setFilterInterestsSync(filterInterestsUI);
               setMaxFilterDistSync(maxFilterDistUI);
               // Pass values directly so filtering is never stale
               filterFetchedProjects(
@@ -959,6 +1085,8 @@ export default function ProjectFeed() {
                 myCoordsRef.current,
                 filterSkillsUI,
                 showAllSkillsUI,
+                filterInterestsUI,
+                showAllInterestsUI,
                 maxFilterDistUI,
               );
             }}
