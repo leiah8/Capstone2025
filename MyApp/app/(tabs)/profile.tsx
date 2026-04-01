@@ -525,30 +525,34 @@ export default function ProfilePage() {
       if (!session?.user?.id) return;
       setParsingResume(true);
 
-      let url = resumeUrl;
-
-      // If we don't have a URL (or it might be expired), try to find latest object in storage and sign it
-      if (!url) {
-        const prefix = `${session.user.id}`;
-        const { data: list, error: listErr } = await supabase.storage
+      let url: string | null = null;
+      const prefix = `${session.user.id}`;
+      const { data: list, error: listErr } = await supabase.storage
+        .from("resumes")
+        .list(prefix);
+      if (listErr) {
+        console.warn("Storage list error:", listErr);
+      }
+      if (list && list.length) {
+        // Files are prefixed with Date.now(), so lexical sort gives newest first.
+        const newest = [...list].sort((a, b) => b.name.localeCompare(a.name))[0];
+        const objectPath = `${prefix}/${newest.name}`;
+        const { data: signedAgain, error: signErr } = await supabase.storage
           .from("resumes")
-          .list(prefix);
-        if (listErr) console.warn("Storage list error:", listErr);
-        if (list && list.length) {
-          // Pick newest by name (we embed Date.now() at start)
-          const newest = [...list].sort((a, b) =>
-            b.name.localeCompare(a.name),
-          )[0];
-          const objectPath = `${prefix}/${newest.name}`;
-          const { data: signedAgain, error: signErr } = await supabase.storage
-            .from("resumes")
-            .createSignedUrl(objectPath, 60 * 60);
-          if (!signErr && signedAgain?.signedUrl) {
-            url = signedAgain.signedUrl;
-            setResumeUrl(url);
-            setResumeFileName(fileNameFromUrlOrPath(objectPath));
-          }
+          .createSignedUrl(objectPath, 60 * 60);
+        if (signErr) {
+          console.warn("Storage sign error:", signErr);
         }
+        if (signedAgain?.signedUrl) {
+          url = signedAgain.signedUrl;
+          setResumeUrl(url);
+          setResumeFileName(fileNameFromUrlOrPath(objectPath));
+        }
+      }
+
+      // Fall back to the cached URL only if we could not produce a fresh signed URL.
+      if (!url) {
+        url = resumeUrl;
       }
 
       if (!url) {
@@ -570,7 +574,27 @@ export default function ProfilePage() {
         },
         body: JSON.stringify({ url }),
       });
-      if (!resp.ok) throw new Error(`Parser HTTP ${resp.status}`);
+      if (!resp.ok) {
+        let detail = "";
+        try {
+          const errorPayload = await resp.json();
+          detail =
+            typeof errorPayload?.detail === "string"
+              ? errorPayload.detail
+              : JSON.stringify(errorPayload);
+        } catch {
+          try {
+            detail = await resp.text();
+          } catch {
+            detail = "";
+          }
+        }
+        throw new Error(
+          detail
+            ? `Parser HTTP ${resp.status}: ${detail}`
+            : `Parser HTTP ${resp.status}`,
+        );
+      }
       const parsed = await resp.json();
       const reviewData = normalizeParsedResumePayload(parsed);
 
