@@ -32,16 +32,25 @@ import {
   fetchMyProjects,
   fetchSwipedCandidateIds,
   likeCandidate,
-  MyProject
+  MyProject,
 } from "../../lib/candidates";
 import {
   checkMatchingAPIHealth,
   getMatchedCandidates,
 } from "../../lib/matching-api";
+import {
+  applyIncluded,
+  calcDistKm,
+  FeedItem,
+  getNextIndex,
+  getPeekIndex,
+  markSwiped,
+  resetSwiped,
+  toFeedItems,
+} from "../../lib/feed-utils";
 
 import { router, useFocusEffect } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext";
-
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const MAX_DISTANCE = 5000;
@@ -60,24 +69,24 @@ const deckCardShell = {
   elevation: 7,
 } as const;
 
-const PREFETCH_THRESHOLD = 3;    // fetch more when this many cards remain
-const BATCH_SIZE = 20;            // candidates per incremental fetch
-const INITIAL_BATCH_SIZE = 50;   // candidates fetched on first load
+const PREFETCH_THRESHOLD = 3;
+const BATCH_SIZE = 20;
+const INITIAL_BATCH_SIZE = 50;
 
-let persistedProjectId: string | null = null; 
+let persistedProjectId: string | null = null;
 
 /* =========================
-   Types (make skills optional & flexible)
+   Types
    ========================= */
 type Candidate = CandidateUI & {
   project_id: string;
   project_name: string;
-  lat : number | null;
-  lng : number | null;
+  lat: number | null;
+  lng: number | null;
 };
 
 type FilterProject = MyProject & {
-  included: boolean,
+  included: boolean;
 };
 
 type FilterSkill = {
@@ -85,21 +94,70 @@ type FilterSkill = {
   included: boolean;
 };
 
+type FilterInterest = {
+  name: string;
+  included: boolean;
+};
+
 type Coord = {
-  lat : number | null, 
-  lng : number | null
+  lat: number | null;
+  lng: number | null;
 };
 
+/**
+ * Per-project candidate list.
+ *
+ * `filteredCandidates` is a FeedItem<Candidate>[] where each slot carries:
+ *   - item     : the Candidate
+ *   - included : passes current filter settings
+ *   - swiped   : user has already swiped this card in the current session
+ *
+ * `index` stores the last known deck position so we can restore it when the
+ * user switches back to this project.
+ */
 type CandidateList = {
-  fullCandidates : Candidate[],
-  filteredCandidates : {c : Candidate, included : boolean}[],
-  project : FilterProject,
-  index : number, 
+  fullCandidates: Candidate[];
+  filteredCandidates: FeedItem<Candidate>[];
+  project: FilterProject;
+  index: number;
 };
-
 
 /* =========================
-   Custom Slider 
+   Filter predicate (pure)
+   ========================= */
+function buildCandidatePredicate(opts: {
+  myCoords: Coord;
+  maxDist: number; // raw slider value; >= MAX_DISTANCE means "worldwide"
+  showAllSkills: boolean;
+  skills: FilterSkill[];
+  showAllInterests: boolean;
+  interests: FilterInterest[];
+}): (c: Candidate) => boolean {
+  const effectiveMaxDist = opts.maxDist < MAX_DISTANCE ? opts.maxDist : Infinity;
+  const includedSkills = opts.skills.filter((s) => s.included).map((s) => s.name);
+  const includedInterests = opts.interests.filter((i) => i.included).map((i) => i.name);
+
+  return (c) => {
+    // Distance
+    const dist = calcDistKm(opts.myCoords.lat, opts.myCoords.lng, c.lat, c.lng);
+    if (dist > effectiveMaxDist) return false;
+
+    // Skills
+    if (!opts.showAllSkills) {
+      if (!c.skills.some((s) => includedSkills.includes(s))) return false;
+    }
+
+    // Interests
+    if (!opts.showAllInterests) {
+      if (!c.interests.some((i) => includedInterests.includes(i))) return false;
+    }
+
+    return true;
+  };
+}
+
+/* =========================
+   Custom Slider
    ========================= */
 const LocationSlider = ({
   min = 0,
@@ -121,13 +179,11 @@ const LocationSlider = ({
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (e) => {
         const x = e.nativeEvent.locationX;
-        const ratio = x / trackWidth.current;
-        onValueChange(clamp(Math.round(min + ratio * (max - min))));
+        onValueChange(clamp(Math.round(min + (x / trackWidth.current) * (max - min))));
       },
       onPanResponderMove: (e) => {
         const x = e.nativeEvent.locationX;
-        const ratio = x / trackWidth.current;
-        onValueChange(clamp(Math.round(min + ratio * (max - min))));
+        onValueChange(clamp(Math.round(min + (x / trackWidth.current) * (max - min))));
       },
     }),
   ).current;
@@ -138,7 +194,9 @@ const LocationSlider = ({
     <View style={sliderStyles.wrapper}>
       <View
         style={sliderStyles.track}
-        onLayout={(e) => { trackWidth.current = e.nativeEvent.layout.width; }}
+        onLayout={(e) => {
+          trackWidth.current = e.nativeEvent.layout.width;
+        }}
         {...sliderPanResponder.panHandlers}
       >
         <View style={[sliderStyles.fill, { width: `${fillRatio * 100}%` }]} />
@@ -152,30 +210,9 @@ const LocationSlider = ({
 };
 
 const sliderStyles = StyleSheet.create({
-  wrapper: {
-    width: "80%",
-    alignSelf: "center",
-    paddingVertical: 12,
-  },
-  track: {
-    height: 4,
-    backgroundColor: "#E1E8F5",
-    borderRadius: 2,
-    // flexDirection: "row", ///
-    position: "relative",
-  },
-  fill: {
-    // height: 4,
-    // backgroundColor: "#79BE58",
-    // borderRadius: 2,
-    height: 4,
-  backgroundColor: "#79BE58",
-  borderRadius: 2,
-  position: "absolute",
-  left: 0,
-  top: 0,
-
-  },
+  wrapper: { width: "80%", alignSelf: "center", paddingVertical: 12 },
+  track: { height: 4, backgroundColor: "#E1E8F5", borderRadius: 2, position: "relative" },
+  fill: { height: 4, backgroundColor: "#79BE58", borderRadius: 2, position: "absolute", left: 0, top: 0 },
   thumb: {
     position: "absolute",
     top: -9,
@@ -209,25 +246,15 @@ const LINK_ICONS: Record<string, string> = {
 const LinkRow = ({ label, url }: { label: string; url?: string }) => {
   if (!url) return null;
   return (
-    <TouchableOpacity
-      style={styles.linkRow}
-      onPress={() => Linking.openURL(url)}
-    >
-      <Ionicons
-        name={LINK_ICONS[label] as any}
-        size={16}
-        color="#555"
-        style={{ marginRight: 8 }}
-      />
-      <Text style={styles.linkText} numberOfLines={1}>
-        {url}
-      </Text>
+    <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(url)}>
+      <Ionicons name={LINK_ICONS[label] as any} size={16} color="#555" style={{ marginRight: 8 }} />
+      <Text style={styles.linkText} numberOfLines={1}>{url}</Text>
     </TouchableOpacity>
   );
 };
 
 /* =========================
-   Experience Block
+   Experience / Education / Project Blocks
    ========================= */
 const ExperienceBlock = ({ item }: { item: any }) => (
   <View style={styles.timelineItem}>
@@ -236,19 +263,14 @@ const ExperienceBlock = ({ item }: { item: any }) => (
       <Text style={styles.timelineTitle}>{item.position}</Text>
       <Text style={styles.timelineSubtitle}>{item.company}</Text>
       <Text style={styles.timelineMeta}>{item.duration}</Text>
-      {item.description ? (
-        <Text style={styles.timelineDesc}>{item.description}</Text>
-      ) : null}
+      {item.description ? <Text style={styles.timelineDesc}>{item.description}</Text> : null}
     </View>
   </View>
 );
 
-/* =========================
-   Education Block
-   ========================= */
 const EducationBlock = ({ item }: { item: any }) => (
   <View style={styles.timelineItem}>
-    <View style={[styles.timelineDot]} />
+    <View style={styles.timelineDot} />
     <View style={styles.timelineContent}>
       <Text style={styles.timelineTitle}>{item.degree}</Text>
       <Text style={styles.timelineSubtitle}>{item.school}</Text>
@@ -257,9 +279,6 @@ const EducationBlock = ({ item }: { item: any }) => (
   </View>
 );
 
-/* =========================
-   Project Block
-   ========================= */
 const ProjectBlock = ({ item }: { item: any }) => (
   <View style={styles.projectBlock}>
     <View style={styles.projectBlockHeader}>
@@ -270,9 +289,7 @@ const ProjectBlock = ({ item }: { item: any }) => (
         </TouchableOpacity>
       ) : null}
     </View>
-    {item.description ? (
-      <Text style={styles.timelineDesc}>{item.description}</Text>
-    ) : null}
+    {item.description ? <Text style={styles.timelineDesc}>{item.description}</Text> : null}
   </View>
 );
 
@@ -290,10 +307,7 @@ const CandidateCard = ({
 }) => {
   const position = useRef(new Animated.ValueXY()).current;
   const onSwipeRef = useRef(onSwipe);
-
-  useEffect(() => {
-    onSwipeRef.current = onSwipe;
-  }, [onSwipe]);
+  useEffect(() => { onSwipeRef.current = onSwipe; }, [onSwipe]);
 
   const rotate = position.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
@@ -301,24 +315,17 @@ const CandidateCard = ({
     extrapolate: "clamp",
   });
   const likeOpacity = position.x.interpolate({
-    inputRange: [0, SWIPE_THRESHOLD],
-    outputRange: [0, 1],
-    extrapolate: "clamp",
+    inputRange: [0, SWIPE_THRESHOLD], outputRange: [0, 1], extrapolate: "clamp",
   });
   const nopeOpacity = position.x.interpolate({
-    inputRange: [-SWIPE_THRESHOLD, 0],
-    outputRange: [1, 0],
-    extrapolate: "clamp",
+    inputRange: [-SWIPE_THRESHOLD, 0], outputRange: [1, 0], extrapolate: "clamp",
   });
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => false, //true,
-      onMoveShouldSetPanResponder: (_, g) => {
-        const { dx, dy } = g;
-        // Only hijack the gesture if horizontal movement is dominant
-        return Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8;
-      },
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > 8,
       onPanResponderMove: (_, g) => position.setValue({ x: g.dx, y: 0 }),
       onPanResponderRelease: (_, g) => {
         if (g.dx > SWIPE_THRESHOLD) swipeRight();
@@ -328,88 +335,45 @@ const CandidateCard = ({
     }),
   ).current;
 
-  const swipeRight = () => {
-    Animated.timing(position, {
-      toValue: { x: SCREEN_WIDTH + 100, y: 0 },
-      duration: 250,
-      useNativeDriver: false,
-    }).start(() => {
-      onSwipeRef.current("right");
-    });
-  };
-  const swipeLeft = () => {
-    Animated.timing(position, {
-      toValue: { x: -SCREEN_WIDTH - 100, y: 0 },
-      duration: 250,
-      useNativeDriver: false,
-    }).start(() => {
-      onSwipeRef.current("left");
-    });
-  };
+  const swipeRight = () =>
+    Animated.timing(position, { toValue: { x: SCREEN_WIDTH + 100, y: 0 }, duration: 250, useNativeDriver: false })
+      .start(() => onSwipeRef.current("right"));
+  const swipeLeft = () =>
+    Animated.timing(position, { toValue: { x: -SCREEN_WIDTH - 100, y: 0 }, duration: 250, useNativeDriver: false })
+      .start(() => onSwipeRef.current("left"));
   const resetPosition = () =>
-    Animated.spring(position, {
-      toValue: { x: 0, y: 0 },
-      useNativeDriver: false,
-    }).start();
-  const hasLinks =
-    candidate.links && Object.values(candidate.links).some(Boolean);
+    Animated.spring(position, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
 
+  const hasLinks = candidate.links && Object.values(candidate.links).some(Boolean);
 
   return (
     <Animated.View
-      style={[
-        styles.card,
-        {
-          transform: [{ translateX: position.x }, { rotate }],
-        },
-        !isTop && styles.cardBehind,
-      ]}
+      style={[styles.card, { transform: [{ translateX: position.x }, { rotate }] }, !isTop && styles.cardBehind]}
       {...(isTop ? panResponder.panHandlers : {})}
     >
       <View style={styles.cardSurface}>
         {isTop && (
           <>
-            <Animated.View
-              style={[styles.likeOverlay, { opacity: likeOpacity }]}
-            >
+            <Animated.View style={[styles.likeOverlay, { opacity: likeOpacity }]}>
               <Text style={styles.overlayText}>INTERESTED</Text>
             </Animated.View>
-            <Animated.View
-              style={[styles.nopeOverlay, { opacity: nopeOpacity }]}
-            >
+            <Animated.View style={[styles.nopeOverlay, { opacity: nopeOpacity }]}>
               <Text style={styles.nopeOverlayText}>PASS</Text>
             </Animated.View>
           </>
         )}
-
-        {/* Content */}
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* TAGS SECTION */}
+        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
           {candidate.project_name && (
             <View style={styles.projectTagRow}>
               <View style={styles.projectTag}>
-                <Ionicons
-                  name="briefcase-outline"
-                  size={11}
-                  color="#000"
-                  style={{ marginRight: 5 }}
-                />
+                <Ionicons name="briefcase-outline" size={11} color="#000" style={{ marginRight: 5 }} />
                 <Text>{candidate.project_name}</Text>
               </View>
             </View>
           )}
-
-          {/* ── Hero Header ── */}
           <View style={styles.avatarSection}>
             <View style={styles.avatarWrapper}>
-              <Image
-                source={{ uri: candidate.profile_image }}
-                style={styles.avatar}
-              />
+              <Image source={{ uri: candidate.profile_image }} style={styles.avatar} />
             </View>
             <Text style={styles.candidateName}>{candidate.name}</Text>
             {candidate.location ? (
@@ -419,11 +383,9 @@ const CandidateCard = ({
               </View>
             ) : null}
           </View>
-
           <View style={styles.descriptionSection}>
             <Text style={styles.description}>{candidate.bio}</Text>
           </View>
-
           {candidate.skills.length > 0 && (
             <View style={{ marginTop: 6, marginBottom: 20 }}>
               <Text style={styles.sectionTitle}>Skills</Text>
@@ -436,7 +398,6 @@ const CandidateCard = ({
               </View>
             </View>
           )}
-
           {candidate.interests.length > 0 && (
             <View style={{ marginTop: 6, marginBottom: 20 }}>
               <Text style={styles.sectionTitle}>Interests</Text>
@@ -449,60 +410,38 @@ const CandidateCard = ({
               </View>
             </View>
           )}
-
           {candidate.experience?.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Experience</Text>
               <View style={styles.timeline}>
-                {candidate.experience.map((e, i) => (
-                  <ExperienceBlock key={`ex-${i}`} item={e} />
-                ))}
+                {candidate.experience.map((e, i) => <ExperienceBlock key={`ex-${i}`} item={e} />)}
               </View>
             </View>
           )}
-
           {candidate.education?.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Education</Text>
               <View style={styles.timeline}>
-                {candidate.education.map((e, i) => (
-                  <EducationBlock key={`ed-${i}`} item={e} />
-                ))}
+                {candidate.education.map((e, i) => <EducationBlock key={`ed-${i}`} item={e} />)}
               </View>
             </View>
           )}
-
           {candidate.personal_projects.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Personal Projects</Text>
-              {candidate.personal_projects.map((p, i) => (
-                <ProjectBlock key={`pp-${i}`} item={p} />
-              ))}
+              {candidate.personal_projects.map((p, i) => <ProjectBlock key={`pp-${i}`} item={p} />)}
             </View>
           )}
-
           {hasLinks && (
             <View style={[styles.section, { marginBottom: 32 }]}>
               <Text style={styles.sectionTitle}>Links</Text>
               <View style={styles.linksContainer}>
-                {candidate.links.github != null && (
-                  <LinkRow label="github" url={candidate.links.github} />
-                )}
-                {candidate.links.linkedin != null && (
-                  <LinkRow label="linkedin" url={candidate.links.linkedin} />
-                )}
-                {candidate.links.twitter != null && (
-                  <LinkRow label="twitter" url={candidate.links.twitter} />
-                )}
-                {candidate.links.instagram != null && (
-                  <LinkRow label="instagram" url={candidate.links.instagram} />
-                )}
-                {candidate.links.portfolio != null && (
-                  <LinkRow label="portfolio" url={candidate.links.portfolio} />
-                )}
-                {candidate.links.other != null && (
-                  <LinkRow label="other" url={candidate.links.other} />
-                )}
+                {candidate.links.github != null && <LinkRow label="github" url={candidate.links.github} />}
+                {candidate.links.linkedin != null && <LinkRow label="linkedin" url={candidate.links.linkedin} />}
+                {candidate.links.twitter != null && <LinkRow label="twitter" url={candidate.links.twitter} />}
+                {candidate.links.instagram != null && <LinkRow label="instagram" url={candidate.links.instagram} />}
+                {candidate.links.portfolio != null && <LinkRow label="portfolio" url={candidate.links.portfolio} />}
+                {candidate.links.other != null && <LinkRow label="other" url={candidate.links.other} />}
               </View>
             </View>
           )}
@@ -531,438 +470,376 @@ async function rankCandidatesBatch(
   }
 
   try {
-    if (__DEV__) {
-      console.log(`[CANDIDATES] Ranking ${batch.length} candidates against ${activeProjects.length} active project(s)`);
-    }
-
-    // Call /match/candidates per active project in parallel
     const perProjectResults = await Promise.all(
       activeProjects.map((project) =>
         getMatchedCandidates(
           project,
           batch.map((c) => ({
-            id: c.id,
-            name: c.name,
-            location: c.location,
-            bio: c.bio,
-            skills: c.skills,
-            interests: c.interests,
-            education: c.education,
-            personal_projects: c.personal_projects,
-            experience: c.experience,
+            id: c.id, name: c.name, location: c.location, bio: c.bio,
+            skills: c.skills, interests: c.interests, education: c.education,
+            personal_projects: c.personal_projects, experience: c.experience,
           })),
           excludeCandidateIds,
-        ).then((ranked) => ({ projectId: String(project.id), projectName: project.title, ranked }))
+        ).then((ranked) => ({ projectId: String(project.id), projectName: project.title, ranked })),
       ),
     );
 
-    const allRanked = new Map<string, { candidateId : string, projectId: string; projectName: string; score: number }>();
-
+    const allRanked = new Map<string, { candidateId: string; projectId: string; projectName: string; score: number }>();
     for (const { projectId, projectName, ranked } of perProjectResults) {
       for (const score of ranked) {
-        const key = `${score.candidate_id}::${projectId}`;
-        allRanked.set(key, { candidateId : score.candidate_id, projectId, projectName, score: score.overall_score });
+        allRanked.set(`${score.candidate_id}::${projectId}`, {
+          candidateId: score.candidate_id, projectId, projectName, score: score.overall_score,
+        });
       }
     }
 
-    if (__DEV__) {
-      console.log(`[CANDIDATES] Ranked candidates across ${perProjectResults.length} project(s)`);
-    }
-
-    const outTemp : {candidate : Candidate, index : number, overallScore : number}[] = [];
-
-    allRanked.forEach((v, index) => {
-      const candidateId = v.candidateId;
-      const best = {projectId : v.projectId, projectName : v.projectName, score : v.score};
+    const outTemp: { candidate: Candidate; index: number; overallScore: number }[] = [];
+    allRanked.forEach((v, _key) => {
+      const candidate = batch.find((c) => c.id === v.candidateId);
+      if (!candidate) return;
       const fallbackProject = activeProjects[0] ?? userProjects[0];
-      const projectId = best?.projectId ?? String(fallbackProject?.id ?? "");
-      const projectName = best?.projectName ?? String(fallbackProject?.title ?? "");
-      const overallScore = best?.score ?? -1;
-
-
-      // const candidate = batch.get(candidate with candidateID)
-      const candidate = batch.find(c => c.id === candidateId)
-
-
       outTemp.push({
-          candidate: {
-            ...candidate,
-            project_id: projectId,
-            project_name: projectName,
-          } as Candidate,
-          index : Number(index),
-          overallScore,
-        });
-      })
+        candidate: {
+          ...candidate,
+          project_id: v.projectId ?? String(fallbackProject?.id ?? ""),
+          project_name: v.projectName ?? String(fallbackProject?.title ?? ""),
+        } as Candidate,
+        index: outTemp.length,
+        overallScore: v.score ?? -1,
+      });
+    });
 
-      return outTemp.sort((left, right) => {
-        if (right.overallScore !== left.overallScore) {
-          return right.overallScore - left.overallScore;
-        }
-        return left.index - right.index;
-      })
+    return outTemp
+      .sort((a, b) => b.overallScore !== a.overallScore ? b.overallScore - a.overallScore : a.index - b.index)
       .map(({ candidate }) => candidate);
-
   } catch (matchError) {
-    console.warn("[CANDIDATES] Failed to rank candidates, using default order:", matchError);
+    console.warn("[CANDIDATES] Failed to rank candidates:", matchError);
     const p = activeProjects[0] ?? userProjects[0];
     return fallback(String(p?.id ?? ""), String(p?.title ?? ""));
   }
-} 
+}
 
 /* =========================
-   Screen: fetch & swipe stack
+   Screen
    ========================= */
 export default function CandidateFeed() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const browseBottomPadding = Math.max(tabBarHeight, 88) + 12;
-  const [candidates, setCandidates] = useState<{c : Candidate, included : boolean}[]>([]);
-  const [overallCandidates, setAllCandidates] = useState<Candidate[]>([]);
-  const [currentIndex, setCurrentIndex] = useState<number>(0); //useState<{project : String | null, index : number}>({project : persistedProjectId, index : 0});
-  
-  
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-  const [deckHeight, setDeckHeight] = useState(DECK_CARD_HEIGHT);
-  const [matchCelebrationTarget, setMatchCelebrationTarget] = useState<
-    string | null
-  >(null);
-
-  const [hasProjects, setHasProjects] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const { session } = useAuth();
 
-  //FOR FILTERINGG
+  // ---------------------------------------------------------------------------
+  // Core feed state
+  // The active candidate list is always `activeFeedItems` — a FeedItem<Candidate>[]
+  // owned by the CandidateList stored in `allCandidateLists` for the current project.
+  // `currentIndex` is the deck cursor; it always points to an item where
+  // included===true AND swiped===false (or equals list.length when exhausted).
+  // ---------------------------------------------------------------------------
+  const [activeFeedItems, setActiveFeedItems] = useState<FeedItem<Candidate>[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [allCandidateLists, setAllCandidateLists] = useState<Map<string, CandidateList>>(new Map());
+  const [overallCandidates, setAllCandidates] = useState<Candidate[]>([]);
 
-  const [maxFilterDist, setMaxFilterDist] = useState<number>(MAX_DISTANCE);
-  const [myCoords, setMyCoords] = useState<Coord>({lat : null, lng : null});
-
-  const [myProjects, setMyProjects] = useState<FilterProject[]>([]);
-  const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
-  const [showAllSkills, setShowAllSkills] = useState<boolean>(true);
-
-  const [maxFilterDistUI, setMaxFilterDistUI] = useState<number>(MAX_DISTANCE);
-  const [filterSkillsUI, setFilterSkillsUI] = useState<FilterSkill[]>([]);
-  const [showAllSkillsUI, setShowAllSkillsUI] = useState<boolean>(true);
-  const [myProjectsUI, setMyProjectsUI] = useState<FilterProject[]>([]);
-
-  const [currentCandidateList, setCurrentCandidateList] = useState<CandidateList | undefined>(undefined);
-  const [allCandidateLists, setAllCandidateLists] = useState<Map<String, CandidateList | undefined >>(new Map());
-
-  //END FOR FILTERING
-
-
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [deckHeight, setDeckHeight] = useState(DECK_CARD_HEIGHT);
+  const [matchCelebrationTarget, setMatchCelebrationTarget] = useState<string | null>(null);
+  const [hasProjects, setHasProjects] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [allFetched, setAllFetched] = useState(false);
+
   const isFetchingMoreRef = useRef(false);
   const swipedCandidateIdsRef = useRef<string[]>([]);
 
+  // ---------------------------------------------------------------------------
+  // Filter state — "applied" (committed) vs "UI" (staged, only committed on Apply)
+  // ---------------------------------------------------------------------------
+  const [myCoords, setMyCoords] = useState<Coord>({ lat: null, lng: null });
+  const [myProjects, setMyProjects] = useState<FilterProject[]>([]);
+  const [filterSkills, setFilterSkills] = useState<FilterSkill[]>([]);
+  const [showAllSkills, setShowAllSkills] = useState(true);
+  const [filterInterests, setFilterInterests] = useState<FilterInterest[]>([]);
+  const [showAllInterests, setShowAllInterests] = useState(true);
+  const [maxFilterDist, setMaxFilterDist] = useState(MAX_DISTANCE);
 
-  // const filterFetchedCandidates = (pid? : number) => {
+  // UI (staged) copies
+  const [myProjectsUI, setMyProjectsUI] = useState<FilterProject[]>([]);
+  const [filterSkillsUI, setFilterSkillsUI] = useState<FilterSkill[]>([]);
+  const [showAllSkillsUI, setShowAllSkillsUI] = useState(true);
+  const [filterInterestsUI, setFilterInterestsUI] = useState<FilterInterest[]>([]);
+  const [showAllInterestsUI, setShowAllInterestsUI] = useState(true);
+  const [maxFilterDistUI, setMaxFilterDistUI] = useState(MAX_DISTANCE);
 
-  //   console.log("START OF FILTERING");
-    
-  //   let newPid1 = myProjectsUI.find(p => p.included)?.id;
-  //   if(pid) {
-  //     newPid1 = pid;
-  //   }
+  // ---------------------------------------------------------------------------
+  // applyFiltersToList — pure helper that re-stamps included on a list and
+  // resets the index to the first visible item.
+  // ---------------------------------------------------------------------------
+  const applyFiltersToList = useCallback(
+    (
+      list: FeedItem<Candidate>[],
+      opts: {
+        myCoords: Coord;
+        maxDist: number;
+        showAllSkills: boolean;
+        skills: FilterSkill[];
+        showAllInterests: boolean;
+        interests: FilterInterest[];
+      },
+    ): { items: FeedItem<Candidate>[]; index: number } => {
+      const predicate = buildCandidatePredicate(opts);
+      const items = applyIncluded(list, (c) => predicate(c));
+      const index = getNextIndex(items, 0);
+      return { items, index };
+    },
+    [],
+  );
 
-  //   if (newPid1){
-  //     //switch the project if needed 
+  // ---------------------------------------------------------------------------
+  // switchToProject — switch the active feed to a different project's list,
+  // saving the current index back into the old project's CandidateList entry.
+  // ---------------------------------------------------------------------------
+  const switchToProject = useCallback(
+    (
+      newPid: string,
+      listsSnapshot: Map<string, CandidateList>,
+      currentIdx: number,
+    ): { newItems: FeedItem<Candidate>; newIndex: number } | null => {
+      // This overload intentionally returns the list — use the returned value
+      // to setActiveFeedItems and setCurrentIndex in the caller.
+      void currentIdx; // acknowledged — saved by caller before calling
+      const target = listsSnapshot.get(newPid);
+      if (!target) return null;
+      return { newItems: target.filteredCandidates as any, newIndex: target.index };
+    },
+    [],
+  );
 
-  //     const newPid = String(newPid1);
+  // ---------------------------------------------------------------------------
+  // filterFetchedCandidates — called when the user taps Apply in the filter UI
+  // ---------------------------------------------------------------------------
+  const filterFetchedCandidates = useCallback(
+    (pidOverride?: number) => {
+      const newPidStr = pidOverride
+        ? String(pidOverride)
+        : myProjectsUI.find((p) => p.included)?.id
+        ? String(myProjectsUI.find((p) => p.included)!.id)
+        : null;
 
-  //     const oldProject = allCandidateLists.get(String(persistedProjectId));
-  //     const oldIndex = currentIndex;
-  //     // if(oldProject) {
-  //     //   oldProject.index = currentIndex;
-  //     // }
-  //     const newProject = allCandidateLists.get(newPid);
-  //     persistedProjectId = newPid
+      if (!newPidStr) return;
 
+      const isSwitchingProject =
+        persistedProjectId !== null && newPidStr !== persistedProjectId;
 
+      setAllCandidateLists((prevLists) => {
+        const next = new Map(prevLists);
 
-  //     if (newProject) {    
-  //       let maxDist = maxFilterDistUI < MAX_DISTANCE ? maxFilterDistUI : Infinity;
-  //       const selectedSkills = filterSkillsUI.filter((s) => s.included).map((s) => s.name);
-
-  //       const filteredCandidates = newProject.fullCandidates.map(c => {
-  //         const out = {c : c, included : true}
-  //         //dist filtering 
-  //         if (calcDist(myCoords?.lat, myCoords?.lng, c.lat, c.lng) > maxDist) {
-  //           out.included =  false;
-  //         }
-
-  //         //could check project id but not necessary 
-
-  //         //skill filtering
-  //         if (!showAllSkillsUI) {
-  //           const hasSkill = c.skills.some(s => selectedSkills.includes(s));
-  //           if (!hasSkill) {
-  //           out.included = false;
-  //           }
-  //         }
-
-  //         return out;
-          
-  //       });
-        
-  //       setCandidates(filteredCandidates);
-  //       setAllCandidateLists(prev => {
-  //         return  new Map(prev).set(newPid, {...newProject, filteredCandidates : filteredCandidates})
-  //         // if (m1 && oldProject) {
-  //         //   const m2 = m1.set(String(persistedProjectId), {...oldProject, index : oldIndex});
-  //         //   return m2;
-  //         // }
-  //         // return m1;
-  //       });
-
-  //       // setCurrentIndexDebug(newProject.index);
-  //       setCurrentIndexDebug(0);
-
-  //       //set to be saved
-  //       setMyProjects(myProjectsUI);
-  //       setFilterSkills(filterSkillsUI);
-  //       setShowAllSkills(showAllSkillsUI);
-  //       setMaxFilterDist(maxFilterDistUI);
-
-  //     }
-      
-
-
-  //   }
-
-  //   console.log("END OF FILTERING");
-    
-  // };
-
-  const filterFetchedCandidates = (pid?: number) => {
-  console.log("START OF FILTERING");
-
-  let newPid1 = myProjectsUI.find(p => p.included)?.id;
-  if (pid) newPid1 = pid;
-
-  if (newPid1) {
-    const newPid = String(newPid1);
-    // const isSwitchingProject = newPid !== String(persistedProjectId);
-    const isSwitchingProject = persistedProjectId !== null && newPid !== String(persistedProjectId);
-
-    const oldProjectId = String(persistedProjectId);
-    const oldProject = allCandidateLists.get(oldProjectId);
-    const newProject = allCandidateLists.get(newPid);
-
-    const currentI = currentIndex
-
-    const updatedOldProject =
-      isSwitchingProject && oldProject
-        ? { ...oldProject, index: currentI }
-        : oldProject;
-
-    persistedProjectId = newPid;
-
-    if (newProject) {
-      let maxDist = maxFilterDistUI < MAX_DISTANCE ? maxFilterDistUI : Infinity;
-      const selectedSkills = filterSkillsUI.filter(s => s.included).map(s => s.name);
-
-      const filteredCandidates = newProject.fullCandidates.map(c => {
-        const out = { c, included: true };
-        if (calcDist(myCoords?.lat, myCoords?.lng, c.lat, c.lng) > maxDist) {
-          out.included = false;
-        }
-        if (!showAllSkillsUI) {
-          if (!c.skills.some(s => selectedSkills.includes(s))) {
-            out.included = false;
+        // Persist the current index back into the old project before switching
+        if (isSwitchingProject && persistedProjectId) {
+          const old = next.get(persistedProjectId);
+          if (old) {
+            next.set(persistedProjectId, { ...old, index: currentIndex });
           }
         }
-        return out;
-      });
 
-      setCandidates(filteredCandidates);
+        persistedProjectId = newPidStr;
 
-      setAllCandidateLists(prev => {
-        const next = new Map(prev);
-        if (isSwitchingProject && updatedOldProject) {
-          next.set(oldProjectId, updatedOldProject);
-        }
-        next.set(newPid, { ...newProject, filteredCandidates });
+        const target = next.get(newPidStr);
+        if (!target) return prevLists;
+
+        const filterOpts = {
+          myCoords,
+          maxDist: maxFilterDistUI,
+          showAllSkills: showAllSkillsUI,
+          skills: filterSkillsUI,
+          showAllInterests: showAllInterestsUI,
+          interests: filterInterestsUI,
+        };
+        const predicate = buildCandidatePredicate(filterOpts);
+        const updatedItems = applyIncluded(target.filteredCandidates, (c) => predicate(c));
+        // When switching projects restore saved index; when re-filtering same project start fresh
+        const newIndex = isSwitchingProject
+          ? getNextIndex(updatedItems, target.index)
+          : getNextIndex(updatedItems, 0);
+
+        const updatedList: CandidateList = {
+          ...target,
+          filteredCandidates: updatedItems,
+          index: newIndex,
+        };
+        next.set(newPidStr, updatedList);
+
+        // Commit to active feed outside the setter via a microtask
+        // (setActiveFeedItems / setCurrentIndex cannot be called inside a setState callback)
+        Promise.resolve().then(() => {
+          setActiveFeedItems(updatedItems);
+          setCurrentIndex(newIndex);
+        });
+
         return next;
       });
 
-      const restoredIndex = isSwitchingProject ? (newProject.index ?? 0) : 0;
-      setCurrentIndex(restoredIndex);
-
+      // Commit filter settings
       setMyProjects(myProjectsUI);
       setFilterSkills(filterSkillsUI);
       setShowAllSkills(showAllSkillsUI);
+      setFilterInterests(filterInterestsUI);
+      setShowAllInterests(showAllInterestsUI);
       setMaxFilterDist(maxFilterDistUI);
-    }
-  }
+    },
+    [
+      myProjectsUI, filterSkillsUI, showAllSkillsUI, filterInterestsUI,
+      showAllInterestsUI, maxFilterDistUI, myCoords, currentIndex,
+    ],
+  );
 
-  console.log("END OF FILTERING");
-};
+  // ---------------------------------------------------------------------------
+  // loadCandidates — initial + refresh load
+  // ---------------------------------------------------------------------------
+  const loadCandidates = useCallback(
+    async (startingOver?: boolean) => {
+      try {
+        setLoading(true);
+        setAllCandidates([]);
+        setActiveFeedItems([]);
+        setAllFetched(false);
+        isFetchingMoreRef.current = false;
 
-  const loadCandidates = useCallback(async (startingOver? : boolean) => {
-    try {
+        const userProjects = await fetchMyProjects(session?.user?.id);
 
-      setLoading(true);
-      setAllCandidates([]);
-      setCandidates([]);
-      setAllFetched(false);
-      isFetchingMoreRef.current = false;
+        // Auto-select the first project whenever we don't already have a
+        // persisted selection (covers both the single-project case and the
+        // very first load with multiple projects before the user picks one).
+        if (!persistedProjectId && userProjects.length > 0) {
+          persistedProjectId = String(userProjects[0].id);
+        }
 
-      //get user projects
-      const userProjects = await fetchMyProjects(session?.user?.id);
+        const tempProjects: FilterProject[] = userProjects.map((p) => ({
+          ...p,
+          included: String(p.id) === persistedProjectId,
+        }));
 
-      //if one project, set persistedprojectid
-      if (userProjects.length == 1) {
-        persistedProjectId = String(userProjects[0].id);
-      }
+        setMyProjects(tempProjects);
+        setMyProjectsUI(tempProjects);
 
-      //set up myProjects
-      const tempProjects = userProjects.map(p => ({ ...p, included: String(p.id) == persistedProjectId ? true : false }))
+        const oneActive = userProjects.length > 0;
+        setHasProjects(oneActive);
 
-      setMyProjects(tempProjects);
-      setMyProjectsUI(tempProjects);
+        if (!oneActive) return;
 
-      const one_active = userProjects.length > 0;
-      setHasProjects(one_active);
+        const coords = await fetchMyCoords(session?.user?.id);
+        setMyCoords(coords);
 
-      //set coords 
-      const coords = await fetchMyCoords(session?.user?.id);
-      setMyCoords(coords);
+        // Collect all skills + interests from the user's projects
+        const allSkillsSet = new Set<string>();
+        const allInterestsSet = new Set<string>();
+        userProjects.forEach((p) => {
+          (p.skills_needed ?? []).forEach((s) => allSkillsSet.add(s));
+          (p.tags ?? []).forEach((t) => allInterestsSet.add(t));
+        });
+        const initSkills: FilterSkill[] = Array.from(allSkillsSet).map((s) => ({ name: s, included: true }));
+        const initInterests: FilterInterest[] = Array.from(allInterestsSet).map((t) => ({ name: t, included: true }));
 
-      //if the user has at least one project
-      if (one_active) {
-        
-        //retrieve all skills 
-        //if (filterSkillsUI.length == 0) {
-          let allSkills = new Set<string>();
-          userProjects.forEach((p) => {
-            (p.skills_needed ?? []).forEach((s) => allSkills.add(s));
-          });
+        setFilterSkills(initSkills);
+        setFilterSkillsUI(initSkills);
+        setFilterInterests(initInterests);
+        setFilterInterestsUI(initInterests);
+        setShowAllSkills(true);
+        setShowAllSkillsUI(true);
+        setShowAllInterests(true);
+        setShowAllInterestsUI(true);
 
-          let tempSkills : FilterSkill[] = [];
-          allSkills.forEach(s => 
-            tempSkills.push({name : s, included : true})
-          );
-          setFilterSkills(tempSkills);
-          setFilterSkillsUI(tempSkills); 
-
-          setShowAllSkills(true);
-          setShowAllSkillsUI(true);
-        //å}
-
-        //retrieve new list of candidates
         swipedCandidateIdsRef.current = session?.user?.id
           ? await fetchSwipedCandidateIds(session.user.id)
           : [];
 
-        
-        const allCandidates = await fetchCandidates(INITIAL_BATCH_SIZE, session?.user?.id, swipedCandidateIdsRef.current);
-        //TODO fetchCandidates causing issues (could just be supabase)
-
-        const matchingAvailable = await checkMatchingAPIHealth();
-        console.log(
-          matchingAvailable
-            ? "Matching API available - ranking candidates by match score..."
-            : "Matching API not available - showing candidates in default order",
+        const allCandidates = await fetchCandidates(
+          INITIAL_BATCH_SIZE, session?.user?.id, swipedCandidateIdsRef.current,
         );
 
-        const ranked = await rankCandidatesBatch(allCandidates, userProjects, matchingAvailable, swipedCandidateIdsRef.current);
-
-        setCandidates(ranked.map(c => ({c : c, included : true})));
+        const matchingAvailable = await checkMatchingAPIHealth();
+        const ranked = await rankCandidatesBatch(
+          allCandidates, userProjects, matchingAvailable, swipedCandidateIdsRef.current,
+        );
         setAllCandidates(ranked);
-        
-        if (startingOver) {
-          //only pull new for this project 
-          const proj = tempProjects.find(p => (String(p.id) == persistedProjectId));
 
-          if (proj) {
-            let pCandidates = ranked.filter(c => c.project_id === persistedProjectId);  
-            let filteredpCandidates = pCandidates.map(c => ({c : c, included : true}))              
-
-            const p2 = { fullCandidates: pCandidates, filteredCandidates : filteredpCandidates, project: proj, index: 0 };
-
-            setAllCandidateLists(prev => prev.set(String(persistedProjectId), p2));
-            setCandidates(filteredpCandidates);
-            setCurrentCandidateList(p2)
-            setCurrentIndex(0); 
-            
-          } else {
-            console.log("ERROR");
+        // Build per-project CandidateList entries.
+        // When the matching API is unavailable, rankCandidatesBatch assigns every
+        // candidate to activeProjects[0], so project_id filtering for other projects
+        // would yield empty lists.  Fall back to the full ranked list for the active
+        // (persisted) project in that case.
+        const buildList = (proj: FilterProject, candidates: Candidate[]): CandidateList => {
+          let pCandidates = candidates.filter((c) => c.project_id === String(proj.id));
+          // Fallback: if filtering by project_id left us empty but this is the
+          // currently-active project, show all candidates (matching API was unavailable).
+          if (pCandidates.length === 0 && String(proj.id) === persistedProjectId) {
+            pCandidates = candidates;
           }
+          const feedItems = toFeedItems(pCandidates);
+          return { fullCandidates: pCandidates, filteredCandidates: feedItems, project: proj, index: 0 };
+        };
 
-        
-        }
-        else {
-          //split candidates up by project
-          const allLists = new Map<String, CandidateList | undefined>();
-          tempProjects.forEach(p => {
-            let pCandidates = ranked.filter(c => c.project_id === String(p.id));   
-            let filteredpCandidates = pCandidates.map(c => ({c : c, included : true}));           
-            let newIndex = 0;
-
-            const p2 = { fullCandidates: pCandidates, filteredCandidates : filteredpCandidates, project: p, index: newIndex };
-
-            allLists.set(String(p.id), p2);
-
-            if (persistedProjectId == String(p.id)) {
-              setCandidates(filteredpCandidates);
-              setCurrentCandidateList(p2)
+        if (startingOver) {
+          // Only rebuild the current project's list
+          const proj = tempProjects.find((p) => String(p.id) === persistedProjectId);
+          if (proj) {
+            const list = buildList(proj, ranked);
+            const startIdx = getNextIndex(list.filteredCandidates, 0);
+            setAllCandidateLists((prev) => new Map(prev).set(String(proj.id), { ...list, index: startIdx }));
+            setActiveFeedItems(list.filteredCandidates);
+            setCurrentIndex(startIdx);
+          }
+        } else {
+          const allLists = new Map<string, CandidateList>();
+          tempProjects.forEach((proj) => {
+            const list = buildList(proj, ranked);
+            allLists.set(String(proj.id), list);
+            if (persistedProjectId === String(proj.id)) {
+              const startIdx = getNextIndex(list.filteredCandidates, 0);
+              setActiveFeedItems(list.filteredCandidates);
+              setCurrentIndex(startIdx);
             }
-
           });
           setAllCandidateLists(allLists);
-          setCurrentIndex(0); 
         }
 
-        if (allCandidates.length < INITIAL_BATCH_SIZE) {
-          setAllFetched(true);
-        }
+        if (allCandidates.length < INITIAL_BATCH_SIZE) setAllFetched(true);
+      } catch (e: any) {
+        setErr(e.message ?? String(e));
+      } finally {
+        setLoading(false);
       }
-    } catch (e: any) {
-      setErr(e.message ?? String(e));
-    } finally {
-      setLoading(false);
-    }
-
-    
-
-  }, [session?.user?.id]);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadCandidates();
-    }, [loadCandidates]),
+    },
+    [session?.user?.id],
   );
 
-  // When the logged-in user changes, reset feed state so a fresh load runs.
+  useFocusEffect(useCallback(() => { void loadCandidates(); }, [loadCandidates]));
+
   useEffect(() => {
     isFetchingMoreRef.current = false;
     swipedCandidateIdsRef.current = [];
-    setCandidates([]);
+    setActiveFeedItems([]);
     setAllCandidates([]);
     setCurrentIndex(0);
-    persistedProjectId = null
+    persistedProjectId = null;
     setAllFetched(false);
     setErr(null);
   }, [session?.user?.id]);
 
+  // ---------------------------------------------------------------------------
+  // fetchMore — incremental load when deck is running low
+  // ---------------------------------------------------------------------------
   const fetchMore = async () => {
     if (isFetchingMoreRef.current || allFetched || !session?.user?.id || !hasProjects) return;
     isFetchingMoreRef.current = true;
     setIsFetchingMore(true);
     try {
       const excludeList = Array.from(
-        new Set([...overallCandidates.map((c) => c.id), ...swipedCandidateIdsRef.current])
+        new Set([...overallCandidates.map((c) => c.id), ...swipedCandidateIdsRef.current]),
       );
       const newBatch = await fetchCandidates(BATCH_SIZE, session.user.id, excludeList);
-      if (newBatch.length === 0) {
-        setAllFetched(true);
-        return;
-      }
+      if (newBatch.length === 0) { setAllFetched(true); return; }
       if (newBatch.length < BATCH_SIZE) setAllFetched(true);
 
       const matchingAvailable = await checkMatchingAPIHealth();
@@ -970,7 +847,24 @@ export default function CandidateFeed() {
       const ranked = await rankCandidatesBatch(newBatch, includedProjects, matchingAvailable, swipedCandidateIdsRef.current);
 
       setAllCandidates((prev) => [...prev, ...ranked]);
-      setCandidates((prev) => [...prev, ...ranked.map(c => ({c : c, included : true}))]);
+
+      // Append new ranked items to the current project's list
+      if (persistedProjectId) {
+        const newItems = toFeedItems(ranked.filter((c) => c.project_id === persistedProjectId));
+        setActiveFeedItems((prev) => [...prev, ...newItems]);
+        setAllCandidateLists((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(persistedProjectId!);
+          if (existing) {
+            next.set(persistedProjectId!, {
+              ...existing,
+              fullCandidates: [...existing.fullCandidates, ...newItems.map((i) => i.item)],
+              filteredCandidates: [...existing.filteredCandidates, ...newItems],
+            });
+          }
+          return next;
+        });
+      }
     } catch (e: any) {
       console.warn("Failed to fetch more candidates:", e.message ?? e);
     } finally {
@@ -979,44 +873,79 @@ export default function CandidateFeed() {
     }
   };
 
-  const advance = () => {
-    // if (currentIndex.index < candidates.length) setCurrentIndex((prev) => {
-    //   return {project : prev.project, index : prev.index + 1};
-    // });
-    let i = currentIndex + 1;
-    while (i < candidates.length) {
-      if (candidates[i].included) {
-        if (i <= candidates.length) {
-          setCurrentIndex(i);
-          return
-        }
-      }
-      i += 1;
+  // ---------------------------------------------------------------------------
+  // advance — move the index to the next visible (included && !swiped) item
+  // ---------------------------------------------------------------------------
+  const advance = useCallback((fromIndex: number, list: FeedItem<Candidate>[]) => {
+    const next = getNextIndex(list, fromIndex + 1);
+    setCurrentIndex(next);
+    // Sync index back into the CandidateList map
+    if (persistedProjectId) {
+      setAllCandidateLists((prev) => {
+        const m = new Map(prev);
+        const entry = m.get(persistedProjectId!);
+        if (entry) m.set(persistedProjectId!, { ...entry, index: next });
+        return m;
+      });
     }
-    if (i >= candidates.length) setCurrentIndex(candidates.length);
-  };
+  }, []);
 
+  // ---------------------------------------------------------------------------
+  // handleSwipe
+  // ---------------------------------------------------------------------------
   const handleSwipe = async (direction: "left" | "right") => {
-    const candidate = candidates[currentIndex];
-    const nextIndex = currentIndex + 1;
-    advance();
+    const slot = activeFeedItems[currentIndex];
+    if (!slot) return;
 
+    // 1. Mark the card as swiped in the active list
+    const updatedItems = markSwiped(activeFeedItems, currentIndex);
+    setActiveFeedItems(updatedItems);
 
-    // Proactively fetch the next batch when the queue is running low.
-    if (candidates.length - nextIndex <= PREFETCH_THRESHOLD) {
-      fetchMore();
+    // 2. Sync swiped flag into the CandidateList map
+    if (persistedProjectId) {
+      setAllCandidateLists((prev) => {
+        const m = new Map(prev);
+        const entry = m.get(persistedProjectId!);
+        if (entry) {
+          m.set(persistedProjectId!, { ...entry, filteredCandidates: updatedItems });
+        }
+        return m;
+      });
     }
 
-    if (!session?.user?.id || !candidate) return;
+    // 3. Advance to next visible item
+    advance(currentIndex, updatedItems);
+
+    // 4. Prefetch if queue is running low
+    const remaining = updatedItems.slice(currentIndex + 1).filter((i) => i.included && !i.swiped).length;
+    if (remaining <= PREFETCH_THRESHOLD) void fetchMore();
+
+    if (!session?.user?.id) return;
     try {
       const matchResult = await likeCandidate(
         session.user.id,
-        candidate.c.project_id,
-        candidate.c.id,
+        slot.item.project_id,
+        slot.item.id,
         direction === "right" ? "like" : "pass",
       );
       if (matchResult?.match) {
-        setMatchCelebrationTarget(candidate.c.name);
+        setMatchCelebrationTarget(slot.item.name);
+        // Remove matched candidate from every project's feed entirely
+        setActiveFeedItems((prev) =>
+          prev.map((fi) => fi.item.id === slot.item.id ? { ...fi, included: false } : fi),
+        );
+        setAllCandidateLists((prev) => {
+          const m = new Map(prev);
+          m.forEach((list, pid) => {
+            m.set(pid, {
+              ...list,
+              filteredCandidates: list.filteredCandidates.map((fi) =>
+                fi.item.id === slot.item.id ? { ...fi, included: false } : fi,
+              ),
+            });
+          });
+          return m;
+        });
       }
     } catch (e: any) {
       console.warn("Failed to record candidate like:", e.message ?? e);
@@ -1024,14 +953,27 @@ export default function CandidateFeed() {
   };
 
   const handleDeckLayout = (event: LayoutChangeEvent) => {
-    const nextHeight = Math.max(
-      event.nativeEvent.layout.height,
-      DECK_CARD_HEIGHT,
-    );
-    setDeckHeight((currentHeight) =>
-      Math.abs(currentHeight - nextHeight) > 1 ? nextHeight : currentHeight,
-    );
+    const nextHeight = Math.max(event.nativeEvent.layout.height, DECK_CARD_HEIGHT);
+    setDeckHeight((h) => Math.abs(h - nextHeight) > 1 ? nextHeight : h);
   };
+
+  // ---------------------------------------------------------------------------
+  // Derive top two visible cards for the deck
+  // ---------------------------------------------------------------------------
+  const topIndex = currentIndex < activeFeedItems.length
+    ? activeFeedItems[currentIndex].included && !activeFeedItems[currentIndex].swiped
+      ? currentIndex
+      : getNextIndex(activeFeedItems, currentIndex)
+    : activeFeedItems.length;
+
+  const peekIndex = topIndex < activeFeedItems.length
+    ? getPeekIndex(activeFeedItems, topIndex)
+    : activeFeedItems.length;
+
+  const visibleCards: { slot: FeedItem<Candidate>; idx: number }[] = [];
+  if (topIndex < activeFeedItems.length) visibleCards.push({ slot: activeFeedItems[topIndex], idx: topIndex });
+  if (peekIndex < activeFeedItems.length) visibleCards.push({ slot: activeFeedItems[peekIndex], idx: peekIndex });
+  const deckExhausted = topIndex >= activeFeedItems.length;
 
   if (loading)
     return (
@@ -1049,209 +991,156 @@ export default function CandidateFeed() {
 
   return hasProjects ? (
     dropdownOpen ? (
-      <ScrollView
-        style={[
-          styles.container,
-          { paddingTop: insets.top, paddingBottom: insets.bottom },
-        ]}
-      >
-        {/* <View> */}
-        <View
-          style={{
-            marginBottom: 10,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            paddingLeft: 20,
-          }}
-        >
+      /* ================================================================
+         FILTER PANEL
+         ================================================================ */
+      <ScrollView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <View style={{ marginBottom: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingLeft: 20 }}>
           <Text style={styles.pageHeader}>Filter Candidates</Text>
           <TouchableOpacity
             style={styles.closeDropDownButton}
             onPress={() => {
               setDropdownOpen(false);
-
-              // setFilterSkillsUI(filterSkills);
-              // setMaxFilterDistUI(maxFilterDist);
-              // setShowAllSkillsUI(showAllSkills);
               setMyProjectsUI(myProjects);
+              setFilterSkillsUI(filterSkills);
+              setShowAllSkillsUI(showAllSkills);
+              setFilterInterestsUI(filterInterests);
+              setShowAllInterestsUI(showAllInterests);
+              setMaxFilterDistUI(maxFilterDist);
             }}
           >
             <Ionicons name="close" size={35} color="000" />
           </TouchableOpacity>
         </View>
 
-        <View>
+        {/* Location */}
+        {myCoords.lat && myCoords.lng && (
+          <View>
+            <Text style={styles.sectionTitle}>Location</Text>
+            <LocationSlider min={0} max={MAX_DISTANCE} value={maxFilterDistUI} onValueChange={setMaxFilterDistUI} />
+            <Text style={{ textAlign: "center", color: "#888", fontSize: 13 }}>
+              {maxFilterDistUI >= MAX_DISTANCE ? "Worldwide" : `${maxFilterDistUI}km`}
+            </Text>
+          </View>
+        )}
 
-          {/* Location */}
-          {myCoords.lat && myCoords.lng && (
-            <View>
-              <Text style={styles.sectionTitle}>Location</Text>
-              {/* <SliderFilter/> */}
-              <LocationSlider
-                min={0}
-                max={MAX_DISTANCE}
-                value={maxFilterDistUI}
-                onValueChange={setMaxFilterDistUI}
-              />
-              <Text style={{ textAlign: "center", color: "#888", fontSize: 13 }}>
-                {maxFilterDistUI >= MAX_DISTANCE ? "Worldwide" : maxFilterDistUI + "km"}
-              </Text>
-            </View>
-          )
-          
-          }
-          
-          {/* Projects */}
-          {myProjectsUI.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Personal Projects</Text>
-              {myProjectsUI.map((p, i) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={styles.filterRow}
-                  
-                  onPress={() => {
-                    
-                    const newProjects = myProjectsUI.map((proj, j) => ({
-                      ...proj,
-                      included: j === i,
-                    }));
-                    setMyProjectsUI(newProjects);
-                    // const selected = newProjects.find(p => p.included);
-                    // persistedProjectId = selected ? String(selected.id) : null; 
-                  }}
-                >
-                  <Ionicons
-                    name={p.included ? "checkmark-circle" : "ellipse-outline"}
-                    size={20}
-                    color="#333"
-                  />
-                  <Text style={styles.filterLabel}>{p.title}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          {/* skills to browse on */}
-          {filterSkillsUI.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Skills</Text>
+        {/* Projects */}
+        {myProjectsUI.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>My Projects</Text>
+            {myProjectsUI.map((p, i) => (
               <TouchableOpacity
+                key={p.id}
                 style={styles.filterRow}
+                onPress={() => setMyProjectsUI((prev) => prev.map((proj, j) => ({ ...proj, included: j === i })))}
+              >
+                <Ionicons name={p.included ? "checkmark-circle" : "ellipse-outline"} size={20} color="#333" />
+                <Text style={styles.filterLabel}>{p.title}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Skills */}
+        {filterSkillsUI.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Skills</Text>
+            <TouchableOpacity
+              style={styles.filterRow}
+              onPress={() => {
+                setShowAllSkillsUI((v) => !v);
+                if (!showAllSkillsUI) setFilterSkillsUI((prev) => prev.map((s) => ({ ...s, included: true })));
+              }}
+            >
+              <Ionicons name={showAllSkillsUI ? "checkmark-circle" : "ellipse-outline"} size={20} color="#333" />
+              <Text style={styles.filterLabel}>Show All Skills</Text>
+            </TouchableOpacity>
+            {filterSkillsUI.map((s, i) => (
+              <TouchableOpacity
+                key={i}
+                style={[styles.filterRow, { paddingHorizontal: 40 }]}
                 onPress={() => {
-                  setShowAllSkillsUI(!showAllSkillsUI);
-
-                  //check here
-
-                  if(!showAllSkillsUI) {
-                    setFilterSkillsUI((prev) => prev.map(s => ({...s, included : true})));
-                  }
+                  if (!showAllSkillsUI)
+                    setFilterSkillsUI((prev) => prev.map((sk, j) => j === i ? { ...sk, included: !sk.included } : sk));
                 }}
               >
-                <Ionicons
-                  name={showAllSkillsUI ? "checkmark-circle" : "ellipse-outline"}
-                  size={20}
-                  color="#333"
-                />
-                <Text style={styles.filterLabel}>Show All Skills</Text>
+                <Ionicons name={s.included || showAllSkillsUI ? "checkbox" : "square-outline"} size={20} color={showAllSkillsUI ? "#ddd" : "#333"} />
+                <Text style={[styles.filterLabel, { color: showAllSkillsUI ? "#ddd" : "#333" }]}>{s.name}</Text>
               </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
-              {[...filterSkillsUI].map((s, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.filterRow, { paddingHorizontal: 40 }]}
-                  onPress={() => {
-                    if (!showAllSkillsUI)
-                      setFilterSkillsUI((prev) =>
-                        prev.map((skill, j) =>
-                          j === i
-                            ? { ...skill, included: !skill.included }
-                            : skill,
-                        ),
-                      );
-                  }}
-                >
-                  <Ionicons
-                    name={s.included ? "checkbox" : "square-outline"}
-                    size={20}
-                    color={showAllSkillsUI ? "#ddd" : "#333"}
-                  />
-                  <Text
-                    style={[
-                      styles.filterLabel,
-                      { color: showAllSkillsUI ? "#ddd" : "#333" },
-                    ]}
-                  >
-                    {s.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-          <View style={styles.center}>
-        <TouchableOpacity
-                      style={[styles.center, styles.resetButton, {width : SCREEN_WIDTH * 0.5}]}
-                      onPress={() => {
-                        setDropdownOpen(false);
-                        filterFetchedCandidates();
-                      }} 
-                    >
-                      <Text style={styles.resetButtonText}>Apply</Text>
-                </TouchableOpacity>
-                </View>
-      </ScrollView>
-    ) : ( 
-      <View
-        style={[
-          styles.container,
-          { paddingTop: insets.top, paddingBottom: insets.bottom },
-        ]}
-      >
-        {/* FILTER */}
-        <View>
+        {/* Interests */}
+        {filterInterestsUI.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Interests</Text>
+            <TouchableOpacity
+              style={styles.filterRow}
+              onPress={() => {
+                setShowAllInterestsUI((v) => !v);
+                if (!showAllInterestsUI) setFilterInterestsUI((prev) => prev.map((it) => ({ ...it, included: true })));
+              }}
+            >
+              <Ionicons name={showAllInterestsUI ? "checkmark-circle" : "ellipse-outline"} size={20} color="#333" />
+              <Text style={styles.filterLabel}>Show All Interests</Text>
+            </TouchableOpacity>
+            {filterInterestsUI.map((interest, i) => (
+              <TouchableOpacity
+                key={i}
+                style={[styles.filterRow, { paddingHorizontal: 40 }]}
+                onPress={() => {
+                  if (!showAllInterestsUI)
+                    setFilterInterestsUI((prev) => prev.map((it, j) => j === i ? { ...it, included: !it.included } : it));
+                }}
+              >
+                <Ionicons name={interest.included || showAllInterestsUI ? "checkbox" : "square-outline"} size={20} color={showAllInterestsUI ? "#ddd" : "#333"} />
+                <Text style={[styles.filterLabel, { color: showAllInterestsUI ? "#ddd" : "#333" }]}>{interest.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        <View style={styles.center}>
           <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={() => {
-              setDropdownOpen(true);
-            }}
+            style={[styles.center, styles.resetButton, { width: SCREEN_WIDTH * 0.5 }]}
+            onPress={() => { setDropdownOpen(false); filterFetchedCandidates(); }}
           >
+            <Text style={styles.resetButtonText}>Apply</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    ) : (
+      /* ================================================================
+         MAIN FEED
+         ================================================================ */
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        {/* Filter button */}
+        <View>
+          <TouchableOpacity style={styles.headerIconButton} onPress={() => setDropdownOpen(true)}>
             <Ionicons name="filter" size={30} color="000" />
           </TouchableOpacity>
         </View>
 
-        <View
-          style={[
-            styles.browseLayout,
-            {
-              paddingBottom: browseBottomPadding,
-            },
-          ]}
-        >
+        <View style={[styles.browseLayout, { paddingBottom: browseBottomPadding }]}>
           <View style={styles.cardContainer} onLayout={handleDeckLayout}>
             <View style={[styles.deckSlot, { height: deckHeight }]}>
-              {candidates
-                .slice(currentIndex, currentIndex + 2)
-                .reverse()
-                .filter(c => c.included)
-                .map((p, i, arr) => (
+              {/* Render peek card first (lower z), then top card */}
+              {!deckExhausted &&
+                [...visibleCards].reverse().map(({ slot, idx }, i, arr) => (
                   <CandidateCard
-                    // key={(p.id, p.project_id)}
-                    key={`${p.c.id}-${p.c.project_id}`}
-                    candidate={p.c}
+                    key={`${slot.item.id}-${slot.item.project_id}`}
+                    candidate={slot.item}
                     isTop={i === arr.length - 1}
                     onSwipe={handleSwipe}
                   />
                 ))}
 
-              {currentIndex >= candidates.length && (
-                isFetchingMore ? (
+              {deckExhausted &&
+                (isFetchingMore ? (
                   <View style={styles.endCard}>
                     <ActivityIndicator size="large" color="#79BE58" />
-                    <Text style={{ marginTop: 16, color: "#999" }}>
-                      Finding more candidates...
-                    </Text>
+                    <Text style={{ marginTop: 16, color: "#999" }}>Finding more candidates...</Text>
                   </View>
                 ) : (
                   <View style={styles.endCard}>
@@ -1261,24 +1150,19 @@ export default function CandidateFeed() {
                       onPress={async () => {
                         try {
                           if (session?.user?.id) {
-                            
                             await deleteNonMatchedCandidateLikes(session.user.id, Number(persistedProjectId));
                           }
                           await loadCandidates(true);
-                          // await filterFetchedCandidates();
                         } catch (e: any) {
-                          console.warn('Failed to reset candidates feed:', e.message ?? e);
+                          console.warn("Failed to reset candidates feed:", e.message ?? e);
                         }
                       }}
                     >
                       <Text style={styles.resetButtonText}>Start Over</Text>
                     </TouchableOpacity>
-                    <Text style={styles.endSubtext}>
-                      Or edit your filter settings
-                    </Text>
+                    <Text style={styles.endSubtext}>Or edit your filter settings</Text>
                   </View>
-                )
-              )}
+                ))}
             </View>
           </View>
         </View>
@@ -1291,59 +1175,15 @@ export default function CandidateFeed() {
           visible={matchCelebrationTarget !== null}
         />
 
-        {/* Project picker modal */}
-        {persistedProjectId == null && myProjects.length > 1 &&  (
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
-              <Text style={styles.pageHeader}>Choose a Project</Text>
-              <Text style={{ color: "#888", textAlign: "center", marginBottom: 16, fontSize: 14 }}>
-                Select a project to browse candidates for
-              </Text>
-              {myProjects.map((p, i) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={styles.filterRow}
-                  onPress={() => {
-                  
-                  const newProjects = myProjects.map((proj, j) =>
-                    j === i ? { ...proj, included: true } : { ...proj, included: false }
-                  );
-                  setMyProjects(newProjects);
-                  setMyProjectsUI(newProjects);
-                  persistedProjectId = String(p.id);
-                  
-                  filterFetchedCandidates(p.id);
-                  // switchProjects(persistedProjectId);
-                  //setCandidates(overallCandidates.filter(c => c.project_id === String(p.id)));
-                  }}
-                  
-                >
-                  <Ionicons name="ellipse-outline" size={20} color="#333" />
-                  <Text style={styles.filterLabel}>{p.title}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
+
       </View>
     )
   ) : (
     <View style={[styles.center, { backgroundColor: "#fff" }]}>
-      <Text
-        style={{
-          fontSize: 16,
-          color: "#999",
-          marginBottom: 16,
-          width: "75%",
-          textAlign: "center",
-        }}
-      >
+      <Text style={{ fontSize: 16, color: "#999", marginBottom: 16, width: "75%", textAlign: "center" }}>
         You must have an active project to browse candidates.
       </Text>
-      <TouchableOpacity
-        style={styles.resetButton}
-        onPress={() => router.push("/create-project" as any)}
-      >
+      <TouchableOpacity style={styles.resetButton} onPress={() => router.push("/create-project" as any)}>
         <Text style={styles.resetButtonText}>Create Your First Project</Text>
       </TouchableOpacity>
     </View>
@@ -1354,348 +1194,71 @@ export default function CandidateFeed() {
    Styles
    ========================= */
 const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  center: { flex: 1, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   container: { flex: 1, backgroundColor: "#fff" },
-  browseLayout: {
-    flex: 1,
-    paddingTop: 12,
-  },
-  cardContainer: {
-    flex: 1,
-    justifyContent: "flex-start",
-    alignItems: "center",
-    paddingHorizontal: 16,
-  },
-  deckSlot: {
-    width: DECK_CARD_WIDTH,
-    maxWidth: 430,
-    position: "relative",
-    alignSelf: "center",
-  },
-
-  card: {
-    ...StyleSheet.absoluteFillObject,
-    ...deckCardShell,
-  },
-  cardSurface: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    overflow: "hidden",
-  },
+  browseLayout: { flex: 1, paddingTop: 12 },
+  cardContainer: { flex: 1, justifyContent: "flex-start", alignItems: "center", paddingHorizontal: 16 },
+  deckSlot: { width: DECK_CARD_WIDTH, maxWidth: 430, position: "relative", alignSelf: "center" },
+  card: { ...StyleSheet.absoluteFillObject, ...deckCardShell },
+  cardSurface: { flex: 1, backgroundColor: "#fff", borderRadius: 20, overflow: "hidden" },
   cardBehind: { transform: [{ scale: 0.95 }], opacity: 0.8 },
-
-  targetIcon: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    backgroundColor: "#fff",
-    borderRadius: 15,
-    padding: 3,
-  },
-  targetOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#333",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  targetInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#333",
-  },
+  targetIcon: { position: "absolute", top: -5, right: -5, backgroundColor: "#fff", borderRadius: 15, padding: 3 },
+  targetOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: "#333", justifyContent: "center", alignItems: "center" },
+  targetInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#333" },
   content: { flex: 1 },
   contentContainer: { padding: 20, paddingTop: 30, paddingBottom: 24 },
-  location: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-
-  imageContainer: {
-    width: "100%",
-    height: 180,
-    borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 20,
-    backgroundColor: "#8FBC8F",
-  },
+  location: { fontSize: 14, color: "#666", textAlign: "center", marginBottom: 20 },
+  imageContainer: { width: "100%", height: 180, borderRadius: 16, overflow: "hidden", marginBottom: 20, backgroundColor: "#8FBC8F" },
   projectImage: { width: "100%", height: "100%" },
-
   descriptionSection: { marginBottom: 12 },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 14,
-    color: "#333",
-    lineHeight: 20,
-    textAlign: "center",
-  },
-
-  // overlays
-  likeOverlay: {
-    position: "absolute",
-    top: 50,
-    right: 30,
-    zIndex: 5,
-    transform: [{ rotate: "20deg" }],
-    borderWidth: 4,
-    borderColor: "#4CAF50",
-    borderRadius: 10,
-    padding: 10,
-  },
-  nopeOverlay: {
-    position: "absolute",
-    top: 50,
-    left: 30,
-    zIndex: 5,
-    transform: [{ rotate: "-20deg" }],
-    borderWidth: 4,
-    borderColor: "#F44336",
-    borderRadius: 10,
-    padding: 10,
-  },
+  sectionTitle: { fontSize: 18, fontWeight: "600", textAlign: "center", marginBottom: 8 },
+  description: { fontSize: 14, color: "#333", lineHeight: 20, textAlign: "center" },
+  likeOverlay: { position: "absolute", top: 50, right: 30, zIndex: 5, transform: [{ rotate: "20deg" }], borderWidth: 4, borderColor: "#4CAF50", borderRadius: 10, padding: 10 },
+  nopeOverlay: { position: "absolute", top: 50, left: 30, zIndex: 5, transform: [{ rotate: "-20deg" }], borderWidth: 4, borderColor: "#F44336", borderRadius: 10, padding: 10 },
   overlayText: { fontSize: 32, fontWeight: "bold", color: "#4CAF50" },
   nopeOverlayText: { fontSize: 32, fontWeight: "bold", color: "#F44336" },
-
-  endCard: {
-    ...StyleSheet.absoluteFillObject,
-    ...deckCardShell,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  endCard: { ...StyleSheet.absoluteFillObject, ...deckCardShell, justifyContent: "center", alignItems: "center" },
   endText: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
-  endSubtext: {
-    paddingVertical: 10,
-    fontSize: 16,
-    color: "#999",
-    marginBottom: 16,
-    width: "75%",
-    textAlign: "center",
-  },
-  resetButton: {
-    backgroundColor: "#79BE58",
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 25,
-  },
+  endSubtext: { paddingVertical: 10, fontSize: 16, color: "#999", marginBottom: 16, width: "75%", textAlign: "center" },
+  resetButton: { backgroundColor: "#79BE58", paddingHorizontal: 30, paddingVertical: 12, borderRadius: 25 },
   resetButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-
-  // skills chips
-  chipsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 8,
-  },
-  chip: {
-    backgroundColor: "#fff",
-    borderColor: "#ddd",
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-  },
+  chipsWrap: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8 },
+  chip: { backgroundColor: "#fff", borderColor: "#ddd", borderWidth: 1, borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12, marginBottom: 8 },
   chipText: { fontSize: 13, color: "#333" },
-
   section: { marginBottom: 12 },
-
-  // avatar
-  avatarSection: {
-    alignItems: "center",
-    paddingTop: 32,
-    paddingBottom: 20,
-    paddingHorizontal: 24,
-  },
-  avatarWrapper: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "#fff",
-    marginBottom: 14,
-    elevation: 3,
-  },
+  avatarSection: { alignItems: "center", paddingTop: 32, paddingBottom: 20, paddingHorizontal: 24 },
+  avatarWrapper: { width: 88, height: 88, borderRadius: 44, overflow: "hidden", borderWidth: 2, borderColor: "#fff", marginBottom: 14, elevation: 3 },
   avatar: { width: "100%", height: "100%" },
-
-  pageHeader: {
-    fontSize: 24,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginTop: 0,
-    marginBottom: 4,
-  },
-
-  candidateName: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    letterSpacing: 0.3,
-    textAlign: "center",
-    marginBottom: 6,
-  },
+  pageHeader: { fontSize: 24, fontWeight: "bold", textAlign: "center", marginTop: 0, marginBottom: 4 },
+  candidateName: { fontSize: 26, fontWeight: "700", color: "#1A1A1A", letterSpacing: 0.3, textAlign: "center", marginBottom: 6 },
   locationRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   locationText: { fontSize: 13, color: "#888", letterSpacing: 0.2 },
-
-  //timeline for education and experience
   timeline: { paddingLeft: 4, marginBottom: 4 },
-  timelineItem: {
-    flexDirection: "row",
-    marginBottom: 16,
-    alignItems: "flex-start",
-  },
-  timelineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#1A1A1A",
-    marginTop: 5,
-    marginRight: 14,
-    flexShrink: 0,
-  },
+  timelineItem: { flexDirection: "row", marginBottom: 16, alignItems: "flex-start" },
+  timelineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#1A1A1A", marginTop: 5, marginRight: 14, flexShrink: 0 },
   timelineContent: { flex: 1 },
-  timelineTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginBottom: 2,
-  },
-  timelineSubtitle: {
-    fontSize: 13,
-    color: "#555",
-    marginBottom: 1,
-    fontWeight: "500",
-  },
-  timelineMeta: {
-    fontSize: 11,
-    color: "#AAA",
-    letterSpacing: 0.5,
-    marginBottom: 5,
-  },
+  timelineTitle: { fontSize: 14, fontWeight: "700", color: "#1A1A1A", marginBottom: 2 },
+  timelineSubtitle: { fontSize: 13, color: "#555", marginBottom: 1, fontWeight: "500" },
+  timelineMeta: { fontSize: 11, color: "#AAA", letterSpacing: 0.5, marginBottom: 5 },
   timelineDesc: { fontSize: 13, color: "#666", lineHeight: 19 },
-
-  // personal project
-  projectBlock: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#f5f5f5",
-  },
-  projectBlockHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  projectBlockName: {
-    fontSize: 14,
-    fontWeight: "700",
-    flex: 1,
-    marginRight: 8,
-  },
-
-  //links
+  projectBlock: { backgroundColor: "#f5f5f5", borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#f5f5f5" },
+  projectBlockHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+  projectBlockName: { fontSize: 14, fontWeight: "700", flex: 1, marginRight: 8 },
   linksContainer: { gap: 10 },
   linkRow: { flexDirection: "row", alignItems: "center" },
   linkText: { fontSize: 12, color: "#666", flex: 1 },
-
-  //tags
-
-  // project name tag
   projectTagRow: { alignItems: "flex-start", marginBottom: 8 },
-  projectTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
-    borderRadius: 20,
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    alignSelf: "flex-start",
-  },
-
-  //filtering drop down
+  projectTag: { flexDirection: "row", alignItems: "center", backgroundColor: "#f5f5f5", borderRadius: 20, paddingVertical: 5, paddingHorizontal: 12, alignSelf: "flex-start" },
   headerIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#C8E4BC",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#7BAF6A",
-    marginLeft: 15,
+    width: 40, height: 40, borderRadius: 20, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#C8E4BC",
+    alignItems: "center", justifyContent: "center", shadowColor: "#7BAF6A", marginLeft: 15,
     ...Platform.select({
-      ios: {
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 4,
-      },
-      default: {
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-      },
+      ios: { shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 12 },
+      android: { elevation: 4 },
+      default: { shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 12 },
     }),
   },
-  closeDropDownButton: {
-    alignSelf: "flex-end",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    width: 100,
-    height: 70,
-    borderRadius: 25,
-  },
-
-  filterRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-  },
+  closeDropDownButton: { alignSelf: "flex-end", flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 70, borderRadius: 25 },
+  filterRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 20 },
   filterLabel: { fontSize: 14, color: "#333" },
-
-  modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 100,
-  },
-  modalCard: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 24,
-    width: "80%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
-  },
 });
