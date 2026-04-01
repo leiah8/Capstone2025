@@ -712,7 +712,7 @@ export default function CandidateFeed() {
         // persisted selection (covers both the single-project case and the
         // very first load with multiple projects before the user picks one).
         if (!persistedProjectId && userProjects.length > 0) {
-          persistedProjectId = String(userProjects[0].id);
+          persistedProjectId = null; //String(userProjects[0].id);
         }
 
         const tempProjects: FilterProject[] = userProjects.map((p) => ({
@@ -1175,6 +1175,40 @@ export default function CandidateFeed() {
           visible={matchCelebrationTarget !== null}
         />
 
+        {/* Project picker modal */}
+        {persistedProjectId == null && myProjects.length > 1 &&  (
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.pageHeader}>Choose a Project</Text>
+              <Text style={{ color: "#888", textAlign: "center", marginBottom: 16, fontSize: 14 }}>
+                Select a project to browse candidates for
+              </Text>
+              {myProjects.map((p, i) => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={styles.filterRow}
+                  onPress={() => {
+                  
+                  const newProjects = myProjects.map((proj, j) =>
+                    j === i ? { ...proj, included: true } : { ...proj, included: false }
+                  );
+                  setMyProjects(newProjects);
+                  setMyProjectsUI(newProjects);
+                  persistedProjectId = String(p.id);
+                  
+                  filterFetchedCandidates(p.id);
+                  
+                  }}
+                  
+                >
+                  <Ionicons name="ellipse-outline" size={20} color="#333" />
+                  <Text style={styles.filterLabel}>{p.title}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View> 
+          )}
+
 
       </View>
     )
@@ -1261,4 +1295,23 @@ const styles = StyleSheet.create({
   closeDropDownButton: { alignSelf: "flex-end", flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 70, borderRadius: 25 },
   filterRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 20 },
   filterLabel: { fontSize: 14, color: "#333" },
+
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 24,
+    width: "80%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
 });
