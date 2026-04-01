@@ -1,21 +1,21 @@
 # peer.io
-Project Matching IOS App
+Peer.io is an iOS app for matching people to projects. Using intuitive swiping controls, users can quickly swipe through projects to find ones that interest them, while project owners can quickly swipe through potential candidates to find the best people to work with. Our matching algorithm utilizes natural language processing and an elo system to ensure that the best fit projects and candidates are put on each users feed.
 
 # Video Demo
 https://www.macvideo.ca/media/Peer.io%20-%20Computing%20and%20Software/1_ed8536am
 
 # Directories
-## peerio_app 
+### peerio_app 
 Primary mobile application / frontend code
-## match_edge_function
+### match_edge_function
 Local copy of edge function responsible for creating matches (working copy is stored on Supabase)
-## Meeting Notes
+### Meeting Notes
 Rough meeting notes, some meetings not recorded
-## resume_parser
+### resume_parser
 Code responsible for backend Resume Parsing functionality
-## supabase
+### supabase
 TODO BY NIC
-## web-app
+### web-app
 Sub-repo for our website
 
 # Test Credentials
