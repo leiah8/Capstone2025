@@ -1,0 +1,316 @@
+{
+  "split_seed": 42,
+  "history_fraction": 0.7,
+  "history_candidate_ids": [
+    "u_003",
+    "u_004",
+    "u_005",
+    "u_006",
+    "u_007",
+    "u_009",
+    "u_010",
+    "u_011",
+    "u_015",
+    "u_016",
+    "u_017",
+    "u_018",
+    "u_020",
+    "u_021",
+    "u_023",
+    "u_024",
+    "u_025",
+    "u_026",
+    "u_027",
+    "u_028",
+    "u_029",
+    "u_030",
+    "u_031",
+    "u_032",
+    "u_034",
+    "u_037",
+    "u_038",
+    "u_039",
+    "u_040",
+    "u_042",
+    "u_044",
+    "u_046",
+    "u_048",
+    "u_049",
+    "u_050",
+    "u_052",
+    "u_053",
+    "u_054",
+    "u_055",
+    "u_056",
+    "u_057",
+    "u_059"
+  ],
+  "test_candidate_ids": [
+    "u_000",
+    "u_001",
+    "u_002",
+    "u_008",
+    "u_012",
+    "u_013",
+    "u_014",
+    "u_019",
+    "u_022",
+    "u_033",
+    "u_035",
+    "u_036",
+    "u_041",
+    "u_043",
+    "u_045",
+    "u_047",
+    "u_051",
+    "u_058"
+  ],
+  "full_data_elo_ratings": {
+    "p_01": 1055.7711,
+    "p_02": 876.8882,
+    "p_03": 956.0583,
+    "p_04": 976.9935,
+    "p_05": 935.2954,
+    "p_06": 951.9096,
+    "p_07": 948.5547,
+    "p_08": 901.2463,
+    "p_09": 904.8569,
+    "p_10": 962.0371,
+    "p_11": 912.7448,
+    "p_12": 924.3486,
+    "p_13": 953.5359,
+    "p_14": 1164.1873,
+    "p_15": 1027.4165
+  },
+  "full_data_per_project_stats": {
+    "p_01": {
+      "final_elo": 1055.7711,
+      "likes": 20,
+      "passes": 40,
+      "positive_rate": 0.3333,
+      "elo_delta": -144.2289
+    },
+    "p_02": {
+      "final_elo": 876.8882,
+      "likes": 9,
+      "passes": 51,
+      "positive_rate": 0.15,
+      "elo_delta": -323.1118
+    },
+    "p_03": {
+      "final_elo": 956.0583,
+      "likes": 12,
+      "passes": 48,
+      "positive_rate": 0.2,
+      "elo_delta": -243.9417
+    },
+    "p_04": {
+      "final_elo": 976.9935,
+      "likes": 16,
+      "passes": 44,
+      "positive_rate": 0.2667,
+      "elo_delta": -223.0065
+    },
+    "p_05": {
+      "final_elo": 935.2954,
+      "likes": 11,
+      "passes": 49,
+      "positive_rate": 0.1833,
+      "elo_delta": -264.7046
+    },
+    "p_06": {
+      "final_elo": 951.9096,
+      "likes": 13,
+      "passes": 47,
+      "positive_rate": 0.2167,
+      "elo_delta": -248.0904
+    },
+    "p_07": {
+      "final_elo": 948.5547,
+      "likes": 12,
+      "passes": 48,
+      "positive_rate": 0.2,
+      "elo_delta": -251.4453
+    },
+    "p_08": {
+      "final_elo": 901.2463,
+      "likes": 9,
+      "passes": 51,
+      "positive_rate": 0.15,
+      "elo_delta": -298.7537
+    },
+    "p_09": {
+      "final_elo": 904.8569,
+      "likes": 10,
+      "passes": 50,
+      "positive_rate": 0.1667,
+      "elo_delta": -295.1431
+    },
+    "p_10": {
+      "final_elo": 962.0371,
+      "likes": 15,
+      "passes": 45,
+      "positive_rate": 0.25,
+      "elo_delta": -237.9629
+    },
+    "p_11": {
+      "final_elo": 912.7448,
+      "likes": 10,
+      "passes": 50,
+      "positive_rate": 0.1667,
+      "elo_delta": -287.2552
+    },
+    "p_12": {
+      "final_elo": 924.3486,
+      "likes": 9,
+      "passes": 51,
+      "positive_rate": 0.15,
+      "elo_delta": -275.6514
+    },
+    "p_13": {
+      "final_elo": 953.5359,
+      "likes": 12,
+      "passes": 48,
+      "positive_rate": 0.2,
+      "elo_delta": -246.4641
+    },
+    "p_14": {
+      "final_elo": 1164.1873,
+      "likes": 35,
+      "passes": 25,
+      "positive_rate": 0.5833,
+      "elo_delta": -35.8127
+    },
+    "p_15": {
+      "final_elo": 1027.4165,
+      "likes": 19,
+      "passes": 41,
+      "positive_rate": 0.3167,
+      "elo_delta": -172.5835
+    }
+  },
+  "project_elo_ratings": {
+    "p_01": 1113.3773,
+    "p_02": 953.5353,
+    "p_03": 972.1045,
+    "p_04": 976.4712,
+    "p_05": 979.8235,
+    "p_06": 990.3154,
+    "p_07": 1021.2673,
+    "p_08": 966.6724,
+    "p_09": 973.5244,
+    "p_10": 1003.52,
+    "p_11": 935.9078,
+    "p_12": 970.9611,
+    "p_13": 989.8565,
+    "p_14": 1178.4987,
+    "p_15": 1065.241
+  },
+  "per_project_stats": {
+    "p_01": {
+      "final_elo": 1113.3773,
+      "likes": 15,
+      "passes": 27,
+      "positive_rate": 0.3571,
+      "elo_delta": -86.6227
+    },
+    "p_02": {
+      "final_elo": 953.5353,
+      "likes": 6,
+      "passes": 36,
+      "positive_rate": 0.1429,
+      "elo_delta": -246.4647
+    },
+    "p_03": {
+      "final_elo": 972.1045,
+      "likes": 9,
+      "passes": 33,
+      "positive_rate": 0.2143,
+      "elo_delta": -227.8955
+    },
+    "p_04": {
+      "final_elo": 976.4712,
+      "likes": 12,
+      "passes": 30,
+      "positive_rate": 0.2857,
+      "elo_delta": -223.5288
+    },
+    "p_05": {
+      "final_elo": 979.8235,
+      "likes": 7,
+      "passes": 35,
+      "positive_rate": 0.1667,
+      "elo_delta": -220.1765
+    },
+    "p_06": {
+      "final_elo": 990.3154,
+      "likes": 10,
+      "passes": 32,
+      "positive_rate": 0.2381,
+      "elo_delta": -209.6846
+    },
+    "p_07": {
+      "final_elo": 1021.2673,
+      "likes": 10,
+      "passes": 32,
+      "positive_rate": 0.2381,
+      "elo_delta": -178.7327
+    },
+    "p_08": {
+      "final_elo": 966.6724,
+      "likes": 7,
+      "passes": 35,
+      "positive_rate": 0.1667,
+      "elo_delta": -233.3276
+    },
+    "p_09": {
+      "final_elo": 973.5244,
+      "likes": 8,
+      "passes": 34,
+      "positive_rate": 0.1905,
+      "elo_delta": -226.4756
+    },
+    "p_10": {
+      "final_elo": 1003.52,
+      "likes": 11,
+      "passes": 31,
+      "positive_rate": 0.2619,
+      "elo_delta": -196.48
+    },
+    "p_11": {
+      "final_elo": 935.9078,
+      "likes": 7,
+      "passes": 35,
+      "positive_rate": 0.1667,
+      "elo_delta": -264.0922
+    },
+    "p_12": {
+      "final_elo": 970.9611,
+      "likes": 8,
+      "passes": 34,
+      "positive_rate": 0.1905,
+      "elo_delta": -229.0389
+    },
+    "p_13": {
+      "final_elo": 989.8565,
+      "likes": 9,
+      "passes": 33,
+      "positive_rate": 0.2143,
+      "elo_delta": -210.1435
+    },
+    "p_14": {
+      "final_elo": 1178.4987,
+      "likes": 26,
+      "passes": 16,
+      "positive_rate": 0.619,
+      "elo_delta": -21.5013
+    },
+    "p_15": {
+      "final_elo": 1065.241,
+      "likes": 17,
+      "passes": 25,
+      "positive_rate": 0.4048,
+      "elo_delta": -134.759
+    }
+  }
+}

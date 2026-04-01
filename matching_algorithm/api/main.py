@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from matching import get_matching_engine, MatchWeights
 from cache import get_embedding_cache
+from elo import EloConfig, EloResult, get_elo_calculator, Reaction
 from middleware import TimeoutMiddleware, RequestLoggingMiddleware
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,7 @@ class MatchRequest(BaseModel):
     projects: List[Dict[str, Any]]
     weights: Optional[Dict[str, float]] = None
     exclude_project_ids: Optional[List[str]] = None
+    elo_ratings: Optional[Dict[str, float]] = None  # project_id → ELO rating
 
 
 class BatchMatchRequest(BaseModel):
@@ -89,6 +91,20 @@ class CandidateMatchRequest(BaseModel):
     candidates: List[Dict[str, Any]]
     weights: Optional[Dict[str, float]] = None
     exclude_candidate_ids: Optional[List[str]] = None
+    elo_ratings: Optional[Dict[str, float]] = None  # candidate_id → ELO rating
+
+
+class EloUpdateRequest(BaseModel):
+    project_id: str
+    current_rating: float
+    reaction: Reaction
+
+
+class EloUpdateResponse(BaseModel):
+    project_id: str
+    old_rating: float
+    new_rating: float
+    score_adjustment: float
 
 
 class CandidateMatchResponse(BaseModel):
@@ -118,7 +134,8 @@ async def score_matches(request: MatchRequest):
         engine = get_matching_engine(weights=weights)
         match_scores = engine.rank_projects(
             user_profile=request.user_profile,
-            projects=projects_to_score
+            projects=projects_to_score,
+            elo_ratings=request.elo_ratings,
         )
 
         logger.info(f"[SCORE] Ranked {len(match_scores)} projects")
@@ -298,6 +315,30 @@ async def match_health_check():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Health check failed: {e}")
+
+
+@app.post("/elo/update", response_model=EloUpdateResponse)
+async def update_elo(request: EloUpdateRequest):
+    """Stateless ELO update: given a project's current rating and a user
+    reaction, return the new rating and the resulting score adjustment.
+
+    The caller is responsible for persisting the new rating (e.g. in Supabase).
+    """
+    try:
+        calc = get_elo_calculator()
+        result: EloResult = calc.update_rating(
+            current_rating=request.current_rating,
+            reaction=request.reaction,
+        )
+        return EloUpdateResponse(
+            project_id=request.project_id,
+            old_rating=result.old_rating,
+            new_rating=result.new_rating,
+            score_adjustment=result.score_adjustment,
+        )
+    except Exception as e:
+        logger.error(f"[ELO] Error updating rating: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"ELO update failed: {e}")
 
 
 if __name__ == "__main__":

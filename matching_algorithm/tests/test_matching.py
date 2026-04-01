@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from matching import MatchingEngine, MatchWeights, MatchScore
+from elo import EloCalculator, EloConfig, DEFAULT_RATING
 from api.main import app
 
 client = TestClient(app)
@@ -97,26 +98,86 @@ class TestSkillMatching:
 
 
 class TestInterestMatching:
-    
-    def test_interest_overlap(self, engine):
-        user_interests = ["AI", "Web Development", "Startups"]
-        project_tags = ["AI", "Startups"]
-        
-        ratio, matched = engine.calculate_interest_match(user_interests, project_tags)
-        
-        assert ratio > 0
-        assert len(matched) == 2
-        assert "ai" in matched
-        assert "startups" in matched
-    
-    def test_no_interest_overlap(self, engine):
-        user_interests = ["AI", "Machine Learning"]
-        project_tags = ["Gaming", "Mobile"]
-        
-        ratio, matched = engine.calculate_interest_match(user_interests, project_tags)
-        
+
+    # ------------------------------------------------------------------
+    # Basic matching
+    # ------------------------------------------------------------------
+
+    def test_exact_match(self, engine):
+        ratio, matched = engine.calculate_interest_match(["AI", "Startups"], ["AI", "Startups"])
+        assert ratio == 1.0
+        assert set(matched) == {"AI", "Startups"}
+
+    def test_partial_match_ratio(self, engine):
+        # User covers 1 of 2 project tags → ratio = 0.5
+        ratio, matched = engine.calculate_interest_match(["AI"], ["AI", "Gaming"])
+        assert ratio == 0.5
+        assert matched == ["AI"]
+
+    def test_no_overlap(self, engine):
+        ratio, matched = engine.calculate_interest_match(["AI", "Machine Learning"], ["Gaming", "Mobile"])
         assert ratio == 0.0
-        assert len(matched) == 0
+        assert matched == []
+
+    def test_superset_user_interests(self, engine):
+        # User has more interests than project tags — ratio still based on project tags covered
+        ratio, matched = engine.calculate_interest_match(
+            ["AI", "Web Development", "Startups"],
+            ["AI", "Startups"],
+        )
+        assert ratio == 1.0
+        assert len(matched) == 2
+
+    # ------------------------------------------------------------------
+    # Pre-processing: case, separators, stemming
+    # ------------------------------------------------------------------
+
+    def test_case_insensitive(self, engine):
+        ratio, matched = engine.calculate_interest_match(["ai", "startups"], ["AI", "Startups"])
+        assert ratio == 1.0
+
+    def test_hyphen_separator_normalised(self, engine):
+        # "Full-Stack" and "Full Stack" share the stemmed tokens "full"+"stack"
+        ratio, matched = engine.calculate_interest_match(["Full-Stack Development"], ["Full Stack"])
+        assert ratio == 1.0
+
+    def test_underscore_separator_normalised(self, engine):
+        ratio, matched = engine.calculate_interest_match(["web_development"], ["Web Development"])
+        assert ratio == 1.0
+
+    def test_stemming_matches_variant_forms(self, engine):
+        # "Fullstack Development" → stem "develop"; "developer" → stem "develop"
+        ratio, matched = engine.calculate_interest_match(["Fullstack Development"], ["fullstack"])
+        assert ratio == 1.0
+
+    def test_stemming_plural_singular(self, engine):
+        # "Startups" → stem "startup"; "Startup" → stem "startup"
+        ratio, matched = engine.calculate_interest_match(["Startup"], ["Startups"])
+        assert ratio == 1.0
+
+    def test_stemming_ing_form(self, engine):
+        # "learning" and "learn" should share a stem
+        ratio, matched = engine.calculate_interest_match(["Machine Learning"], ["Machine Learn"])
+        assert ratio == 1.0
+
+    # ------------------------------------------------------------------
+    # Neutral fallback (missing data → 0.5, not 0.0)
+    # ------------------------------------------------------------------
+
+    def test_empty_project_tags_returns_neutral(self, engine):
+        ratio, matched = engine.calculate_interest_match(["AI"], [])
+        assert ratio == 0.5
+        assert matched == []
+
+    def test_empty_user_interests_returns_neutral(self, engine):
+        ratio, matched = engine.calculate_interest_match([], ["AI"])
+        assert ratio == 0.5
+        assert matched == []
+
+    def test_both_empty_returns_neutral(self, engine):
+        ratio, matched = engine.calculate_interest_match([], [])
+        assert ratio == 0.5
+        assert matched == []
 
 
 class TestSemanticSimilarity:
@@ -236,7 +297,7 @@ class TestEmptyInputEdgeCases:
 
     def test_skill_match_empty_required(self, engine):
         ratio, matched, missing = engine.calculate_skill_match(["Python"], [])
-        assert ratio == 0.0
+        assert ratio == 0.5  # neutral — project lists no requirements, not a penalty
         assert matched == []
         assert missing == []
 
@@ -247,11 +308,11 @@ class TestEmptyInputEdgeCases:
 
     def test_interest_match_empty_tags(self, engine):
         ratio, matched = engine.calculate_interest_match(["AI"], [])
-        assert ratio == 0.0
+        assert ratio == 0.5  # neutral — no data to penalise with
 
     def test_interest_match_empty_user(self, engine):
         ratio, matched = engine.calculate_interest_match([], ["AI"])
-        assert ratio == 0.0
+        assert ratio == 0.5  # neutral — no data to penalise with
 
     def test_semantic_similarity_both_empty(self, engine):
         result = engine.calculate_semantic_similarity("", "")
@@ -400,6 +461,242 @@ class TestCandidatesEndpointEmptyGuards:
             "candidates": [GOOD_CANDIDATE],
         })
         assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# ELO system tests
+# ---------------------------------------------------------------------------
+
+class TestEloSystem:
+    """Unit tests for the ELO rating module and its integration with MatchingEngine."""
+
+    @pytest.fixture
+    def calc(self):
+        return EloCalculator()
+
+    @pytest.fixture
+    def disabled_calc(self):
+        return EloCalculator(EloConfig(enabled=False))
+
+    # ------------------------------------------------------------------
+    # EloCalculator.score_adjustment
+    # ------------------------------------------------------------------
+
+    def test_default_rating_gives_zero_adjustment(self, calc):
+        adj = calc.score_adjustment(DEFAULT_RATING)
+        assert abs(adj) < 1e-6
+
+    def test_high_rating_gives_positive_adjustment(self, calc):
+        adj = calc.score_adjustment(DEFAULT_RATING + 800)
+        assert adj > 0
+        assert adj <= calc.config.max_boost
+
+    def test_low_rating_gives_negative_adjustment(self, calc):
+        adj = calc.score_adjustment(DEFAULT_RATING - 800)
+        assert adj < 0
+        assert adj >= -calc.config.max_boost
+
+    def test_adjustment_clamped_to_max_boost(self, calc):
+        adj_high = calc.score_adjustment(DEFAULT_RATING + 99999)
+        adj_low = calc.score_adjustment(DEFAULT_RATING - 99999)
+        assert adj_high <= calc.config.max_boost
+        assert adj_low >= -calc.config.max_boost
+
+    def test_disabled_gives_zero_adjustment(self, disabled_calc):
+        assert disabled_calc.score_adjustment(DEFAULT_RATING + 500) == 0.0
+        assert disabled_calc.score_adjustment(DEFAULT_RATING - 500) == 0.0
+
+    def test_population_mean_centres_adjustment(self, calc):
+        # When population_mean is provided, it replaces default_rating as
+        # the reference.  A rating equal to the mean should give ~0.
+        pop_mean = 950.0   # simulates a low-positive-rate population
+        adj = calc.score_adjustment(pop_mean, population_mean=pop_mean)
+        assert abs(adj) < 1e-6
+
+    def test_above_population_mean_positive(self, calc):
+        pop_mean = 950.0
+        adj = calc.score_adjustment(pop_mean + 400, population_mean=pop_mean)
+        assert adj > 0
+
+    def test_below_population_mean_negative(self, calc):
+        pop_mean = 950.0
+        adj = calc.score_adjustment(pop_mean - 400, population_mean=pop_mean)
+        assert adj < 0
+
+    def test_population_mean_none_falls_back_to_default_rating(self, calc):
+        # No population_mean → reference is default_rating (1000)
+        adj_explicit = calc.score_adjustment(DEFAULT_RATING + 200, population_mean=DEFAULT_RATING)
+        adj_implicit = calc.score_adjustment(DEFAULT_RATING + 200, population_mean=None)
+        assert abs(adj_explicit - adj_implicit) < 1e-9
+
+    # ------------------------------------------------------------------
+    # EloCalculator.update_rating
+    # ------------------------------------------------------------------
+
+    def test_like_increases_rating(self, calc):
+        result = calc.update_rating(DEFAULT_RATING, "like")
+        assert result.new_rating > result.old_rating
+
+    def test_pass_decreases_rating(self, calc):
+        result = calc.update_rating(DEFAULT_RATING, "pass")
+        assert result.new_rating < result.old_rating
+
+    def test_super_like_increases_more_than_like(self, calc):
+        like_result = calc.update_rating(DEFAULT_RATING, "like")
+        super_result = calc.update_rating(DEFAULT_RATING, "super_like")
+        assert super_result.new_rating > like_result.new_rating
+
+    def test_disabled_update_returns_unchanged_rating(self, disabled_calc):
+        result = disabled_calc.update_rating(1500.0, "like")
+        assert result.old_rating == 1500.0
+        assert result.new_rating == 1500.0
+        assert result.score_adjustment == 0.0
+
+    def test_update_rating_fields_present(self, calc):
+        result = calc.update_rating(DEFAULT_RATING, "like")
+        assert hasattr(result, "old_rating")
+        assert hasattr(result, "new_rating")
+        assert hasattr(result, "score_adjustment")
+
+    def test_update_rating_adjustment_matches_score_adjustment(self, calc):
+        result = calc.update_rating(DEFAULT_RATING, "like")
+        expected_adj = calc.score_adjustment(result.new_rating)
+        assert abs(result.score_adjustment - expected_adj) < 1e-9
+
+    # ------------------------------------------------------------------
+    # Custom EloConfig
+    # ------------------------------------------------------------------
+
+    def test_custom_max_boost(self):
+        config = EloConfig(max_boost=0.10)
+        calc = EloCalculator(config)
+        adj = calc.score_adjustment(DEFAULT_RATING + 99999)
+        assert adj <= 0.10
+
+    def test_custom_k_factor_larger_delta(self):
+        low_k = EloCalculator(EloConfig(k_factor=8.0))
+        high_k = EloCalculator(EloConfig(k_factor=64.0))
+        low_result = low_k.update_rating(DEFAULT_RATING, "like")
+        high_result = high_k.update_rating(DEFAULT_RATING, "like")
+        assert high_result.new_rating > low_result.new_rating
+
+    # ------------------------------------------------------------------
+    # Integration with MatchingEngine
+    # ------------------------------------------------------------------
+
+    def test_elo_rating_changes_total_score(self, engine, sample_user_profile, sample_projects):
+        project = sample_projects[0]
+        score_no_elo = engine.calculate_match_score(sample_user_profile, project)
+        score_high_elo = engine.calculate_match_score(
+            sample_user_profile, project, elo_rating=DEFAULT_RATING + 800
+        )
+        score_low_elo = engine.calculate_match_score(
+            sample_user_profile, project, elo_rating=DEFAULT_RATING - 800
+        )
+        assert score_high_elo.total_score > score_no_elo.total_score
+        assert score_low_elo.total_score < score_no_elo.total_score
+
+    def test_elo_adjustment_stored_on_match_score(self, engine, sample_user_profile, sample_projects):
+        score = engine.calculate_match_score(
+            sample_user_profile, sample_projects[0], elo_rating=DEFAULT_RATING + 400
+        )
+        assert score.elo_adjustment > 0
+
+    def test_no_elo_gives_zero_adjustment(self, engine, sample_user_profile, sample_projects):
+        score = engine.calculate_match_score(sample_user_profile, sample_projects[0])
+        assert score.elo_adjustment == 0.0
+
+    def test_population_mean_used_in_rank_projects(self, engine, sample_user_profile, sample_projects):
+        # When all ELO ratings are below default (1000), using population mean
+        # means the highest-rated project still gets a positive adjustment.
+        low_ratings = {"proj1": 950, "proj2": 900, "proj3": 970}
+        ranked = engine.rank_projects(sample_user_profile, sample_projects, elo_ratings=low_ratings)
+        # proj3 has the highest ELO → should have positive elo_adjustment
+        proj3 = next(s for s in ranked if s.project_id == "proj3")
+        assert proj3.elo_adjustment > 0
+
+    def test_rank_projects_with_elo_ratings(self, engine, sample_user_profile, sample_projects):
+        # Verify that a project with ELO well above the population mean gets
+        # a higher total_score than the same project without ELO.
+        ranked_no_elo = engine.rank_projects(sample_user_profile, sample_projects)
+        proj2_no_elo = next(s for s in ranked_no_elo if s.project_id == "proj2")
+
+        # Give proj2 a much higher rating than proj1/proj3 so it sits above
+        # the population mean and receives a positive adjustment.
+        elo_ratings = {
+            "proj1": DEFAULT_RATING,
+            "proj2": DEFAULT_RATING + 800,  # well above mean → positive adj
+            "proj3": DEFAULT_RATING,
+        }
+        ranked_with_elo = engine.rank_projects(
+            sample_user_profile, sample_projects, elo_ratings=elo_ratings
+        )
+        proj2_with_elo = next(s for s in ranked_with_elo if s.project_id == "proj2")
+
+        assert proj2_with_elo.total_score > proj2_no_elo.total_score
+        assert proj2_with_elo.elo_adjustment > 0
+
+    def test_total_score_clamped_to_one(self, engine, sample_user_profile, sample_projects):
+        # Even with extreme ELO the score must not exceed 1.0
+        score = engine.calculate_match_score(
+            sample_user_profile, sample_projects[0], elo_rating=DEFAULT_RATING + 999999
+        )
+        assert score.total_score <= 1.0
+
+    def test_total_score_clamped_to_zero(self, engine, sample_user_profile, sample_projects):
+        score = engine.calculate_match_score(
+            sample_user_profile, sample_projects[1], elo_rating=DEFAULT_RATING - 999999
+        )
+        assert score.total_score >= 0.0
+
+    def test_elo_adjustment_in_to_dict(self, engine, sample_user_profile, sample_projects):
+        score = engine.calculate_match_score(
+            sample_user_profile, sample_projects[0], elo_rating=DEFAULT_RATING + 400
+        )
+        d = score.to_dict()
+        assert "elo_adjustment" in d["breakdown"]
+
+    # ------------------------------------------------------------------
+    # /elo/update API endpoint
+    # ------------------------------------------------------------------
+
+    def test_elo_endpoint_like(self):
+        resp = client.post("/elo/update", json={
+            "project_id": "proj1",
+            "current_rating": DEFAULT_RATING,
+            "reaction": "like",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["project_id"] == "proj1"
+        assert data["new_rating"] > data["old_rating"]
+        assert "score_adjustment" in data
+
+    def test_elo_endpoint_pass(self):
+        resp = client.post("/elo/update", json={
+            "project_id": "proj1",
+            "current_rating": DEFAULT_RATING,
+            "reaction": "pass",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["new_rating"] < DEFAULT_RATING
+
+    def test_elo_endpoint_super_like(self):
+        resp = client.post("/elo/update", json={
+            "project_id": "proj1",
+            "current_rating": DEFAULT_RATING,
+            "reaction": "super_like",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["new_rating"] > DEFAULT_RATING
+
+    def test_elo_endpoint_invalid_reaction(self):
+        resp = client.post("/elo/update", json={
+            "project_id": "proj1",
+            "current_rating": DEFAULT_RATING,
+            "reaction": "invalid_reaction",
+        })
+        assert resp.status_code == 422  # Pydantic validation error
 
 
 if __name__ == "__main__":

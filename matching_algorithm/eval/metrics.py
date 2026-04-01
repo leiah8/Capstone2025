@@ -38,6 +38,7 @@ DATA_DIR = Path(__file__).parent / "data"
 METRICS_FILE = DATA_DIR / "metrics.json"
 LABELS_FILE = DATA_DIR / "labels.json"
 SCORES_FILE = DATA_DIR / "scores.json"
+ELO_SIM_FILE = DATA_DIR / "elo_simulation.json"
 
 K_VALUES = [5, 10, 20]
 N_RANDOM_SEEDS = 50   # average random baseline over this many shuffles
@@ -176,9 +177,13 @@ def run(force: bool = False) -> dict:
                 "total_score": s["total_score"],
                 "skills_only_score": s["skills_only_score"],
                 "semantic": s["breakdown"]["semantic"],
-                "must_have": s["breakdown"]["must_have"],
-                "nice_to_have": s["breakdown"]["nice_to_have"],
+                "skills": s["breakdown"]["skills"],
                 "interests": s["breakdown"]["interests"],
+                # Full-data ELO — present for all 900 pairs when elo_simulate.py has run
+                "elo_score": s.get("elo_score", None),
+                # Split ELO — present only for test candidates
+                "is_test_candidate": s.get("is_test_candidate", False),
+                "split_elo_score": s.get("split_elo_score", None),
             }
             for s in scores_raw
         ]
@@ -233,7 +238,7 @@ def run(force: bool = False) -> dict:
     )
 
     # ---- Per-component means (matched vs. not-matched) ----
-    components = ["semantic", "must_have", "nice_to_have", "interests"]
+    components = ["semantic", "skills", "interests"]
     component_stats = {}
     for comp in components:
         m_mean = float(df[df["label"] == 1][comp].mean())
@@ -254,6 +259,79 @@ def run(force: bool = False) -> dict:
     # ---- Score histogram data (for plotting) ----
     hist_matched = [round(v, 4) for v in matched.tolist()]
     hist_unmatched = [round(v, 4) for v in unmatched.tolist()]
+
+    # ---- ELO comparison ----
+    elo_metrics: dict = {}
+    full_elo_df = df.dropna(subset=["elo_score"])
+
+    if len(full_elo_df) > 0 and full_elo_df["label"].sum() > 0:
+        # --- Full-data ELO on all 900 pairs ---
+        elo_auc  = float(roc_auc_score(full_elo_df["label"].values, full_elo_df["elo_score"].values))
+        base_auc = float(roc_auc_score(full_elo_df["label"].values, full_elo_df["total_score"].values))
+        elo_pk   = {k: avg_precision_at_k(full_elo_df, "elo_score", k) for k in K_VALUES}
+        base_pk  = {k: avg_precision_at_k(full_elo_df, "total_score", k) for k in K_VALUES}
+        elo_ndcg  = {k: avg_ndcg_at_k(full_elo_df, "elo_score", k) for k in K_VALUES}
+        base_ndcg = {k: avg_ndcg_at_k(full_elo_df, "total_score", k) for k in K_VALUES}
+        rand_full = random_baseline_metrics(full_elo_df, K_VALUES, N_RANDOM_SEEDS)
+
+        # ROC arrays for Full+ELO (for plot 01)
+        fpr_elo, tpr_elo, _ = roc_curve(full_elo_df["label"].values, full_elo_df["elo_score"].values)
+
+        print(f"  ELO (all 900 pairs) — AUC: Full+ELO={elo_auc:.4f} | Full={base_auc:.4f} | "
+              f"Δ={elo_auc - base_auc:+.4f}")
+        print(f"  ELO NDCG@10 — Full+ELO={elo_ndcg[10]:.4f} | Full={base_ndcg[10]:.4f} | "
+              f"Δ={elo_ndcg[10] - base_ndcg[10]:+.4f}")
+
+        elo_metrics["full_data"] = {
+            "n_pairs": int(len(full_elo_df)),
+            "n_positive": int(full_elo_df["label"].sum()),
+            "auc": {
+                "full_plus_elo": round(elo_auc, 4),
+                "full_model": round(base_auc, 4),
+                "random": round(rand_full["auc"], 4),
+                "delta": round(elo_auc - base_auc, 4),
+            },
+            "roc_curve": {
+                "fpr": [round(float(x), 4) for x in fpr_elo.tolist()],
+                "tpr": [round(float(x), 4) for x in tpr_elo.tolist()],
+            },
+            "precision_at_k": {
+                "full_plus_elo": {str(k): round(elo_pk[k], 4) for k in K_VALUES},
+                "full_model":    {str(k): round(base_pk[k], 4) for k in K_VALUES},
+                "random":        {str(k): round(rand_full["precision_at_k"][k], 4) for k in K_VALUES},
+            },
+            "ndcg_at_k": {
+                "full_plus_elo": {str(k): round(elo_ndcg[k], 4) for k in K_VALUES},
+                "full_model":    {str(k): round(base_ndcg[k], 4) for k in K_VALUES},
+                "random":        {str(k): round(rand_full["ndcg_at_k"][k], 4) for k in K_VALUES},
+            },
+        }
+
+        # --- Split ELO on test candidates only (leakage-free) ---
+        split_df = df[df["is_test_candidate"] == True].dropna(subset=["split_elo_score"])  # noqa: E712
+        if len(split_df) > 0 and split_df["label"].sum() > 0:
+            split_elo_auc  = float(roc_auc_score(split_df["label"].values, split_df["split_elo_score"].values))
+            split_base_auc = float(roc_auc_score(split_df["label"].values, split_df["total_score"].values))
+            split_elo_ndcg  = {k: avg_ndcg_at_k(split_df, "split_elo_score", k) for k in K_VALUES}
+            split_base_ndcg = {k: avg_ndcg_at_k(split_df, "total_score", k) for k in K_VALUES}
+            print(f"  ELO (test split, {len(split_df)} pairs) — AUC: {split_elo_auc:.4f} | "
+                  f"Full: {split_base_auc:.4f} | Δ={split_elo_auc - split_base_auc:+.4f}")
+            elo_metrics["split_data"] = {
+                "n_pairs": int(len(split_df)),
+                "n_positive": int(split_df["label"].sum()),
+                "auc": {
+                    "full_plus_elo": round(split_elo_auc, 4),
+                    "full_model": round(split_base_auc, 4),
+                    "delta": round(split_elo_auc - split_base_auc, 4),
+                },
+                "ndcg_at_k": {
+                    "full_plus_elo": {str(k): round(split_elo_ndcg[k], 4) for k in K_VALUES},
+                    "full_model":    {str(k): round(split_base_ndcg[k], 4) for k in K_VALUES},
+                },
+            }
+    else:
+        print("  No ELO scores in scores.json — skipping ELO metrics. "
+              "Run elo_simulate.py then score.py --force to enable.")
 
     # ---- Assemble result ----
     metrics = {
@@ -296,6 +374,7 @@ def run(force: bool = False) -> dict:
             "matched": hist_matched,
             "unmatched": hist_unmatched,
         },
+        "elo_metrics": elo_metrics,
     }
 
     METRICS_FILE.write_text(json.dumps(metrics, indent=2))

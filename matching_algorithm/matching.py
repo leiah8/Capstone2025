@@ -1,13 +1,24 @@
 from __future__ import annotations
 from typing import Dict, List, Any, Optional, Tuple
 import logging
+import re
 from dataclasses import dataclass, field
+import nltk
+from nltk.stem import PorterStemmer
+
+# Ensure required NLTK data is present (no-op if already downloaded)
+for _pkg in ('punkt', 'stopwords'):
+    try:
+        nltk.data.find(f'tokenizers/{_pkg}' if _pkg == 'punkt' else f'corpora/{_pkg}')
+    except LookupError:
+        nltk.download(_pkg, quiet=True)
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from cache import EmbeddingCache, get_embedding_cache
+from elo import EloCalculator, get_elo_calculator
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +26,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MatchWeights:
     """Configurable weights for matching components (must sum to 1.0)"""
-    semantic: float = 0.50 #TODO: FIX WEIGHTS + INTERESTS
+    semantic: float = 0.45
     skills: float = 0.50
-    interests: float = 0.0
+    interests: float = 0.05
     
     def __post_init__(self):
         total = self.semantic + self.skills + self.interests
@@ -36,7 +47,8 @@ class MatchScore:
     matched_skills: List[str] = field(default_factory=list)
     missing_skills: List[str] = field(default_factory=list)
     matched_interests: List[str] = field(default_factory=list)
-    
+    elo_adjustment: float = 0.0
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "project_id": self.project_id,
@@ -45,6 +57,7 @@ class MatchScore:
                 "semantic_similarity": round(self.semantic_score, 4),
                 "skill_match": round(self.skill_score, 4),
                 "interest_alignment": round(self.interest_score, 4),
+                "elo_adjustment": round(self.elo_adjustment, 4),
             },
             "explanation": {
                 "matched_skills": self.matched_skills,
@@ -60,6 +73,12 @@ class MatchingEngine:
     and skill/interest overlap for structured matching.
     """
     
+    _stemmer = PorterStemmer()
+    _stop_words = frozenset({
+        'a', 'an', 'the', 'and', 'or', 'for', 'of', 'in', 'to', 'with',
+        'on', 'at', 'by', 'as', 'is', 'it', 'its',
+    })
+
     def __init__(
         self,
         model_name: str = "all-MiniLM-L6-v2",
@@ -89,6 +108,20 @@ class MatchingEngine:
         if not skills:
             return []
         return [s.lower().strip() for s in skills if s and s.strip()]
+
+    def _tokenize_interest(self, text: str) -> frozenset:
+        """Normalize, tokenize, and stem a single interest/tag string.
+
+        Handles separators like hyphens and underscores so that e.g.
+        'Full-Stack Development', 'full_stack', and 'fullstack' all
+        produce overlapping stemmed token sets.
+        """
+        text = text.lower().strip()
+        text = re.sub(r'[-_/\\]', ' ', text)       # separators → space
+        text = re.sub(r'[^\w\s]', '', text)         # strip punctuation
+        tokens = text.split()
+        tokens = [t for t in tokens if t not in self._stop_words and len(t) > 1]
+        return frozenset(self._stemmer.stem(t) for t in tokens)
     
     def _get_embedding(self, text: str) -> Optional[np.ndarray]:
         """Get embedding from cache or compute it."""
@@ -163,30 +196,40 @@ class MatchingEngine:
         return ratio, matched, missing
     
     def calculate_interest_match(
-        self, 
-        user_interests: List[str], 
+        self,
+        user_interests: List[str],
         project_tags: List[str]
     ) -> Tuple[float, List[str]]:
-        user_interests_norm = set(self.normalize_skills(user_interests))
-        project_tags_norm = set(self.normalize_skills(project_tags))
-        
-        if not project_tags_norm and not user_interests_norm:
+        if not project_tags or not user_interests:
+            # Missing data on either side — neutral, not a penalty.
             return 0.5, []
 
-        if not project_tags_norm or not user_interests_norm:
-            # No tags/interests to compare — treat as neutral rather than penalising.
-            return 0.5, []
-        
-        matched = list(user_interests_norm.intersection(project_tags_norm))
-        union_size = len(user_interests_norm.union(project_tags_norm))
-        ratio = len(matched) / union_size if union_size > 0 else 0.0
-        
-        return ratio, matched
+        user_token_sets = [
+            (interest, self._tokenize_interest(interest))
+            for interest in user_interests
+        ]
+
+        matched_tags: List[str] = []
+        for tag in project_tags:
+            tag_tokens = self._tokenize_interest(tag)
+            if not tag_tokens:
+                continue
+            for _, interest_tokens in user_token_sets:
+                if tag_tokens & interest_tokens:   # any shared stemmed token
+                    matched_tags.append(tag)
+                    break
+
+        # Directional: what fraction of the project's tags does the user cover?
+        # (mirrors the skill_match ratio so the two components are comparable)
+        ratio = len(matched_tags) / len(project_tags)
+        return ratio, matched_tags
     
     def calculate_match_score(
         self,
         user_profile: Dict[str, Any],
         project: Dict[str, Any],
+        elo_rating: Optional[int] = None,
+        elo_population_mean: Optional[float] = None,
     ) -> MatchScore:
         user_skills = user_profile.get("skills", []) or []
         user_interests = user_profile.get("interests", []) or []
@@ -222,15 +265,26 @@ class MatchingEngine:
             user_interests, project_tags
         )
         
-        total_score = (
+        base_score = (
             self.weights.semantic * semantic_score +
             self.weights.skills * skill_ratio +
             self.weights.interests * interest_ratio
         )
-        
-        logger.debug(f"[CALC] Project {project_id}: semantic={semantic_score:.3f}, skills={skill_ratio:.3f}, interest={interest_ratio:.3f} -> total={total_score:.3f}")
+
+        # ELO adjustment — additive nudge, clamped to ±max_boost (default 0.05).
+        # Pass population_mean so the adjustment is relative to peer projects
+        # rather than a fixed baseline (avoids everything going negative when
+        # the real positive-rate is well below 50%).
+        elo_adj = 0.0
+        if elo_rating is not None:
+            elo_calc = get_elo_calculator()
+            elo_adj = elo_calc.score_adjustment(elo_rating, population_mean=elo_population_mean)
+
+        total_score = float(max(0.0, min(1.0, base_score + elo_adj)))
+
+        logger.debug(f"[CALC] Project {project_id}: semantic={semantic_score:.3f}, skills={skill_ratio:.3f}, interest={interest_ratio:.3f}, elo_adj={elo_adj:.4f} -> total={total_score:.3f}")
         logger.debug(f"[CALC] Project {project_id}: tags={project_tags}, user_interests={user_interests}")
-        
+
         return MatchScore(
             project_id=project_id,
             total_score=total_score,
@@ -240,12 +294,14 @@ class MatchingEngine:
             matched_skills=matched_skills,
             missing_skills=missing_skills,
             matched_interests=matched_interests,
+            elo_adjustment=elo_adj,
         )
     
     def rank_projects(
         self,
         user_profile: Dict[str, Any],
         projects: List[Dict[str, Any]],
+        elo_ratings: Optional[Dict[str, int]] = None,
     ) -> List[MatchScore]:
         # Pre-warm cache with batch operation for better performance
         if self.enable_semantic and self.model is not None and self.cache.enabled and projects:
@@ -274,10 +330,22 @@ class MatchingEngine:
                     except Exception as e:
                         logger.error(f"Error in batch embedding: {e}")
 
+        # Compute population mean so score_adjustment is relative to peers.
+        elo_population_mean: Optional[float] = None
+        if elo_ratings:
+            vals = list(elo_ratings.values())
+            elo_population_mean = sum(vals) / len(vals)
+
         scores = []
         for project in projects:
             try:
-                score = self.calculate_match_score(user_profile, project)
+                project_id = str(project.get("id", ""))
+                elo_rating = elo_ratings.get(project_id) if elo_ratings else None
+                score = self.calculate_match_score(
+                    user_profile, project,
+                    elo_rating=elo_rating,
+                    elo_population_mean=elo_population_mean,
+                )
                 scores.append(score)
             except Exception as e:
                 logger.error(f"Error scoring project {project.get('id')}: {e}")

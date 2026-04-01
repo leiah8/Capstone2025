@@ -91,6 +91,7 @@ export async function likeCandidate(
       { onConflict: 'owner_id,project_id,candidate_id' }
     );
   if (error) throw error;
+
   if (reaction !== 'like') return null;
 
   const { data, error: matchError } = await supabase.functions.invoke(

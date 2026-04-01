@@ -65,47 +65,54 @@ def main() -> None:
         description="Run the matching algorithm evaluation pipeline",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument("--skip-generate", action="store_true", help="Skip profile/project generation")
-    parser.add_argument("--skip-label",    action="store_true", help="Skip LLM labeling")
-    parser.add_argument("--skip-score",    action="store_true", help="Skip scoring pairs")
-    parser.add_argument("--skip-metrics",  action="store_true", help="Skip metrics computation")
-    parser.add_argument("--skip-plot",     action="store_true", help="Skip chart generation")
+    parser.add_argument("--skip-generate",     action="store_true", help="Skip profile/project generation")
+    parser.add_argument("--skip-label",        action="store_true", help="Skip LLM labeling")
+    parser.add_argument("--skip-elo-simulate", action="store_true", help="Skip ELO simulation")
+    parser.add_argument("--skip-score",        action="store_true", help="Skip scoring pairs")
+    parser.add_argument("--skip-metrics",      action="store_true", help="Skip metrics computation")
+    parser.add_argument("--skip-plot",         action="store_true", help="Skip chart generation")
 
-    parser.add_argument("--force-generate", action="store_true", help="Force regenerate profiles/projects")
-    parser.add_argument("--force-label",    action="store_true", help="Force re-label all pairs")
-    parser.add_argument("--force-score",    action="store_true", help="Force re-score all pairs")
-    parser.add_argument("--force-metrics",  action="store_true", help="Force recompute metrics")
-    parser.add_argument("--force-plot",     action="store_true", help="Force regenerate charts")
-    parser.add_argument("--force-all",      action="store_true", help="Force every step (implies all --force-* flags)")
+    parser.add_argument("--force-generate",     action="store_true", help="Force regenerate profiles/projects")
+    parser.add_argument("--force-label",        action="store_true", help="Force re-label all pairs")
+    parser.add_argument("--force-elo-simulate", action="store_true", help="Force regenerate ELO simulation")
+    parser.add_argument("--force-score",        action="store_true", help="Force re-score all pairs")
+    parser.add_argument("--force-metrics",      action="store_true", help="Force recompute metrics")
+    parser.add_argument("--force-plot",         action="store_true", help="Force regenerate charts")
+    parser.add_argument("--force-all",          action="store_true", help="Force every step (implies all --force-* flags)")
 
     args = parser.parse_args()
 
     if args.force_all:
-        args.force_generate = args.force_label = args.force_score = args.force_metrics = args.force_plot = True
+        args.force_generate = args.force_label = args.force_elo_simulate = \
+            args.force_score = args.force_metrics = args.force_plot = True
 
     # Lazy imports — keeps startup fast and avoids import errors before setup
-    from eval.generate import run as generate_run  # type: ignore
-    from eval.label    import run as label_run      # type: ignore
-    from eval.score    import run as score_run      # type: ignore
-    from eval.metrics  import run as metrics_run    # type: ignore
-    from eval.plot     import run as plot_run       # type: ignore
+    from eval.generate      import run as generate_run       # type: ignore
+    from eval.label         import run as label_run          # type: ignore
+    from eval.elo_simulate  import run as elo_simulate_run   # type: ignore
+    from eval.score         import run as score_run          # type: ignore
+    from eval.metrics       import run as metrics_run        # type: ignore
+    from eval.plot          import run as plot_run           # type: ignore
 
     print("\nMatching Algorithm Evaluation Pipeline")
     print(f"Working directory: {Path(__file__).parent.parent}")
 
-    _step("Step 1/5 — Generate profiles & projects",
+    _step("Step 1/6 — Generate profiles & projects",
           args.skip_generate, args.force_generate, generate_run)
 
-    _step("Step 2/5 — Label pairs with Claude",
+    _step("Step 2/6 — Label pairs with Claude",
           args.skip_label, args.force_label, label_run)
 
-    _step("Step 3/5 — Score all pairs with MatchingEngine",
+    _step("Step 3/6 — Simulate ELO ratings from label history",
+          args.skip_elo_simulate, args.force_elo_simulate, elo_simulate_run)
+
+    _step("Step 4/6 — Score all pairs with MatchingEngine",
           args.skip_score, args.force_score, score_run)
 
-    _step("Step 4/5 — Compute metrics",
+    _step("Step 5/6 — Compute metrics",
           args.skip_metrics, args.force_metrics, metrics_run)
 
-    _step("Step 5/5 — Generate charts",
+    _step("Step 6/6 — Generate charts",
           args.skip_plot, args.force_plot, plot_run)
 
     _banner("Pipeline complete")

@@ -28,6 +28,7 @@ export interface MatchRequestProject {
     tags?: string[];
   }>;
   exclude_project_ids?: string[];
+  elo_ratings?: Record<string, number>;
 }
 
 export interface MatchRequestCandidate {
@@ -42,13 +43,14 @@ export interface MatchRequestCandidate {
     id: string,
     name: string,
     location: string,
-    bio: string, 
+    bio: string,
     skills: string[],
     interests : string[],
     education : ed[],
     personal_projects : profile_project[],
     experience : job[],
   }>;
+  elo_ratings?: Record<string, number>;
 }
 
 
@@ -169,6 +171,20 @@ export async function getMatchedProjects(
       console.log(`[API] Effective bio (raw/proxy):`, effectiveBio?.slice(0, 80));
     }
 
+    // Fetch ELO ratings for all projects in this batch
+    let projectEloRatings: Record<string, number> | undefined;
+    try {
+      const { data: eloData } = await supabase
+        .from('projects')
+        .select('id, elo')
+        .in('id', apiProjects.map(p => Number(p.id)));
+      if (eloData && eloData.length > 0) {
+        projectEloRatings = Object.fromEntries(eloData.map(r => [String(r.id), r.elo ?? 1000]));
+      }
+    } catch {
+      // ELO fetch failure is non-fatal — matching proceeds without it
+    }
+
     const requestBody: MatchRequestProject = {
       user_profile: {
         skills: userProfile.skills,
@@ -179,6 +195,7 @@ export async function getMatchedProjects(
       ...(excludeProjectIds && excludeProjectIds.length > 0
         ? { exclude_project_ids: excludeProjectIds }
         : {}),
+      ...(projectEloRatings ? { elo_ratings: projectEloRatings } : {}),
     };
 
     const { data: { session } } = await supabase.auth.getSession();
@@ -282,6 +299,20 @@ export async function getMatchedCandidates(
       console.log(`[API] Project skills:`, user_project.skills_needed, `tags:`, user_project.tags);
     }
 
+    // Fetch ELO ratings for all candidates in this batch
+    let candidateEloRatings: Record<string, number> | undefined;
+    try {
+      const { data: eloData } = await supabase
+        .from('profiles')
+        .select('id, elo')
+        .in('id', apiCandidates.map(c => c.id));
+      if (eloData && eloData.length > 0) {
+        candidateEloRatings = Object.fromEntries(eloData.map(r => [r.id, r.elo ?? 1000]));
+      }
+    } catch {
+      // ELO fetch failure is non-fatal — matching proceeds without it
+    }
+
     const requestBody: MatchRequestCandidate = {
       project : {
         title: user_project.title,
@@ -291,6 +322,7 @@ export async function getMatchedCandidates(
       },
       ...(excludeCandidateIds && excludeCandidateIds.length > 0 ? { exclude_candidate_ids: excludeCandidateIds } : {}),
       candidates : apiCandidates,
+      ...(candidateEloRatings ? { elo_ratings: candidateEloRatings } : {}),
     };
 
     const { data: { session } } = await supabase.auth.getSession();

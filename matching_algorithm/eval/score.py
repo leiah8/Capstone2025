@@ -39,6 +39,7 @@ DATA_DIR = Path(__file__).parent / "data"
 SCORES_FILE = DATA_DIR / "scores.json"
 PROFILES_FILE = DATA_DIR / "profiles.json"
 PROJECTS_FILE = DATA_DIR / "projects.json"
+ELO_SIM_FILE = DATA_DIR / "elo_simulation.json"
 
 
 # ---------------------------------------------------------------------------
@@ -84,8 +85,7 @@ class _InMemoryCache(EmbeddingCache):
 
 SKILLS_ONLY_WEIGHTS = MatchWeights(
     semantic=0.0,
-    must_have_skills=0.85,
-    nice_to_have_skills=0.15,
+    skills=1.0,
     interests=0.0,
 )
 
@@ -124,14 +124,26 @@ def _score_all_pairs(
     profiles: list[dict],
     projects: list[dict],
     cache: _InMemoryCache,
+    elo_ratings: dict[str, float] | None = None,        # full-data → all 900 pairs
+    split_elo_ratings: dict[str, float] | None = None,  # split → test candidates only
+    test_candidate_ids: set[str] | None = None,
 ) -> list[dict]:
-    """Score every (project, candidate) pair with both full model and skills-only weights."""
-
     full_engine = MatchingEngine(cache=cache)
     skills_engine = MatchingEngine(cache=cache, weights=SKILLS_ONLY_WEIGHTS)
 
     all_pairs = list(product(projects, profiles))
     total = len(all_pairs)
+
+    # Population means for relative scoring
+    full_pop_mean: float | None = None
+    split_pop_mean: float | None = None
+    if elo_ratings:
+        full_pop_mean = sum(elo_ratings.values()) / len(elo_ratings)
+        print(f"  Full-data ELO pop mean: {full_pop_mean:.1f} "
+              f"(range {min(elo_ratings.values()):.1f}–{max(elo_ratings.values()):.1f})")
+    if split_elo_ratings:
+        split_pop_mean = sum(split_elo_ratings.values()) / len(split_elo_ratings)
+
     print(f"  Scoring {total} pairs...")
 
     scores: list[dict] = []
@@ -139,27 +151,46 @@ def _score_all_pairs(
         full_score = full_engine.calculate_match_score(profile, proj)
         skills_score = skills_engine.calculate_match_score(profile, proj)
 
-        scores.append(
-            {
-                "project_id": proj["id"],
-                "candidate_id": profile["id"],
-                "total_score": round(float(full_score.total_score), 6),
-                "skills_only_score": round(float(skills_score.total_score), 6),
-                "breakdown": {
-                    "semantic": round(float(full_score.semantic_score), 6),
-                    "must_have": round(float(full_score.must_have_score), 6),
-                    "nice_to_have": round(float(full_score.nice_to_have_score), 6),
-                    "interests": round(float(full_score.interest_score), 6),
-                },
-                "matched_must_have_skills": full_score.matched_must_have_skills,
-                "missing_must_have_skills": full_score.missing_must_have_skills,
-            }
-        )
+        row = {
+            "project_id": proj["id"],
+            "candidate_id": profile["id"],
+            "total_score": round(float(full_score.total_score), 6),
+            "skills_only_score": round(float(skills_score.total_score), 6),
+            "breakdown": {
+                "semantic": round(float(full_score.semantic_score), 6),
+                "skills": round(float(full_score.skill_score), 6),
+                "interests": round(float(full_score.interest_score), 6),
+                "elo_adjustment": round(float(full_score.elo_adjustment), 6),
+            },
+            "matched_skills": full_score.matched_skills,
+            "missing_skills": full_score.missing_skills,
+        }
+
+        # Full-data ELO score — available for all 900 pairs
+        if elo_ratings:
+            proj_elo = elo_ratings.get(proj["id"])
+            s = full_engine.calculate_match_score(
+                profile, proj, elo_rating=proj_elo, elo_population_mean=full_pop_mean
+            )
+            row["elo_score"] = round(float(s.total_score), 6)
+
+        # Split ELO score — only for test candidates (no leakage)
+        is_test = test_candidate_ids is not None and profile["id"] in test_candidate_ids
+        if split_elo_ratings:
+            row["is_test_candidate"] = is_test
+            if is_test:
+                proj_elo = split_elo_ratings.get(proj["id"])
+                s = full_engine.calculate_match_score(
+                    profile, proj, elo_rating=proj_elo, elo_population_mean=split_pop_mean
+                )
+                row["split_elo_score"] = round(float(s.total_score), 6)
+
+        scores.append(row)
 
         if (i + 1) % 100 == 0 or (i + 1) == total:
             print(f"    {i + 1}/{total} pairs scored", end="\r", flush=True)
 
-    print()  # newline after \r progress
+    print()
     return scores
 
 
@@ -185,8 +216,27 @@ def run(force: bool = False) -> list[dict]:
     with open(PROJECTS_FILE) as f:
         projects: list[dict] = json.load(f)
 
+    # Load ELO simulation data if available
+    elo_ratings = None          # full-data ratings → applied to all 900 pairs
+    split_elo_ratings = None    # split ratings → applied to test candidates only
+    test_candidate_ids = None
+    if ELO_SIM_FILE.exists():
+        with open(ELO_SIM_FILE) as f:
+            elo_sim = json.load(f)
+        elo_ratings = elo_sim.get("full_data_elo_ratings") or elo_sim.get("project_elo_ratings")
+        split_elo_ratings = elo_sim.get("project_elo_ratings")
+        test_candidate_ids = set(elo_sim.get("test_candidate_ids", []))
+        print(f"  ELO simulation loaded: {len(elo_ratings)} project ratings "
+              f"({len(test_candidate_ids)} test candidates for split eval)")
+    else:
+        print("  No elo_simulation.json found — scoring without ELO. "
+              "Run elo_simulate.py first to enable ELO comparison.")
+
     cache = _prewarm_cache(profiles, projects)
-    scores = _score_all_pairs(profiles, projects, cache)
+    scores = _score_all_pairs(profiles, projects, cache,
+                              elo_ratings=elo_ratings,
+                              split_elo_ratings=split_elo_ratings,
+                              test_candidate_ids=test_candidate_ids)
 
     # Record the actual weights used so downstream consumers (metrics, plots)
     # can display them correctly rather than duplicating or hard-coding them.
@@ -194,10 +244,10 @@ def run(force: bool = False) -> list[dict]:
     output = {
         "full_model_weights": {
             "semantic": weights.semantic,
-            "must_have_skills": weights.must_have_skills,
-            "nice_to_have_skills": weights.nice_to_have_skills,
+            "skills": weights.skills,
             "interests": weights.interests,
         },
+        "elo_enabled": elo_ratings is not None,
         "pairs": scores,
     }
     SCORES_FILE.write_text(json.dumps(output, indent=2))

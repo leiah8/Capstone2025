@@ -58,6 +58,7 @@ export async function likeProject(
       { onConflict: 'user_id,project_id' }
     );
   if (error) throw error;
+
   if (reaction !== 'like') return null;
 
   const { data, error: matchError } = await supabase.functions.invoke(

@@ -41,18 +41,18 @@ PLOTS_DIR = DATA_DIR / "plots"
 # ---------------------------------------------------------------------------
 
 COLORS = {
-    "Full Model":  "#2563EB",   # blue
-    "Skills-Only": "#16A34A",   # green
-    "Random":      "#9CA3AF",   # gray
-    "Matched":     "#2563EB",   # blue
-    "Not Matched": "#EF4444",   # red
+    "Full Model":       "#2563EB",   # blue
+    "Full Model + ELO": "#7C3AED",   # purple
+    "Skills-Only":      "#16A34A",   # green
+    "Random":           "#9CA3AF",   # gray
+    "Matched":          "#2563EB",   # blue
+    "Not Matched":      "#EF4444",   # red
 }
 
 COMPONENT_LABELS = {
-    "semantic":     "Semantic\nSimilarity",
-    "must_have":    "Must-Have\nSkills",
-    "nice_to_have": "Nice-to-Have\nSkills",
-    "interests":    "Interest\nAlignment",
+    "semantic":  "Semantic\nSimilarity",
+    "skills":    "Skill\nMatch",
+    "interests": "Interest\nAlignment",
 }
 
 
@@ -64,10 +64,9 @@ def _weight_labels(m: dict) -> dict[str, str]:
     """
     w = m.get("full_model_weights", {})
     return {
-        "semantic":     f"w={w['semantic']:.2f}"          if "semantic"          in w else "",
-        "must_have":    f"w={w['must_have_skills']:.2f}"  if "must_have_skills"  in w else "",
-        "nice_to_have": f"w={w['nice_to_have_skills']:.2f}" if "nice_to_have_skills" in w else "",
-        "interests":    f"w={w['interests']:.2f}"         if "interests"         in w else "",
+        "semantic":  f"w={w['semantic']:.2f}"  if "semantic"  in w else "",
+        "skills":    f"w={w['skills']:.2f}"    if "skills"    in w else "",
+        "interests": f"w={w['interests']:.2f}" if "interests" in w else "",
     }
 
 
@@ -109,6 +108,15 @@ def plot_roc_curve(m: dict) -> None:
         label_name = "Full Model" if system == "full_model" else "Skills-Only"
         auc_val = m["auc"][system]
         ax.plot(fpr, tpr, color=color, lw=2.5, label=f"{label_name}  (AUC = {auc_val:.3f})")
+
+    # Add Full+ELO curve if available (same 900 pairs as above)
+    elo_full = (m.get("elo_metrics") or {}).get("full_data")
+    if elo_full:
+        fpr_e = elo_full["roc_curve"]["fpr"]
+        tpr_e = elo_full["roc_curve"]["tpr"]
+        auc_e = elo_full["auc"]["full_plus_elo"]
+        ax.plot(fpr_e, tpr_e, color=COLORS["Full Model + ELO"], lw=2.5, linestyle="--",
+                label=f"Full Model + ELO  (AUC = {auc_e:.3f})")
 
     # Random diagonal
     ax.plot([0, 1], [0, 1], color=COLORS["Random"], lw=1.5, linestyle="--", label=f"Random  (AUC ≈ 0.500)")
@@ -281,7 +289,7 @@ def plot_ndcg_at_k(m: dict) -> None:
 
 def plot_component_scores(m: dict) -> None:
     comp_stats = m["component_stats"]
-    components = ["semantic", "must_have", "nice_to_have", "interests"]
+    components = ["semantic", "skills", "interests"]
     weight_labels = _weight_labels(m)
 
     rows = []
@@ -384,7 +392,7 @@ def plot_per_project_ndcg(m: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def plot_summary(m: dict) -> None:
-    fig, ax = plt.subplots(figsize=(9, 6))
+    fig, ax = plt.subplots(figsize=(13, 7))
     ax.axis("off")
 
     sep = m["score_separation"]
@@ -392,73 +400,90 @@ def plot_summary(m: dict) -> None:
     p_str = f"{p_val:.2e}" if p_val < 0.001 else f"{p_val:.4f}"
     sig = "***" if p_val < 0.001 else ("**" if p_val < 0.01 else ("*" if p_val < 0.05 else "n.s."))
 
+    # Pull ELO full-data metrics if available
+    elo_fd = (m.get("elo_metrics") or {}).get("full_data") or {}
+    elo_auc   = f"{elo_fd['auc']['full_plus_elo']:.4f}"        if elo_fd else "—"
+    elo_p5    = f"{elo_fd['precision_at_k']['full_plus_elo']['5']:.4f}"   if elo_fd else "—"
+    elo_p10   = f"{elo_fd['precision_at_k']['full_plus_elo']['10']:.4f}"  if elo_fd else "—"
+    elo_p20   = f"{elo_fd['precision_at_k']['full_plus_elo']['20']:.4f}"  if elo_fd else "—"
+    elo_n5    = f"{elo_fd['ndcg_at_k']['full_plus_elo']['5']:.4f}"        if elo_fd else "—"
+    elo_n10   = f"{elo_fd['ndcg_at_k']['full_plus_elo']['10']:.4f}"       if elo_fd else "—"
+    elo_n20   = f"{elo_fd['ndcg_at_k']['full_plus_elo']['20']:.4f}"       if elo_fd else "—"
+
     rows = [
-        ["Metric", "Full Model", "Skills-Only", "Random"],
+        ["Metric", "Full + ELO", "Full Model", "Skills-Only", "Random"],
         ["AUC-ROC",
+         elo_auc,
          f"{m['auc']['full_model']:.4f}",
          f"{m['auc']['skills_only']:.4f}",
          f"{m['auc']['random']:.4f}"],
         ["Precision@5",
+         elo_p5,
          f"{m['precision_at_k']['full_model']['5']:.4f}",
          f"{m['precision_at_k']['skills_only']['5']:.4f}",
          f"{m['precision_at_k']['random']['5']:.4f}"],
         ["Precision@10",
+         elo_p10,
          f"{m['precision_at_k']['full_model']['10']:.4f}",
          f"{m['precision_at_k']['skills_only']['10']:.4f}",
          f"{m['precision_at_k']['random']['10']:.4f}"],
         ["Precision@20",
+         elo_p20,
          f"{m['precision_at_k']['full_model']['20']:.4f}",
          f"{m['precision_at_k']['skills_only']['20']:.4f}",
          f"{m['precision_at_k']['random']['20']:.4f}"],
         ["NDCG@5",
+         elo_n5,
          f"{m['ndcg_at_k']['full_model']['5']:.4f}",
          f"{m['ndcg_at_k']['skills_only']['5']:.4f}",
          f"{m['ndcg_at_k']['random']['5']:.4f}"],
         ["NDCG@10",
+         elo_n10,
          f"{m['ndcg_at_k']['full_model']['10']:.4f}",
          f"{m['ndcg_at_k']['skills_only']['10']:.4f}",
          f"{m['ndcg_at_k']['random']['10']:.4f}"],
         ["NDCG@20",
+         elo_n20,
          f"{m['ndcg_at_k']['full_model']['20']:.4f}",
          f"{m['ndcg_at_k']['skills_only']['20']:.4f}",
          f"{m['ndcg_at_k']['random']['20']:.4f}"],
         ["Score Δ (matched vs. not)",
+         "—",
          f"+{sep['delta']:.4f} (p={p_str} {sig})",
          "—", "—"],
         ["Dataset",
-         f"{m['n_total']} pairs | {m['n_positive']} positive ({m['positive_rate']*100:.1f}%)",
+         "—",
+         f"{m['n_total']} pairs | {m['n_positive']} pos ({m['positive_rate']*100:.1f}%)",
          "—", "—"],
     ]
 
-    col_widths = [0.32, 0.24, 0.22, 0.18]
-    col_positions = [0.01, 0.33, 0.57, 0.79]
-    row_height = 0.085
-    y_start = 0.93
+    col_positions = [0.01, 0.22, 0.40, 0.59, 0.79]
+    col_colors = [
+        "#1E293B",                   # metric label
+        COLORS["Full Model + ELO"],  # Full + ELO (purple)
+        COLORS["Full Model"],        # Full Model (blue)
+        COLORS["Skills-Only"],       # Skills-Only (green)
+        COLORS["Random"],            # Random (gray)
+    ]
+    row_height = 0.075
+    y_start = 0.88
 
-    # Header row
-    for col_idx, (header, xpos) in enumerate(zip(rows[0], col_positions)):
-        ax.text(
-            xpos, y_start, header,
-            transform=ax.transAxes,
-            fontsize=11, fontweight="bold",
-            color="white" if col_idx == 0 else "white",
-            va="top",
-        )
-
+    # Header background
     header_bg = mpatches.FancyBboxPatch(
-        (0, y_start - 0.01), 1, row_height + 0.015,
-        boxstyle="round,pad=0.005", transform=ax.transAxes,
+        (0, y_start - row_height), 1, row_height,
+        boxstyle="square,pad=0", transform=ax.transAxes,
         facecolor="#1E3A5F", edgecolor="none", zorder=0,
     )
     ax.add_patch(header_bg)
-    # Redraw header text on top
-    for col_idx, (header, xpos) in enumerate(zip(rows[0], col_positions)):
-        ax.text(xpos, y_start, header, transform=ax.transAxes,
-                fontsize=11, fontweight="bold", color="white", va="top", zorder=1)
+    for xpos, header in zip(col_positions, rows[0]):
+        ax.text(xpos, y_start - row_height * 0.5, header,
+                transform=ax.transAxes,
+                fontsize=10, fontweight="bold", color="white",
+                va="center", zorder=1)
 
     # Data rows
     for row_idx, row in enumerate(rows[1:], 1):
-        y = y_start - row_idx * row_height
+        y = y_start - row_height - row_idx * row_height
         bg_color = "#EFF6FF" if row_idx % 2 == 0 else "white"
         bg = mpatches.FancyBboxPatch(
             (0, y - 0.005), 1, row_height,
@@ -468,12 +493,10 @@ def plot_summary(m: dict) -> None:
         ax.add_patch(bg)
         for col_idx, (cell, xpos) in enumerate(zip(row, col_positions)):
             fw = "bold" if col_idx == 0 else "normal"
-            color = COLORS["Full Model"] if col_idx == 1 else (
-                COLORS["Skills-Only"] if col_idx == 2 else COLORS["Random"]
-            )
+            color = col_colors[col_idx]
             ax.text(xpos, y + row_height * 0.55, cell,
                     transform=ax.transAxes,
-                    fontsize=9.5, fontweight=fw, color=color if col_idx > 0 else "#1E293B",
+                    fontsize=9, fontweight=fw, color=color if col_idx > 0 else "#1E293B",
                     va="center", zorder=1)
 
     ax.set_title("Evaluation Summary — Matching Algorithm", fontsize=14, fontweight="bold", pad=16)
@@ -483,6 +506,70 @@ def plot_summary(m: dict) -> None:
 
     fig.tight_layout()
     _save(fig, "07_summary.png")
+
+
+# ---------------------------------------------------------------------------
+# 08 — ELO Comparison (test set only)
+# ---------------------------------------------------------------------------
+
+def plot_elo_comparison(m: dict) -> None:
+    """P@K and NDCG@K for Full Model vs Full Model+ELO vs Random (all 900 pairs)."""
+    elo = (m.get("elo_metrics") or {}).get("full_data")
+    if not elo:
+        print("  Skipping 08_elo_comparison.png — no ELO metrics in metrics.json")
+        return
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    for ax, metric_key, ylabel, title_suffix in [
+        (axes[0], "precision_at_k", "Precision@K (test set)", "Precision@K"),
+        (axes[1], "ndcg_at_k",      "NDCG@K (test set)",      "NDCG@K"),
+    ]:
+        k_vals = [5, 10, 20]
+        systems    = ["Full Model + ELO", "Full Model", "Random"]
+        sys_keys   = ["full_plus_elo",    "full_model", "random"]
+
+        rows = []
+        for sys_name, sys_key in zip(systems, sys_keys):
+            for k in k_vals:
+                rows.append({
+                    "System": sys_name,
+                    "K": f"@{k}",
+                    "Value": elo[metric_key][sys_key][str(k)],
+                })
+
+        df = pd.DataFrame(rows)
+        palette = {s: COLORS[s] for s in systems}
+        sns.barplot(data=df, x="K", y="Value", hue="System",
+                    palette=palette, edgecolor="white", linewidth=0.5, ax=ax)
+
+        for patch in ax.patches:
+            h = patch.get_height()
+            if h > 0.005:
+                ax.text(patch.get_x() + patch.get_width() / 2, h + 0.005,
+                        f"{h:.3f}", ha="center", va="bottom", fontsize=7.5)
+
+        ax.set_ylim(0, min(1.05, max(
+            max(elo[metric_key]["full_plus_elo"].values()),
+            max(elo[metric_key]["full_model"].values()),
+        ) * 1.4))
+        ax.set_title(f"{title_suffix} — Full Model + ELO vs. Baselines")
+        ax.set_xlabel("Cutoff K")
+        ax.set_ylabel(ylabel)
+        ax.legend(title="System", bbox_to_anchor=(1.02, 1), loc="upper left", frameon=True)
+
+    n_test = elo["n_pairs"]
+    n_pos  = elo["n_positive"]
+    auc_delta = elo["auc"]["delta"]
+    ndcg_delta = elo["ndcg_at_k"]["full_plus_elo"]["10"] - elo["ndcg_at_k"]["full_model"]["10"]
+    fig.suptitle(
+        f"ELO Evaluation — Test Set ({n_test} pairs, {n_pos} positive, "
+        f"AUC Δ={auc_delta:+.4f}, NDCG@10 Δ={ndcg_delta:+.4f})",
+        fontsize=12, y=1.01,
+    )
+
+    fig.tight_layout()
+    _save(fig, "08_elo_comparison.png")
 
 
 # ---------------------------------------------------------------------------
@@ -512,6 +599,7 @@ def run(force: bool = False) -> None:
     plot_component_scores(m)
     plot_per_project_ndcg(m)
     plot_summary(m)
+    plot_elo_comparison(m)
     print(f"  All charts saved → {PLOTS_DIR}/")
 
 
