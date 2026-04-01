@@ -34,15 +34,15 @@ Set these environment variables in `.env` or your deploy platform:
 
 ```bash
 OPENAI_API_KEY=your_openai_key
-OPENAI_RESUME_PARSER_MODEL=gpt-5.4
+OPENAI_RESUME_PARSER_MODEL=your_selected_model
 OPENAI_REASONING_EFFORT=medium
 OPENAI_TIMEOUT_SECONDS=180
 ```
 
 Recommended defaults:
 
-- `OPENAI_RESUME_PARSER_MODEL=gpt-5.4` for the highest extraction quality.
-- `OPENAI_RESUME_PARSER_MODEL=gpt-5.4-mini` if you want lower cost and faster responses.
+- `OPENAI_RESUME_PARSER_MODEL` should be set to the model you want the parser service to use.
+- Choose a higher-quality model for best extraction accuracy, or a smaller model for lower cost and faster responses.
 - `OPENAI_REASONING_EFFORT=medium` is a good starting point for resume extraction. Set it to `none` to reduce latency.
 
 ## Run the API
@@ -77,7 +77,7 @@ curl -X POST http://localhost:8001/parse/url \
   -d '{"url":"https://example.com/resume.pdf"}'
 ```
 
-## How to get the GPT parser working in the app
+## How to get the resume parser working in the app
 
 There are two moving pieces:
 
@@ -90,7 +90,7 @@ Set these on the parser deployment:
 
 ```bash
 OPENAI_API_KEY=your_openai_key
-OPENAI_RESUME_PARSER_MODEL=gpt-5.4
+OPENAI_RESUME_PARSER_MODEL=your_selected_model
 OPENAI_REASONING_EFFORT=medium
 OPENAI_TIMEOUT_SECONDS=180
 PORT=8001
@@ -143,7 +143,7 @@ Files included for Railway:
 
 ```bash
 OPENAI_API_KEY=your_openai_key
-OPENAI_RESUME_PARSER_MODEL=gpt-5.4-mini
+OPENAI_RESUME_PARSER_MODEL=your_selected_model
 OPENAI_REASONING_EFFORT=medium
 OPENAI_TIMEOUT_SECONDS=180
 PORT=8001
@@ -210,7 +210,7 @@ Important:
 
 ```bash
 OPENAI_API_KEY=your_openai_key
-OPENAI_RESUME_PARSER_MODEL=gpt-5.4-mini
+OPENAI_RESUME_PARSER_MODEL=your_selected_model
 OPENAI_REASONING_EFFORT=medium
 OPENAI_TIMEOUT_SECONDS=180
 PORT=8001

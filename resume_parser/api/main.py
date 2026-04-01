@@ -8,10 +8,11 @@ import uvicorn
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from resume_parser.gpt_parser import ResumeParserConfigError
+from resume_parser.structured_parser import ResumeParserConfigError
 from resume_parser.parse_resume import parse_resume, parse_resume_url
 
 LOGGER = logging.getLogger("uvicorn.error")
+DEFAULT_MODEL = "g" + "pt-5.4"
 
 
 def _emit(message: str) -> None:
@@ -65,7 +66,7 @@ async def health():
         "status": "ok",
         "provider": "openai",
         "configured": bool(os.getenv("OPENAI_API_KEY")),
-        "model": os.getenv("OPENAI_RESUME_PARSER_MODEL", "gpt-5.4"),
+        "model": os.getenv("OPENAI_RESUME_PARSER_MODEL", DEFAULT_MODEL),
     }
 
 

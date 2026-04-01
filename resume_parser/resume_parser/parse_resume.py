@@ -4,7 +4,7 @@ import argparse
 import json
 from typing import Any, Dict
 
-from .gpt_parser import ResumeParser
+from .structured_parser import ResumeParser
 
 
 def parse_resume(file_path: str) -> Dict[str, Any]:

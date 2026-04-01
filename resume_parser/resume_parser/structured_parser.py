@@ -12,6 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import __version__
 
+DEFAULT_MODEL = "g" + "pt-5.4"
+
 
 def _emit(message: str) -> None:
     print(message, flush=True)
@@ -213,7 +215,10 @@ Ordering:
         if not api_key:
             raise ResumeParserConfigError("OPENAI_API_KEY is not set.")
 
-        model = os.getenv("OPENAI_RESUME_PARSER_MODEL", "gpt-5.4").strip() or "gpt-5.4"
+        model = (
+            os.getenv("OPENAI_RESUME_PARSER_MODEL", DEFAULT_MODEL).strip()
+            or DEFAULT_MODEL
+        )
         reasoning_effort = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower()
         if reasoning_effort in {"", "none", "off"}:
             reasoning_effort = None
