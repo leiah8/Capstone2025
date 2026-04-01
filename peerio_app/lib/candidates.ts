@@ -92,6 +92,12 @@ export async function likeCandidate(
     );
   if (error) throw error;
 
+  // Update candidate ELO — fire-and-forget, non-blocking, non-fatal
+  supabase.rpc('update_candidate_elo', { p_candidate_id: candidateId, p_reaction: reaction })
+    .then(({ error: eloErr }) => {
+      if (eloErr) console.warn('[elo] candidate update failed:', eloErr.message);
+    });
+
   if (reaction !== 'like') return null;
 
   const { data, error: matchError } = await supabase.functions.invoke(

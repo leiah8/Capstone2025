@@ -59,6 +59,12 @@ export async function likeProject(
     );
   if (error) throw error;
 
+  // Update project ELO — fire-and-forget, non-blocking, non-fatal
+  supabase.rpc('update_project_elo', { p_project_id: Number(projectId), p_reaction: reaction })
+    .then(({ error: eloErr }) => {
+      if (eloErr) console.warn('[elo] project update failed:', eloErr.message);
+    });
+
   if (reaction !== 'like') return null;
 
   const { data, error: matchError } = await supabase.functions.invoke(
