@@ -531,10 +531,6 @@ export default function CandidateFeed() {
 
   // ---------------------------------------------------------------------------
   // Core feed state
-  // The active candidate list is always `activeFeedItems` — a FeedItem<Candidate>[]
-  // owned by the CandidateList stored in `allCandidateLists` for the current project.
-  // `currentIndex` is the deck cursor; it always points to an item where
-  // included===true AND swiped===false (or equals list.length when exhausted).
   // ---------------------------------------------------------------------------
   const [activeFeedItems, setActiveFeedItems] = useState<FeedItem<Candidate>[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -573,8 +569,7 @@ export default function CandidateFeed() {
   const [maxFilterDistUI, setMaxFilterDistUI] = useState(MAX_DISTANCE);
 
   // ---------------------------------------------------------------------------
-  // applyFiltersToList — pure helper that re-stamps included on a list and
-  // resets the index to the first visible item.
+  // applyFiltersToList — pure helper
   // ---------------------------------------------------------------------------
   const applyFiltersToList = useCallback(
     (
@@ -597,8 +592,7 @@ export default function CandidateFeed() {
   );
 
   // ---------------------------------------------------------------------------
-  // switchToProject — switch the active feed to a different project's list,
-  // saving the current index back into the old project's CandidateList entry.
+  // switchToProject
   // ---------------------------------------------------------------------------
   const switchToProject = useCallback(
     (
@@ -606,9 +600,7 @@ export default function CandidateFeed() {
       listsSnapshot: Map<string, CandidateList>,
       currentIdx: number,
     ): { newItems: FeedItem<Candidate>; newIndex: number } | null => {
-      // This overload intentionally returns the list — use the returned value
-      // to setActiveFeedItems and setCurrentIndex in the caller.
-      void currentIdx; // acknowledged — saved by caller before calling
+      void currentIdx;
       const target = listsSnapshot.get(newPid);
       if (!target) return null;
       return { newItems: target.filteredCandidates as any, newIndex: target.index };
@@ -617,7 +609,9 @@ export default function CandidateFeed() {
   );
 
   // ---------------------------------------------------------------------------
-  // filterFetchedCandidates — called when the user taps Apply in the filter UI
+  // filterFetchedCandidates — FIX: compute items/index synchronously before
+  // setState calls so all three updates land in the same React batch, preventing
+  // the intermediate render that caused the flash.
   // ---------------------------------------------------------------------------
   const filterFetchedCandidates = useCallback(
     (pidOverride?: number) => {
@@ -632,10 +626,43 @@ export default function CandidateFeed() {
       const isSwitchingProject =
         persistedProjectId !== null && newPidStr !== persistedProjectId;
 
+      // ── FIX: compute the new feed items synchronously here, before any
+      // setState call, so we have the correct values ready to pass directly
+      // to setActiveFeedItems and setCurrentIndex in the same flush. ──
+      const filterOpts = {
+        myCoords,
+        maxDist: maxFilterDistUI,
+        showAllSkills: showAllSkillsUI,
+        skills: filterSkillsUI,
+        showAllInterests: showAllInterestsUI,
+        interests: filterInterestsUI,
+      };
+      const predicate = buildCandidatePredicate(filterOpts);
+
+      // We need the current lists snapshot to compute new items.
+      // Capture it via a ref so we don't need to put allCandidateLists in deps.
+      const currentLists = allCandidateListsRef.current;
+      const target = currentLists.get(newPidStr);
+
+      let newItems: FeedItem<Candidate>[] = activeFeedItems;
+      let newIndex = currentIndex;
+
+      if (target) {
+        const updatedItems = applyIncluded(target.filteredCandidates, (c) => predicate(c));
+        newIndex = isSwitchingProject
+          ? getNextIndex(updatedItems, target.index)
+          : getNextIndex(updatedItems, 0);
+        newItems = updatedItems;
+      }
+
+      // Now update all state synchronously in one event-handler call — React
+      // will batch these into a single commit, eliminating the flash.
+      setActiveFeedItems(newItems);
+      setCurrentIndex(newIndex);
+
       setAllCandidateLists((prevLists) => {
         const next = new Map(prevLists);
 
-        // Persist the current index back into the old project before switching
         if (isSwitchingProject && persistedProjectId) {
           const old = next.get(persistedProjectId);
           if (old) {
@@ -645,36 +672,18 @@ export default function CandidateFeed() {
 
         persistedProjectId = newPidStr;
 
-        const target = next.get(newPidStr);
-        if (!target) return prevLists;
+        const t = next.get(newPidStr);
+        if (!t) return prevLists;
 
-        const filterOpts = {
-          myCoords,
-          maxDist: maxFilterDistUI,
-          showAllSkills: showAllSkillsUI,
-          skills: filterSkillsUI,
-          showAllInterests: showAllInterestsUI,
-          interests: filterInterestsUI,
-        };
-        const predicate = buildCandidatePredicate(filterOpts);
-        const updatedItems = applyIncluded(target.filteredCandidates, (c) => predicate(c));
-        // When switching projects restore saved index; when re-filtering same project start fresh
-        const newIndex = isSwitchingProject
-          ? getNextIndex(updatedItems, target.index)
+        const updatedItems = applyIncluded(t.filteredCandidates, (c) => predicate(c));
+        const updatedIndex = isSwitchingProject
+          ? getNextIndex(updatedItems, t.index)
           : getNextIndex(updatedItems, 0);
 
-        const updatedList: CandidateList = {
-          ...target,
+        next.set(newPidStr, {
+          ...t,
           filteredCandidates: updatedItems,
-          index: newIndex,
-        };
-        next.set(newPidStr, updatedList);
-
-        // Commit to active feed outside the setter via a microtask
-        // (setActiveFeedItems / setCurrentIndex cannot be called inside a setState callback)
-        Promise.resolve().then(() => {
-          setActiveFeedItems(updatedItems);
-          setCurrentIndex(newIndex);
+          index: updatedIndex,
         });
 
         return next;
@@ -691,8 +700,16 @@ export default function CandidateFeed() {
     [
       myProjectsUI, filterSkillsUI, showAllSkillsUI, filterInterestsUI,
       showAllInterestsUI, maxFilterDistUI, myCoords, currentIndex,
+      activeFeedItems,
     ],
   );
+
+  // Ref that always holds the latest allCandidateLists so filterFetchedCandidates
+  // can read it synchronously without adding it to its dependency array.
+  const allCandidateListsRef = useRef<Map<string, CandidateList>>(new Map());
+  useEffect(() => {
+    allCandidateListsRef.current = allCandidateLists;
+  }, [allCandidateLists]);
 
   // ---------------------------------------------------------------------------
   // loadCandidates — initial + refresh load
@@ -708,11 +725,8 @@ export default function CandidateFeed() {
 
         const userProjects = await fetchMyProjects(session?.user?.id);
 
-        // Auto-select the first project whenever we don't already have a
-        // persisted selection (covers both the single-project case and the
-        // very first load with multiple projects before the user picks one).
         if (!persistedProjectId && userProjects.length > 0) {
-          persistedProjectId = null; //String(userProjects[0].id);
+          persistedProjectId = null;
         }
 
         const tempProjects: FilterProject[] = userProjects.map((p) => ({
@@ -731,7 +745,6 @@ export default function CandidateFeed() {
         const coords = await fetchMyCoords(session?.user?.id);
         setMyCoords(coords);
 
-        // Collect all skills + interests from the user's projects
         const allSkillsSet = new Set<string>();
         const allInterestsSet = new Set<string>();
         userProjects.forEach((p) => {
@@ -764,15 +777,8 @@ export default function CandidateFeed() {
         );
         setAllCandidates(ranked);
 
-        // Build per-project CandidateList entries.
-        // When the matching API is unavailable, rankCandidatesBatch assigns every
-        // candidate to activeProjects[0], so project_id filtering for other projects
-        // would yield empty lists.  Fall back to the full ranked list for the active
-        // (persisted) project in that case.
         const buildList = (proj: FilterProject, candidates: Candidate[]): CandidateList => {
           let pCandidates = candidates.filter((c) => c.project_id === String(proj.id));
-          // Fallback: if filtering by project_id left us empty but this is the
-          // currently-active project, show all candidates (matching API was unavailable).
           if (pCandidates.length === 0 && String(proj.id) === persistedProjectId) {
             pCandidates = candidates;
           }
@@ -781,7 +787,6 @@ export default function CandidateFeed() {
         };
 
         if (startingOver) {
-          // Only rebuild the current project's list
           const proj = tempProjects.find((p) => String(p.id) === persistedProjectId);
           if (proj) {
             const list = buildList(proj, ranked);
@@ -814,7 +819,146 @@ export default function CandidateFeed() {
     [session?.user?.id],
   );
 
-  useFocusEffect(useCallback(() => { void loadCandidates(); }, [loadCandidates]));
+  // ---------------------------------------------------------------------------
+  // refreshProjectMetadata — lightweight focus refresh.
+  // Re-fetches project data from the server and patches ALL changed fields
+  // (title, skills_needed, tags, description, is_active, etc.) into:
+  //   • myProjects / myProjectsUI  — filter UI project list
+  //   • filterSkills / filterSkillsUI  — rebuilt from updated skills_needed
+  //   • filterInterests / filterInterestsUI — rebuilt from updated tags
+  //   • allCandidateLists + activeFeedItems — project_name on every card
+  //
+  // myProjectsUI preserves the user's staged `included` selection so any
+  // in-progress filter panel changes aren't clobbered.
+  // Does NOT trigger a full candidate re-fetch or re-rank.
+  // ---------------------------------------------------------------------------
+  const refreshProjectMetadata = useCallback(async () => {
+    try {
+      const userProjects = await fetchMyProjects(session?.user?.id);
+      if (userProjects.length === 0) return;
+
+      // Build a full project lookup by id
+      const projectById = new Map<string, MyProject>(
+        userProjects.map((p) => [String(p.id), p]),
+      );
+
+      // 1. Patch myProjects — replace all server-owned fields, keep `included`
+      const nextMyProjects: FilterProject[] = userProjects.map((p) => {
+        const existing = allCandidateListsRef.current.get(String(p.id))?.project;
+        return { ...p, included: existing?.included ?? (String(p.id) === persistedProjectId) };
+      });
+      setMyProjects(nextMyProjects);
+
+      // 2. Patch myProjectsUI — preserve the user's current staged `included`
+      //    selection but update every other field so the panel shows fresh data.
+      setMyProjectsUI((prevUI) => {
+        const includedById = new Map(prevUI.map((p) => [String(p.id), p.included]));
+        return userProjects.map((p) => ({
+          ...p,
+          // Keep whatever the user had staged; fall back to persisted selection
+          included: includedById.get(String(p.id)) ?? (String(p.id) === persistedProjectId),
+        }));
+      });
+
+      // 3. Rebuild filterSkills / filterSkillsUI from the updated projects.
+      //    Preserve `included` for skills that still exist; new skills default to true.
+      const allSkillsSet = new Set<string>();
+      const allInterestsSet = new Set<string>();
+      userProjects.forEach((p) => {
+        (p.skills_needed ?? []).forEach((s) => allSkillsSet.add(s));
+        (p.tags ?? []).forEach((t) => allInterestsSet.add(t));
+      });
+
+      setFilterSkills((prevSkills) => {
+        const prevMap = new Map(prevSkills.map((s) => [s.name, s.included]));
+        return Array.from(allSkillsSet).map((name) => ({
+          name,
+          included: prevMap.get(name) ?? true,
+        }));
+      });
+      setFilterSkillsUI((prevSkills) => {
+        const prevMap = new Map(prevSkills.map((s) => [s.name, s.included]));
+        return Array.from(allSkillsSet).map((name) => ({
+          name,
+          included: prevMap.get(name) ?? true,
+        }));
+      });
+
+      setFilterInterests((prevInterests) => {
+        const prevMap = new Map(prevInterests.map((i) => [i.name, i.included]));
+        return Array.from(allInterestsSet).map((name) => ({
+          name,
+          included: prevMap.get(name) ?? true,
+        }));
+      });
+      setFilterInterestsUI((prevInterests) => {
+        const prevMap = new Map(prevInterests.map((i) => [i.name, i.included]));
+        return Array.from(allInterestsSet).map((name) => ({
+          name,
+          included: prevMap.get(name) ?? true,
+        }));
+      });
+
+      // 4. Patch project_name on every Candidate so card headers reflect the
+      //    new title, and patch the embedded project object in each CandidateList.
+      const patchCandidate = (c: Candidate): Candidate => {
+        const updated = projectById.get(c.project_id);
+        return updated && updated.title !== c.project_name
+          ? { ...c, project_name: updated.title }
+          : c;
+      };
+      const patchFeedItems = (items: FeedItem<Candidate>[]): FeedItem<Candidate>[] =>
+        items.map((fi) => {
+          const patched = patchCandidate(fi.item);
+          return patched !== fi.item ? { ...fi, item: patched } : fi;
+        });
+
+      setActiveFeedItems((prev) => patchFeedItems(prev));
+
+      setAllCandidateLists((prev) => {
+        let changed = false;
+        const next = new Map(prev);
+        next.forEach((list, pid) => {
+          const updatedProject = projectById.get(pid);
+          const patchedFull = list.fullCandidates.map(patchCandidate);
+          const patchedFiltered = patchFeedItems(list.filteredCandidates);
+          // Merge ALL server fields into the stored project, keep `included`
+          const patchedProject: FilterProject = updatedProject
+            ? { ...updatedProject, included: list.project.included }
+            : list.project;
+          const didChange =
+            patchedFull.some((c, i) => c !== list.fullCandidates[i]) ||
+            patchedFiltered.some((fi, i) => fi !== list.filteredCandidates[i]) ||
+            patchedProject !== list.project;
+          if (didChange) {
+            changed = true;
+            next.set(pid, {
+              ...list,
+              fullCandidates: patchedFull,
+              filteredCandidates: patchedFiltered,
+              project: patchedProject,
+            });
+          }
+        });
+        return changed ? next : prev;
+      });
+    } catch (e) {
+      console.warn("[refreshProjectMetadata] failed:", e);
+    }
+  }, [session?.user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      // On first mount (no candidates loaded yet) do the full expensive load.
+      // On subsequent focuses (returning from edit-project, etc.) only refresh
+      // project metadata — fast and non-disruptive to the existing feed.
+      if (allCandidateListsRef.current.size === 0) {
+        void loadCandidates();
+      } else {
+        void refreshProjectMetadata();
+      }
+    }, [loadCandidates, refreshProjectMetadata]),
+  );
 
   useEffect(() => {
     isFetchingMoreRef.current = false;
@@ -848,7 +992,6 @@ export default function CandidateFeed() {
 
       setAllCandidates((prev) => [...prev, ...ranked]);
 
-      // Append new ranked items to the current project's list
       if (persistedProjectId) {
         const newItems = toFeedItems(ranked.filter((c) => c.project_id === persistedProjectId));
         setActiveFeedItems((prev) => [...prev, ...newItems]);
@@ -874,12 +1017,11 @@ export default function CandidateFeed() {
   };
 
   // ---------------------------------------------------------------------------
-  // advance — move the index to the next visible (included && !swiped) item
+  // advance
   // ---------------------------------------------------------------------------
   const advance = useCallback((fromIndex: number, list: FeedItem<Candidate>[]) => {
     const next = getNextIndex(list, fromIndex + 1);
     setCurrentIndex(next);
-    // Sync index back into the CandidateList map
     if (persistedProjectId) {
       setAllCandidateLists((prev) => {
         const m = new Map(prev);
@@ -897,11 +1039,9 @@ export default function CandidateFeed() {
     const slot = activeFeedItems[currentIndex];
     if (!slot) return;
 
-    // 1. Mark the card as swiped in the active list
     const updatedItems = markSwiped(activeFeedItems, currentIndex);
     setActiveFeedItems(updatedItems);
 
-    // 2. Sync swiped flag into the CandidateList map
     if (persistedProjectId) {
       setAllCandidateLists((prev) => {
         const m = new Map(prev);
@@ -913,10 +1053,8 @@ export default function CandidateFeed() {
       });
     }
 
-    // 3. Advance to next visible item
     advance(currentIndex, updatedItems);
 
-    // 4. Prefetch if queue is running low
     const remaining = updatedItems.slice(currentIndex + 1).filter((i) => i.included && !i.swiped).length;
     if (remaining <= PREFETCH_THRESHOLD) void fetchMore();
 
@@ -930,7 +1068,6 @@ export default function CandidateFeed() {
       );
       if (matchResult?.match) {
         setMatchCelebrationTarget(slot.item.name);
-        // Remove matched candidate from every project's feed entirely
         setActiveFeedItems((prev) =>
           prev.map((fi) => fi.item.id === slot.item.id ? { ...fi, included: false } : fi),
         );
@@ -1125,7 +1262,6 @@ export default function CandidateFeed() {
         <View style={[styles.browseLayout, { paddingBottom: browseBottomPadding }]}>
           <View style={styles.cardContainer} onLayout={handleDeckLayout}>
             <View style={[styles.deckSlot, { height: deckHeight }]}>
-              {/* Render peek card first (lower z), then top card */}
               {!deckExhausted &&
                 [...visibleCards].reverse().map(({ slot, idx }, i, arr) => (
                   <CandidateCard
@@ -1176,7 +1312,7 @@ export default function CandidateFeed() {
         />
 
         {/* Project picker modal */}
-        {persistedProjectId == null && myProjects.length > 1 &&  (
+        {persistedProjectId == null && myProjects.length > 1 && (
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
               <Text style={styles.pageHeader}>Choose a Project</Text>
@@ -1188,28 +1324,22 @@ export default function CandidateFeed() {
                   key={p.id}
                   style={styles.filterRow}
                   onPress={() => {
-                  
-                  const newProjects = myProjects.map((proj, j) =>
-                    j === i ? { ...proj, included: true } : { ...proj, included: false }
-                  );
-                  setMyProjects(newProjects);
-                  setMyProjectsUI(newProjects);
-                  persistedProjectId = String(p.id);
-                  
-                  filterFetchedCandidates(p.id);
-                  
+                    const newProjects = myProjects.map((proj, j) =>
+                      j === i ? { ...proj, included: true } : { ...proj, included: false }
+                    );
+                    setMyProjects(newProjects);
+                    setMyProjectsUI(newProjects);
+                    persistedProjectId = String(p.id);
+                    filterFetchedCandidates(p.id);
                   }}
-                  
                 >
                   <Ionicons name="ellipse-outline" size={20} color="#333" />
                   <Text style={styles.filterLabel}>{p.title}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-          </View> 
-          )}
-
-
+          </View>
+        )}
       </View>
     )
   ) : (
@@ -1295,7 +1425,6 @@ const styles = StyleSheet.create({
   closeDropDownButton: { alignSelf: "flex-end", flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 10, width: 100, height: 70, borderRadius: 25 },
   filterRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 20 },
   filterLabel: { fontSize: 14, color: "#333" },
-
   modalOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.4)",
