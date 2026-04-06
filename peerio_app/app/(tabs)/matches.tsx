@@ -401,7 +401,7 @@ export default function MatchesPage() {
                 >
                   <View style={styles.match}>
                     <Image
-                      source={{ uri: match.project_image }}
+                      source={projectsPage ? {uri : match.project_image} : {uri: match.candidate_image}}
                       style={styles.profileImage}
                     />
                     <View style={{ flex: 1 }}>
