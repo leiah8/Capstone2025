@@ -47,6 +47,7 @@ export default function MatchesPage() {
 
   /* State */
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [projectMatchesUI, setProjectMatchesUI] = useState<MatchUI[]>([]);
   const [candidateMatchesUI, setCandidateMatchesUI] = useState<MatchUI[]>([]);
@@ -58,6 +59,10 @@ export default function MatchesPage() {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [headerTrackWidth, setHeaderTrackWidth] = useState(0);
   const headerIndicatorX = useRef(new Animated.Value(0)).current;
+
+  // Tracks whether this is the very first load so we can show the full
+  // loading spinner only once; subsequent focus-refreshes use `refreshing`.
+  const hasLoadedOnce = useRef(false);
 
   const projectNewCount = projectMatchesUI.reduce(
     (sum, m) => sum + (matchNotifs.get(String(m.match_id)) ?? 0),
@@ -76,6 +81,7 @@ export default function MatchesPage() {
           0,
         )
       : 0;
+
   const setPage = (val: boolean) => {
     setPageRaw(val);
     setSelectedProject('all');
@@ -83,6 +89,7 @@ export default function MatchesPage() {
     setSortBy('latest_message');
     setShowSortMenu(false);
   };
+
   const activeMatches = projectsPage ? projectMatchesUI : candidateMatchesUI;
 
   const uniqueProjects = useMemo(() => {
@@ -129,47 +136,88 @@ export default function MatchesPage() {
     router.push(`/match/${pid}`);
   };
 
-  useEffect(() => {
-    (async () => {
+  // ---------------------------------------------------------------------------
+  // loadMatches — single source of truth for fetching match data.
+  //
+  // `isInitial`: true on first mount and when newMatchIds changes (full spinner).
+  //              false on every focus-refresh (silent background update).
+  //
+  // Returns a cleanup flag pattern so callers can cancel stale updates.
+  // ---------------------------------------------------------------------------
+  const loadMatches = useCallback(
+    async (isInitial: boolean, isActive: () => boolean) => {
       if (!session?.user?.id) {
-        setProjectMatchesUI([]);
-        setCandidateMatchesUI([]);
-        setLoading(false);
+        if (isActive()) {
+          setProjectMatchesUI([]);
+          setCandidateMatchesUI([]);
+          setLoading(false);
+          setRefreshing(false);
+        }
         return;
       }
 
+      if (isInitial) {
+        // First load: show full spinner; clear stale data immediately so
+        // deleted matches don't linger while the fetch is in flight.
+        if (isActive()) {
+          setLoading(true);
+          setProjectMatchesUI([]);
+          setCandidateMatchesUI([]);
+        }
+      } else {
+        // Subsequent focus refreshes: silent — no spinner, no clear.
+        // State is replaced atomically when the fetch resolves, so
+        // the user sees the current list until fresh data arrives.
+        if (isActive()) setRefreshing(true);
+      }
+
       try {
-        // Fetch all matches with optimized queries (2 queries instead of N+1)
         const { projectMatches, candidateMatches } =
           await fetchAllMatchesOptimized(session.user.id);
+
+        if (!isActive()) return;
 
         setProjectMatchesUI(projectMatches);
         setCandidateMatchesUI(candidateMatches);
       } catch (e) {
         console.error("Error loading matches:", e);
       } finally {
-        setLoading(false);
+        if (isActive()) {
+          setLoading(false);
+          setRefreshing(false);
+          hasLoadedOnce.current = true;
+        }
       }
+    },
+    [session?.user?.id],
+  );
 
-      setPage(true);
-    })();
-  }, [session?.user?.id, newMatchIds.size]);
+  // ---------------------------------------------------------------------------
+  // Initial load + re-load when a new match notification arrives.
+  // Does NOT reset tab/sort/filter — those are UI-only state.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    let active = true;
+    void loadMatches(true, () => active);
+    return () => { active = false; };
+  }, [loadMatches, newMatchIds.size]);
 
-  // Silently refetch matches when the tab gains focus
+  // ---------------------------------------------------------------------------
+  // Focus refresh — runs every time the screen comes into focus.
+  // This is what catches deleted projects/matches without an app restart.
+  // Uses isInitial=false so it never clears or spins — just silently replaces.
+  // ---------------------------------------------------------------------------
   useFocusEffect(
     useCallback(() => {
-      if (!session?.user?.id) return;
-      (async () => {
-        try {
-          const { projectMatches, candidateMatches } =
-            await fetchAllMatchesOptimized(session.user.id);
-          setProjectMatchesUI(projectMatches);
-          setCandidateMatchesUI(candidateMatches);
-        } catch (e) {
-          console.error("Error loading matches:", e);
-        }
-      })();
-    }, [session?.user?.id]),
+      // Skip the very first focus because the useEffect above already handles
+      // the initial load. Every subsequent focus (navigating back from
+      // delete-project, edit, etc.) triggers a silent refresh.
+      if (!hasLoadedOnce.current) return;
+
+      let active = true;
+      void loadMatches(false, () => active);
+      return () => { active = false; };
+    }, [loadMatches]),
   );
 
   useEffect(() => {
@@ -580,6 +628,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-
-//TODO: change output so only a couple things change per projectPage bool
-//TODO: add in images
