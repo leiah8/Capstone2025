@@ -18,7 +18,7 @@ Rough meeting notes, some meetings not recorded
 ### resume_parser
 Code responsible for backend Resume Parsing functionality
 ### web-app
-Sub-repo for our website
+Website containing brief info on the project, email confirmation pages and password reset pages (git submodule)
 
 # Test Credentials
 test@peer.io
