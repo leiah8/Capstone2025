@@ -21,7 +21,8 @@ Code responsible for backend Resume Parsing functionality
 Sub-repo for our website
 
 # Test Credentials
-TODO
+test@peer.io
+123456789
 
 # How to Run (iOS / macOS ONLY)
 1. Ensure XCode is installed on Mac device (This allows for iOS device simulation)
