@@ -5,21 +5,24 @@ Peer.io is an iOS app for matching people to projects. Using intuitive swiping c
 https://www.macvideo.ca/media/Peer.io%20-%20Computing%20and%20Software/1_ed8536am
 
 # Directories
+### documents
+Required documents for the capstone process (SRS, Design Doc, V&V, Final Report, Poster). Video was too large to include in repo; Link to Macvideos page is above. 
 ### peerio_app 
-Primary mobile application / frontend code
+Primary mobile application / frontend code. Unit tests stored in /tests.
 ### match_edge_function
 Local copy of edge function responsible for creating matches (working copy is stored on Supabase)
+### matching_algorithm
+Local copy of matching algorithms, responsible for matching people -> projects and projects -> people. (Working copy is hosted on Railway and uses Supabase for auth). Unit tests stored in /tests.
 ### Meeting Notes
 Rough meeting notes, some meetings not recorded
 ### resume_parser
 Code responsible for backend Resume Parsing functionality
-### supabase
-TODO BY NIC
 ### web-app
 Sub-repo for our website
 
 # Test Credentials
-TODO
+test@peer.io
+123456789
 
 # How to Run (iOS / macOS ONLY)
 1. Ensure XCode is installed on Mac device (This allows for iOS device simulation)
@@ -30,4 +33,3 @@ TODO
 4. npm install expo
 5. npx expo prebuild --platform ios --clean
 6. npx expo start
-7. 
