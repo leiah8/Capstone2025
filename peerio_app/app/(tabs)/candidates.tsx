@@ -738,6 +738,10 @@ export default function CandidateFeed() {
         setMyProjectsUI(tempProjects);
 
         const oneActive = userProjects.length > 0;
+
+        if (userProjects.length == 1){
+          persistedProjectId = String(userProjects[0].id);
+        }
         setHasProjects(oneActive);
 
         if (!oneActive) return;
