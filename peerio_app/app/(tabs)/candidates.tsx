@@ -837,6 +837,15 @@ export default function CandidateFeed() {
       const userProjects = await fetchMyProjects(session?.user?.id);
       if (userProjects.length === 0) return;
 
+      // If a new project was created since we last loaded, do a full reload
+      // so the new project gets its own candidate list built properly.
+      const currentLists = allCandidateListsRef.current;
+      const hasNewProject = userProjects.some((p) => !currentLists.has(String(p.id)));
+      if (hasNewProject) {
+        void loadCandidates();
+        return;
+      }
+
       // Build a full project lookup by id
       const projectById = new Map<string, MyProject>(
         userProjects.map((p) => [String(p.id), p]),
@@ -1312,7 +1321,7 @@ export default function CandidateFeed() {
         />
 
         {/* Project picker modal */}
-        {persistedProjectId == null && myProjects.length > 1 && (
+        {persistedProjectId == null && myProjects.length > 0 && (
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
               <Text style={styles.pageHeader}>Choose a Project</Text>
