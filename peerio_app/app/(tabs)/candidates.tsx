@@ -729,6 +729,10 @@ export default function CandidateFeed() {
           persistedProjectId = null;
         }
 
+        if (userProjects.length == 1){
+          persistedProjectId = String(userProjects[0].id);
+        }
+
         const tempProjects: FilterProject[] = userProjects.map((p) => ({
           ...p,
           included: String(p.id) === persistedProjectId,
@@ -739,9 +743,7 @@ export default function CandidateFeed() {
 
         const oneActive = userProjects.length > 0;
 
-        if (userProjects.length == 1){
-          persistedProjectId = String(userProjects[0].id);
-        }
+        
         setHasProjects(oneActive);
 
         if (!oneActive) return;
